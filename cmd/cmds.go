@@ -6,6 +6,7 @@ import (
 
 	"github.com/katbyte/tctest/version"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 type TCFlags struct {
@@ -21,7 +22,7 @@ type PRFlags struct {
 	TestSplit string
 }
 
-type Flags struct {
+type FlagData struct {
 	TC TCFlags
 	PR PRFlags
 }
@@ -42,7 +43,7 @@ type Flags struct {
 
 func Make() *cobra.Command {
 
-	flags := Flags{}
+	flags := FlagData{}
 
 	root := &cobra.Command{
 		Use:   "tctest branch [test regex]",
@@ -51,13 +52,26 @@ func Make() *cobra.Command {
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
 		Args: cobra.RangeArgs(1, 2),
+		/*PreRunE: func(cmd *Command, args []string) error {
+			return CheckCmdTCFlags()
+		}*/
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
 			testRegEx := args[1]
 
-			return TcCmd(flags.TC.ServerUrl, flags.TC.BuildTypeId, branch, testRegEx, flags.TC.User, flags.TC.Pass)
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
 		},
 	}
+
+	root.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print the version number of tctest",
+		Long:  `Print the version number of tctest`,
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
+		},
+	})
 
 	pr := &cobra.Command{
 		Use:   "pr # [test_regex]",
@@ -78,7 +92,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			if auto {
-				tests, err := PrCmd(flags.PR.Repo, pr, flags.PR.FileRegEx, flags.PR.TestSplit)
+				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"))
 				if err != nil {
 					return fmt.Errorf("pr cmd failed: %v", err)
 				}
@@ -87,12 +101,13 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			}
 
-			return TcCmd(flags.TC.ServerUrl, flags.TC.BuildTypeId, branch, testRegEx, flags.TC.User, flags.TC.Pass)
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
 		},
 	}
 	root.AddCommand(pr)
+	pr.Flags().BoolP("auto", "a", false, "automatically discovery tests from PR files")
 
-	pr.AddCommand(&cobra.Command{
+	list := &cobra.Command{
 		Use:   "list",
 		Short: "attempts to discover what acceptance tests to run for a PR",
 		Long:  `TODO`,
@@ -100,37 +115,52 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 
-			if _, err := PrCmd(flags.PR.Repo, pr, flags.PR.FileRegEx, flags.PR.TestSplit); err != nil {
+			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 
 			return nil
 		},
-	})
+	}
+	pr.AddCommand(list)
 
-	pr.Flags().BoolP("auto", "a", false, "automatically discovery tests from PR files")
+	pflags := root.PersistentFlags()
+	pflags.StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's ur;")
+	pflags.StringVarP(&flags.TC.BuildTypeId, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
+	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
+	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (unless you know what your doing don't use this!)")
 
-	root.AddCommand(&cobra.Command{
-		Use:   "version",
-		Short: "Print the version number of tctest",
-		Long:  `Print the version number of tctest`,
-		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
-		},
-	})
+	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as `terraform-providers/terraform-provider-azurerm`")
+	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
+	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
 
-	root.PersistentFlags().StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as `terraform-providers/terraform-provider-azurerm`")
-	root.PersistentFlags().StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
-	root.PersistentFlags().StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
+	viper.BindPFlag("server", pflags.Lookup("server"))
+	viper.BindPFlag("buildtypeid", pflags.Lookup("buildtypeid"))
+	viper.BindPFlag("user", pflags.Lookup("user"))
+	viper.BindPFlag("pass", pflags.Lookup("pass"))
 
-	root.PersistentFlags().StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's ur;")
-	root.PersistentFlags().StringVarP(&flags.TC.BuildTypeId, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
-	root.PersistentFlags().StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
-	root.PersistentFlags().StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (unless you know what your doing don't use this!)")
-	// todo viper for env files
+	viper.BindPFlag("repo", pflags.Lookup("repo"))
+	viper.BindPFlag("fileregex", pflags.Lookup("fileregex"))
+	viper.BindPFlag("splittests", pflags.Lookup("splittests"))
 
-	// todo validate we have enough info
+	viper.BindEnv("server", "TCTEST_SERVER")
+	viper.BindEnv("buildtypeid", "TCTEST_BUILDTYPEID")
+	viper.BindEnv("user", "TCTEST_USER")
+	viper.BindEnv("pass", "TCTEST_PASS")
+
+	viper.BindEnv("repo", "TCTEST_REPO")
+	viper.BindEnv("fileregex", "TCTEST_FILEREGEX")
+	viper.BindEnv("splittests", "TCTEST_SPLITTESTS")
+
+	//todo config file
+	/*viper.SetConfigName("config") // name of config file (without extension)
+	viper.AddConfigPath("/etc/appname/")   // path to look for the config file in
+	viper.AddConfigPath("$HOME/.appname")  // call multiple times to add many search paths
+	viper.AddConfigPath(".")               // optionally look for config in the working directory
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil { // Handle errors reading the config file
+		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+	}*/
 
 	return root
 }

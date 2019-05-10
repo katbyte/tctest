@@ -14,7 +14,6 @@ func PrUrl(repo, pr string) string {
 }
 
 func PrCmd(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
-	//PrListCmd(pr, flags.PR)
 	// todo COLOUR
 	fmt.Printf("Discovering tests for pr #%s (%s)...\n", pr, PrUrl(repo, pr))
 	tests, err := PrTests(repo, pr, fileRegExStr, splitTestsAt)
