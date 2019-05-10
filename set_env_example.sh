@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 export TCTEST_SERVER="ci.katbyte.me"
-export TCTEST_BUILDTYPEID="ATcBuildTypeID"
+export TCTEST_BUILDTYPEID="TCBuildTypeId"
 export TCTEST_USER="katbyte"
 export TCTEST_PASS="nope"
 
