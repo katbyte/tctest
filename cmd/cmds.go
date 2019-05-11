@@ -59,6 +59,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			branch := args[0]
 			testRegEx := args[1]
 
+			if ! strings.HasPrefix(branch, "refs/heads/") {
+				branch = "refs/heads/"+branch
+			}
+
 			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
 		},
 	}
@@ -73,6 +77,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
+	//TODO PR commands should validate PR is a number not a string
 	pr := &cobra.Command{
 		Use:   "pr # [test_regex]",
 		Short: "triggers acceptance tests matching regex for a PR",
