@@ -32,7 +32,6 @@ type FlagData struct {
 // PR - cyan
 // urls dim blue
 // tests - pink/purple
-//
 
 // OUTPUT
 //discovering tests (github url to PR)
@@ -74,6 +73,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				branch = "refs/heads/" + branch
 			}
 
+			// at this point command validation has been done so any more errors dont' require help to be printed
+			cmd.SilenceErrors = true
+
 			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
 		},
 	}
@@ -105,6 +107,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				return fmt.Errorf("pr should be a number: %v", err)
 			}
 
+			// at this point command validation has been done so any more errors dont' require help to be printed
+			cmd.SilenceErrors = true
+
 			if testRegEx == "" {
 				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"))
 				if err != nil {
@@ -130,6 +135,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 
+			// at this point command validation has been done so any more errors dont' require help to be printed
+			cmd.SilenceErrors = true
+
 			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
@@ -145,7 +153,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
 
-	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as `terraform-providers/terraform-provider-azurerm`")
+	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
 

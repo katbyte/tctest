@@ -1,15 +1,15 @@
 package main
 
 import (
-	"log"
 	"os"
 
 	"github.com/katbyte/tctest/cmd"
+	"github.com/katbyte/tctest/common"
 )
 
 func main() {
 	if err := cmd.Make().Execute(); err != nil {
-		log.Println(err)
+		common.Log.Errorf("tctest: %v", err)
 		os.Exit(1)
 	}
 

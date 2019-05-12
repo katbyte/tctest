@@ -49,8 +49,6 @@ func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string) (string,
 </build>
 `, buildTypeId, branch, testRegEx)
 
-	//log.Println(url)
-	//build and make request
 	req, err := http.NewRequest("POST", url, strings.NewReader(body))
 	if err != nil {
 		return "", "", fmt.Errorf("building build request failed: %v", err)
@@ -68,13 +66,6 @@ func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string) (string,
 	if resp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("HTTP status NOT OK: %d", resp.StatusCode)
 	}
-
-	/*bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", "", fmt.Errorf("IO ReadAll error: %v", err)
-	}*/
-
-	// read response and fetch build ID and build URL
 
 	data := struct {
 		BuildId string `xml:"id,attr"`

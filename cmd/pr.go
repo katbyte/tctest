@@ -69,13 +69,14 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
 		}
 
 		for _, t := range tests {
+			common.Log.Debugf("test: %s", t)
 			testsm[strings.Split(t, splitTestsAt)[0]] = true
 		}
 	}
 
 	tests := []string{}
 	for k := range testsm {
-		// log.Println(url) TODO trace message here
+		common.Log.Debugf("test prefix: %s", k)
 		tests = append(tests, k)
 	}
 
@@ -88,7 +89,7 @@ func PrMergeCommit(repo, pr string) (string, error) {
 		MergeCommitSha string `json:"merge_commit_sha"`
 	}{}
 
-	// get the mege commit SHA to look at for file content
+	// get the merge commit SHA to look at for file content
 	if err := common.HttpUnmarshalJson(url, &json); err != nil {
 		return "", fmt.Errorf("error getting merge commit SHA: %v", err)
 	}
@@ -97,7 +98,7 @@ func PrMergeCommit(repo, pr string) (string, error) {
 		return "", fmt.Errorf("unable to find merge_commit_sha @ %s", url)
 	}
 
-	// log.Println(sha) TODO debug message here
+	common.Log.Debugf("merge commit: %s", json.MergeCommitSha)
 	return json.MergeCommitSha, nil
 }
 
@@ -116,7 +117,7 @@ func PrFiles(repo, pr string) ([]string, error) {
 	var files []string
 	for _, v := range json {
 		files = append(files, v.FileName)
-		//todo trace message here
+		common.Log.Debugf("prfile: %s", v.FileName)
 	}
 
 	return files, nil
@@ -127,7 +128,6 @@ func PrFileTests(repo, sha, file string) ([]string, error) {
 	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s", repo, sha, file)
 
 	// get file content
-	// log.Println(url) TODO debug message here
 	reader, err := common.HttpGetReader(url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get content from %s: %v", url, err)
@@ -139,9 +139,8 @@ func PrFileTests(repo, sha, file string) ([]string, error) {
 	for s.Scan() {
 		l := s.Text()
 
-		// log.Println(url) TODO trace message here
 		if testRegEx.MatchString(l) {
-			// log.Println(url) TODO debug message here
+			common.Log.Tracef("found test line: %s", l)
 			tests = append(tests, strings.Split(l, " ")[1]) //should always be true because test pattern is "func Test"
 		}
 	}

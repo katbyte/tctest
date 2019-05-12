@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -15,7 +14,8 @@ var Http = &http.Client{
 }
 
 func HttpGetReader(url string) (*io.ReadCloser, error) {
-	resp, err := Http.Get(os.ExpandEnv(url))
+	Log.Debug("HTTP GET: " + url)
+	resp, err := Http.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP error: %v", err)
 	}
@@ -33,7 +33,7 @@ func HttpReadByte(url string) (*[]byte, error) {
 		defer (*r).Close()
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Unable to get reader: %v", err)
+		return nil, fmt.Errorf("unable to get reader: %v", err)
 	}
 
 	body, err := ioutil.ReadAll(*r)
