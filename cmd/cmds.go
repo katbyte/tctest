@@ -59,8 +59,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			branch := args[0]
 			testRegEx := args[1]
 
-			if ! strings.HasPrefix(branch, "refs/heads/") {
-				branch = "refs/heads/"+branch
+			if !strings.HasPrefix(branch, "refs/heads/") {
+				branch = "refs/heads/" + branch
 			}
 
 			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
@@ -91,12 +91,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
 
-			auto, err := cmd.Flags().GetBool("auto")
-			if err != nil {
-				return fmt.Errorf("failed to get auto state: %v", err)
-			}
-
-			if auto {
+			if testRegEx == "" {
 				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"))
 				if err != nil {
 					return fmt.Errorf("pr cmd failed: %v", err)
@@ -110,7 +105,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	}
 	root.AddCommand(pr)
-	pr.Flags().BoolP("auto", "a", false, "automatically discovery tests from PR files")
 
 	list := &cobra.Command{
 		Use:   "list",
