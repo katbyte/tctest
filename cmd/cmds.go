@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/katbyte/tctest/version"
@@ -41,6 +42,18 @@ type FlagData struct {
 //  started build dim green) #123(bright green) (url to build) (dim)
 //if wait, live update buildlog every x seconds
 
+func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		for _, p := range params {
+			if viper.GetString(p) == "" {
+				return fmt.Errorf(p + " paramter can't be empty")
+			}
+		}
+
+		return nil
+	}
+}
+
 func Make() *cobra.Command {
 
 	flags := FlagData{}
@@ -51,10 +64,8 @@ func Make() *cobra.Command {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		Args: cobra.RangeArgs(1, 2),
-		/*PreRunE: func(cmd *Command, args []string) error {
-			return CheckCmdTCFlags()
-		}*/
+		Args:    cobra.ExactArgs(2),
+		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
 			testRegEx := args[1]
@@ -77,19 +88,22 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
-	//TODO PR commands should validate PR is a number not a string
 	pr := &cobra.Command{
-		Use:   "pr # [test_regex]",
-		Short: "triggers acceptance tests matching regex for a PR",
-		Long:  `TODO`,
-		Args:  cobra.RangeArgs(1, 2),
+		Use:     "pr # [test_regex]",
+		Short:   "triggers acceptance tests matching regex for a PR",
+		Long:    `TODO`,
+		Args:    cobra.RangeArgs(1, 2),
+		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user", "repo", "fileregex", "splittests"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 			testRegEx := ""
+
 			if len(args) == 2 {
 				testRegEx = args[1]
 			}
-			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
+			if _, err := strconv.Atoi(pr); err != nil {
+				return fmt.Errorf("pr should be a number: %v", err)
+			}
 
 			if testRegEx == "" {
 				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"))
@@ -101,16 +115,18 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			}
 
+			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
 			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
 		},
 	}
 	root.AddCommand(pr)
 
 	list := &cobra.Command{
-		Use:   "list",
-		Short: "attempts to discover what acceptance tests to run for a PR",
-		Long:  `TODO`,
-		Args:  cobra.RangeArgs(1, 1),
+		Use:     "pr list #",
+		Short:   "attempts to discover what acceptance tests to run for a PR",
+		Long:    `TODO`,
+		Args:    cobra.RangeArgs(1, 1),
+		PreRunE: ValidateParams([]string{"repo", "fileregex", "splittests"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 
