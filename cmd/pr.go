@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 )
 
@@ -14,8 +15,7 @@ func PrUrl(repo, pr string) string {
 }
 
 func PrCmd(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
-	// todo COLOUR
-	fmt.Printf("Discovering tests for pr #%s (%s)...\n", pr, PrUrl(repo, pr))
+	c.Printf("Discovering tests for pr <cyan>#%s</> <darkGray>(%s)...</>\n", pr, PrUrl(repo, pr))
 	tests, err := PrTests(repo, pr, fileRegExStr, splitTestsAt)
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %v", err)

@@ -7,13 +7,14 @@ import (
 	"strings"
 	"syscall"
 
+	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
 func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string) error {
-	fmt.Printf("triggering build for %s on %s...\n", testRegEx, branch)
-	fmt.Printf("  %s@%s#%s\n", user, server, buildTypeId)
+	c.Printf("triggering <magenta>%s</> for <darkGray>%s</>...\n", branch, testRegEx)
+	c.Printf("  <darkGray>%s@%s#%s</>\n", user, server, buildTypeId)
 
 	// prompt for password if not passed in somehow
 	if pass == "" {
@@ -31,7 +32,7 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string) error {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
 
-	fmt.Printf("build %s started! (%s)\n", build, buildUrl)
+	c.Printf("  build <green>%s</> queued! <darkGray>(%s)</>\n", build, buildUrl)
 
 	return nil
 }
