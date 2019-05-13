@@ -99,6 +99,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 			testRegEx := ""
+			repo := viper.GetString("repo")
 
 			if len(args) == 2 {
 				testRegEx = args[1]
@@ -109,6 +110,14 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			// at this point command validation has been done so any more errors dont' require help to be printed
 			cmd.SilenceErrors = true
+
+			state, err := PrState(repo, pr)
+			if err != nil {
+				return fmt.Errorf("unable to get pr state: %v", err)
+			}
+			if state == "closed" {
+				return fmt.Errorf("cannot start build for a closed pr")
+			}
 
 			if testRegEx == "" {
 				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"))

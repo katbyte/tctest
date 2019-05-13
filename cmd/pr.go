@@ -102,6 +102,25 @@ func PrMergeCommit(repo, pr string) (string, error) {
 	return json.MergeCommitSha, nil
 }
 
+func PrState(repo, pr string) (string, error) {
+	url := "https://api.github.com/repos/" + repo + "/pulls/" + pr
+	json := struct {
+		State string `json:"state"`
+	}{}
+
+	// get the merge commit SHA to look at for file content
+	if err := common.HttpUnmarshalJson(url, &json); err != nil {
+		return "", fmt.Errorf("error getting pr state: %v", err)
+	}
+
+	if json.State == "" {
+		return "", fmt.Errorf("unable to find state @ %s", url)
+	}
+
+	common.Log.Debugf("pr state is %s", json.State)
+	return json.State, nil
+}
+
 func PrFiles(repo, pr string) ([]string, error) {
 	url := "https://api.github.com/repos/" + repo + "/pulls/" + pr + "/files"
 	var json []struct {
