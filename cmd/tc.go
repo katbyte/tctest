@@ -13,7 +13,7 @@ import (
 )
 
 func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string) error {
-	c.Printf("triggering <magenta>%s</> for <darkGray>%s</>...\n", branch, testRegEx)
+	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegEx)
 	c.Printf("  <darkGray>%s@%s#%s</>\n", user, server, buildTypeId)
 
 	// prompt for password if not passed in somehow
