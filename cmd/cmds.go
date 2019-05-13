@@ -136,7 +136,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	root.AddCommand(pr)
 
 	list := &cobra.Command{
-		Use:     "pr list #",
+		Use:     "list #",
 		Short:   "attempts to discover what acceptance tests to run for a PR",
 		Long:    `TODO`,
 		Args:    cobra.RangeArgs(1, 1),
