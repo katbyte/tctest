@@ -70,7 +70,8 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
 
 		for _, t := range tests {
 			common.Log.Debugf("test: %s", t)
-			testsm[strings.Split(t, splitTestsAt)[0]] = true
+			// if there is nothing split on `(` to make sure we just get the full function name
+			testsm[strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]] = true
 		}
 	}
 
