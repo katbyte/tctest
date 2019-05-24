@@ -14,6 +14,10 @@ imports:
 
 build:
 	@echo "==> building..."
-	go build -ldflags "-X github.com/katbyte/tctest/version.GitCommit=${GIT_COMMIT}" .
+	cd cmd/tctest && go build -ldflags "-X github.com/katbyte/tctest/version.GitCommit=${GIT_COMMIT}" . && mv tctest ../../
+
+install:
+	@echo "==> installing..."
+	cd cmd/tctest && go install -ldflags "-X github.com/katbyte/tctest/version.GitCommit=${GIT_COMMIT}" .
 
 .PHONY: fmt imports build
