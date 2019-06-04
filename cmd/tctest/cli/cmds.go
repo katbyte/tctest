@@ -69,7 +69,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			branch := args[0]
 			testRegEx := args[1]
 
-			if !strings.HasPrefix(branch, "refs/heads/") {
+			if !strings.HasPrefix(branch, "refs/") {
 				branch = "refs/heads/" + branch
 			}
 
