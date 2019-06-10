@@ -65,7 +65,8 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
 	for f := range filesm {
 		tests, err := PrFileTests(repo, sha, f)
 		if err != nil {
-			return nil, fmt.Errorf("Error fetching tests: %v", err)
+			common.Log.Warningf("unable to fetch tests from file (%s): %v", f, err)
+			continue
 		}
 
 		for _, t := range tests {
