@@ -8,6 +8,12 @@ Example:
 basic help:
 ![help](_docs/help.png)
 
+## Installation
+
+To install `tctest` from the command line, you can run:
+```bash
+go install github.com/katbyte/tctest/cmd/tctest
+```
 
 ## Configuration
 
