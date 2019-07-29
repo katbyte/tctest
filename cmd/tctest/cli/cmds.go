@@ -156,6 +156,19 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	}
 	pr.AddCommand(list)
 
+	status := &cobra.Command{
+		Use:     "status #",
+		Short:   "shows the test status for a specifed TC build ID",
+		Long:    "shows the test status for a specifed TC build ID",
+		Args:    cobra.RangeArgs(1, 1),
+		PreRunE: ValidateParams([]string{"server", "user"}),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			buildId := args[0]
+			return TcTestStatus(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"))
+		},
+	}
+	root.AddCommand(status)
+
 	pflags := root.PersistentFlags()
 	pflags.StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's ur;")
 	pflags.StringVarP(&flags.TC.BuildTypeId, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
