@@ -14,9 +14,9 @@ func PrUrl(repo, pr string) string {
 	return "https://github.com/" + repo + "/pull/" + pr
 }
 
-func PrCmd(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
+func PrCmd(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
 	c.Printf("Discovering tests for pr <cyan>#%s</> <darkGray>(%s)...</>\n", pr, PrUrl(repo, pr))
-	tests, err := PrTests(repo, pr, fileRegExStr, splitTestsAt)
+	tests, err := PrTests(repo, pr, fileRegExStr, splitTestsAt, servicePackagesMode)
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %v", err)
 	}
@@ -27,7 +27,7 @@ func PrCmd(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
 	return tests, nil
 }
 
-func PrTests(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
+func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
 	fileRegEx := regexp.MustCompile(fileRegExStr)
 
 	sha, err := PrMergeCommit(repo, pr)
@@ -49,7 +49,14 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string) (*[]string, error) {
 		}
 
 		if !strings.HasSuffix(f, "_test.go") {
-			filesm[strings.Replace(f, ".go", "_test.go", 1)] = true
+			f:= strings.Replace(f, ".go", "_test.go", 1)
+
+			if servicePackagesMode {
+				i := strings.LastIndex(f, "/")
+				filesm[f[:i] + "/tests" + f[i:]] = true
+			} else {
+				filesm[f] = true
+			}
 		} else {
 			filesm[f] = true
 		}

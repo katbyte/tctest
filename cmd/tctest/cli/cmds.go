@@ -26,6 +26,7 @@ type PRFlags struct {
 type FlagData struct {
 	TC TCFlags
 	PR PRFlags
+	ServicePackagesMode bool
 }
 
 // colours
@@ -120,7 +121,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			if testRegEx == "" {
-				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"))
+				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
 				if err != nil {
 					return fmt.Errorf("pr cmd failed: %v", err)
 				}
@@ -147,7 +148,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// at this point command validation has been done so any more errors dont' require help to be printed
 			cmd.SilenceErrors = true
 
-			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests")); err != nil {
+			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 
@@ -179,6 +180,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
 
+	pflags.BoolVar(&flags.ServicePackagesMode, "servicepackages", false, "enable service packages mode for AzureRM")
+
+
 	viper.BindPFlag("server", pflags.Lookup("server"))
 	viper.BindPFlag("buildtypeid", pflags.Lookup("buildtypeid"))
 	viper.BindPFlag("user", pflags.Lookup("user"))
@@ -188,6 +192,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	viper.BindPFlag("fileregex", pflags.Lookup("fileregex"))
 	viper.BindPFlag("splittests", pflags.Lookup("splittests"))
 
+	viper.BindPFlag("servicepackages", pflags.Lookup("servicepackages"))
+
 	viper.BindEnv("server", "TCTEST_SERVER")
 	viper.BindEnv("buildtypeid", "TCTEST_BUILDTYPEID")
 	viper.BindEnv("user", "TCTEST_USER")
@@ -196,6 +202,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	viper.BindEnv("repo", "TCTEST_REPO")
 	viper.BindEnv("fileregex", "TCTEST_FILEREGEX")
 	viper.BindEnv("splittests", "TCTEST_SPLITTESTS")
+
+	viper.BindEnv("servicepackages", "TCTEST_SERVICEPACKAGESMODE")
 
 	//todo config file
 	/*viper.SetConfigName("config") // name of config file (without extension)

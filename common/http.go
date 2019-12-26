@@ -50,7 +50,7 @@ func HttpUnmarshalJson(url string, i interface{}) error {
 		return fmt.Errorf("HTTP Get error: %v", err)
 	}
 
-	if err := json.Unmarshal(*body, &i); err != nil {
+	if err = json.Unmarshal(*body, &i); err != nil {
 		return fmt.Errorf("JSON Unmarshal error: %v", err)
 	}
 
