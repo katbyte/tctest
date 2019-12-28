@@ -44,19 +44,20 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 	// convert non test files to test files and only retain unique
 	filesm := map[string]bool{}
 	for _, f := range files {
+
+		if strings.HasSuffix(f, "_test.go") {
+			filesm[f] = true
+		}
+
 		if !fileRegEx.MatchString(f) {
 			continue
 		}
 
-		if !strings.HasSuffix(f, "_test.go") {
-			f:= strings.Replace(f, ".go", "_test.go", 1)
+		f:= strings.Replace(f, ".go", "_test.go", 1)
 
-			if servicePackagesMode {
-				i := strings.LastIndex(f, "/")
-				filesm[f[:i] + "/tests" + f[i:]] = true
-			} else {
-				filesm[f] = true
-			}
+		if servicePackagesMode {
+			i := strings.LastIndex(f, "/")
+			filesm[f[:i] + "/tests" + f[i:]] = true
 		} else {
 			filesm[f] = true
 		}
