@@ -100,7 +100,7 @@ func TcTestStatus(server, buildId, user, pass string) error {
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
-	r, err := regexp.Compile("^--- (FAIL|PASS|SKIP):")
+	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
 	for scanner.Scan() {
 		if r.MatchString(scanner.Text()) {
 			fmt.Println(scanner.Text())
