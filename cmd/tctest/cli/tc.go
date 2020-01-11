@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -99,15 +100,23 @@ func TcTestStatus(server, buildId, user, pass string) error {
 		return fmt.Errorf("HTTP status NOT OK: %d", resp.StatusCode)
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	// Use bufio.NewReader to overcome ErrTooLong of bufio.Scanner
+	reader := bufio.NewReader(resp.Body)
 	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
-	for scanner.Scan() {
-		if r.MatchString(scanner.Text()) {
-			fmt.Println(scanner.Text())
+	for {
+		line, err := reader.ReadString('\n')
+
+		if err != nil && err != io.EOF {
+			return fmt.Errorf("Error parsing test status response body: %s", err)
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("Error parsing test status response body: %s", err)
+
+		if r.MatchString(line) {
+			fmt.Print(line)
+		}
+
+		if err == io.EOF {
+			break
+		}
 	}
 
 	return nil
