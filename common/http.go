@@ -6,12 +6,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"time"
 )
 
-var Http = &http.Client{
-	Timeout: time.Second * 10,
-}
+var Http = http.DefaultClient
 
 func HttpGetReader(url string) (*io.ReadCloser, error) {
 	Log.Debug("HTTP GET: " + url)
