@@ -85,6 +85,9 @@ func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string, wait boo
 func TcTestResults(server, buildId, user, pass string, wait bool) error {
 	url := fmt.Sprintf("https://%s/app/rest/builds/%s/state", server, buildId)
 	statusCode, buildStatus, err := makeTcApiCall(url, "", "GET", user, pass)
+	if err != nil {
+		return fmt.Errorf("error looking for build %s state: %v", buildId, err)
+	}
 	if statusCode == http.StatusNotFound {
 		return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
 	}

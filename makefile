@@ -12,6 +12,10 @@ imports:
 	@echo "==> Fixing imports code with goimports..."
 	goimports -w .
 
+lint:
+	@echo "==> Lint for the linting gods..."
+	golangci-lint run
+
 build:
 	@echo "==> building..."
 	cd cmd/tctest && go build -ldflags "-X github.com/katbyte/tctest/version.GitCommit=${GIT_COMMIT}" . && mv tctest ../../
