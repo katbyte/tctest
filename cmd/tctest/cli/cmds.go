@@ -57,27 +57,19 @@ func ValidateParams(params []string) func(cmd *cobra.Command, args []string) err
 func Make() *cobra.Command {
 
 	flags := FlagData{}
+	var wait bool
 
+	// This is a no-op to avoid accidentally triggering broken builds on malformed commands
 	root := &cobra.Command{
-		Use:   "tctest branch [test regex]",
+		Use:   "tctest [command]",
 		Short: "tctest is a small utility to trigger acceptance tests on teamcity",
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		Args:    cobra.ExactArgs(2),
-		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			branch := args[0]
-			testRegEx := args[1]
-
-			if !strings.HasPrefix(branch, "refs/") {
-				branch = "refs/heads/" + branch
-			}
-
-			// at this point command validation has been done so any more errors dont' require help to be printed
-			cmd.SilenceErrors = true
-
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
+			
+			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
+			return nil
 		},
 	}
 
@@ -91,10 +83,35 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
+	branch := &cobra.Command{
+		Use:   "branch [branchName] [test regex]",
+		Short: "triggers acceptance tests matching regex for a branch name",
+		Long: `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
+		Args:    cobra.ExactArgs(2),
+		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			branch := args[0]
+			testRegEx := args[1]
+
+			if !strings.HasPrefix(branch, "refs/") {
+				branch = "refs/heads/" + branch
+			}
+
+			// At this point command validation has been done so any more errors don't require help to be printed
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), wait)
+			
+		},
+	}
+	branch.Flags().BoolVar(&wait, "wait", false, "Wait for the build to complete before tctest exits")
+	root.AddCommand(branch)
+
 	pr := &cobra.Command{
 		Use:     "pr # [test_regex]",
 		Short:   "triggers acceptance tests matching regex for a PR",
-		Long:    `TODO`,
+		Long:    `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:    cobra.RangeArgs(1, 2),
 		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user", "repo", "fileregex", "splittests"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -109,8 +126,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				return fmt.Errorf("pr should be a number: %v", err)
 			}
 
-			// at this point command validation has been done so any more errors dont' require help to be printed
 			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
 
 			state, err := PrState(repo, pr)
 			if err != nil {
@@ -131,47 +148,52 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), wait)
 		},
 	}
+	pr.Flags().BoolVar(&wait, "wait", false, "Wait for the build to complete before tctest exits")
 	root.AddCommand(pr)
 
 	list := &cobra.Command{
 		Use:     "list #",
 		Short:   "attempts to discover what acceptance tests to run for a PR",
-		Long:    `TODO`,
+		Long:    `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
 		Args:    cobra.RangeArgs(1, 1),
 		PreRunE: ValidateParams([]string{"repo", "fileregex", "splittests"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 
-			// at this point command validation has been done so any more errors dont' require help to be printed
 			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
 
 			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
-
 			return nil
 		},
 	}
-	pr.AddCommand(list)
+	root.AddCommand(list)
 
-	status := &cobra.Command{
-		Use:     "status #",
-		Short:   "shows the test status for a specifed TC build ID",
-		Long:    "shows the test status for a specifed TC build ID",
+	results := &cobra.Command{
+		Use:     "results #",
+		Short:   "shows the test results for a specifed TC build ID",
+		Long:    "Shows the test results for a specifed TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:    cobra.RangeArgs(1, 1),
 		PreRunE: ValidateParams([]string{"server", "user"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			return TcTestStatus(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"))
+
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+
+			return TcTestResults(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"), wait)
 		},
 	}
-	root.AddCommand(status)
+	results.Flags().BoolVar(&wait, "wait", false, "Wait for the build to complete before tctest exits")
+	root.AddCommand(results)
 
 	pflags := root.PersistentFlags()
-	pflags.StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's ur;")
+	pflags.StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.BuildTypeId, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
 	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
