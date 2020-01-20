@@ -101,7 +101,7 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
 		}
 	}
-	
+
 	url = fmt.Sprintf("https://%s/downloadBuildLog.html?buildId=%s", server, buildId)
 	statusCode, body, err := makeTcApiCall(url, "", "GET", user, pass)
 	if err != nil {
@@ -206,9 +206,8 @@ func waitForBuild(server, buildId, user, pass string) error {
 		if body == "finished" {
 			return nil
 		}
-	
+
 		time.Sleep(1 * time.Minute)
 	}
 
-	
 }
