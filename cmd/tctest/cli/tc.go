@@ -176,7 +176,6 @@ func waitForBuild(server, buildId, user, pass string) error {
 	queueTimeTimeout := 60
 	runningTimeTimout := 60
 
-	time.Sleep(1 * time.Minute)
 	var queueTime, runningTime int
 	for {
 		if runningTime > runningTimeTimout {

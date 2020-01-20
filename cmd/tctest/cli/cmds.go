@@ -23,9 +23,16 @@ type PRFlags struct {
 	TestSplit string
 }
 
+type WaitFlags struct {
+	Wait		 bool
+	QueueTimeout int
+	RunTimeout 	 int
+}
+
 type FlagData struct {
 	TC TCFlags
 	PR PRFlags
+	Wait WaitFlags
 	ServicePackagesMode bool
 }
 
@@ -87,6 +94,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Use:   "branch [branchName] [test regex]",
 		Short: "triggers acceptance tests matching regex for a branch name",
 		Long: `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
+		Aliases: []string{"b"},
 		Args:    cobra.ExactArgs(2),
 		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -105,7 +113,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			
 		},
 	}
-	branch.Flags().BoolVar(&wait, "wait", false, "Wait for the build to complete before tctest exits")
 	root.AddCommand(branch)
 
 	pr := &cobra.Command{
@@ -151,7 +158,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), wait)
 		},
 	}
-	pr.Flags().BoolVar(&wait, "wait", false, "Wait for the build to complete before tctest exits")
 	root.AddCommand(pr)
 
 	list := &cobra.Command{
@@ -189,7 +195,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			return TcTestResults(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"), wait)
 		},
 	}
-	results.Flags().BoolVar(&wait, "wait", false, "Wait for the build to complete before tctest exits")
 	root.AddCommand(results)
 
 	pflags := root.PersistentFlags()
@@ -204,6 +209,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	pflags.BoolVar(&flags.ServicePackagesMode, "servicepackages", false, "enable service packages mode for AzureRM")
 
+	pflags.BoolVarP(&flags.Wait.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
+	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "q", 60, "How long to wait for a queued build to start running before tctest times out")
+	pflags.IntVarP(&flags.Wait.RunTimeout, "run-timeout", "t", 60, "How long to wait for a running build to finish before tctest times out")
+
 
 	viper.BindPFlag("server", pflags.Lookup("server"))
 	viper.BindPFlag("buildtypeid", pflags.Lookup("buildtypeid"))
@@ -215,6 +224,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	viper.BindPFlag("splittests", pflags.Lookup("splittests"))
 
 	viper.BindPFlag("servicepackages", pflags.Lookup("servicepackages"))
+
+	viper.BindPFlag("wait", pflags.Lookup("wait"))
+	viper.BindPFlag("queue-timeout", pflags.Lookup("queue-timeout"))
+	viper.BindPFlag("run-timeout", pflags.Lookup("run-timeout"))
 
 	viper.BindEnv("server", "TCTEST_SERVER")
 	viper.BindEnv("buildtypeid", "TCTEST_BUILDTYPEID")
