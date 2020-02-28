@@ -54,11 +54,11 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 			continue
 		}
 
-		f:= strings.Replace(f, ".go", "_test.go", 1)
+		f := strings.Replace(f, ".go", "_test.go", 1)
 
 		if servicePackagesMode {
 			i := strings.LastIndex(f, "/")
-			filesm[f[:i] + "/tests" + f[i:]] = true
+			filesm[f[:i]+"/tests"+f[i:]] = true
 		} else {
 			filesm[f] = true
 		}

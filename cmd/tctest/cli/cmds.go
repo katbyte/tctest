@@ -23,9 +23,16 @@ type PRFlags struct {
 	TestSplit string
 }
 
+type WaitFlags struct {
+	Wait         bool
+	QueueTimeout int
+	RunTimeout   int
+}
+
 type FlagData struct {
-	TC TCFlags
-	PR PRFlags
+	TC                  TCFlags
+	PR                  PRFlags
+	Wait                WaitFlags
 	ServicePackagesMode bool
 }
 
@@ -58,26 +65,17 @@ func Make() *cobra.Command {
 
 	flags := FlagData{}
 
+	// This is a no-op to avoid accidentally triggering broken builds on malformed commands
 	root := &cobra.Command{
-		Use:   "tctest branch [test regex]",
+		Use:   "tctest [command]",
 		Short: "tctest is a small utility to trigger acceptance tests on teamcity",
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		Args:    cobra.ExactArgs(2),
-		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			branch := args[0]
-			testRegEx := args[1]
 
-			if !strings.HasPrefix(branch, "refs/") {
-				branch = "refs/heads/" + branch
-			}
-
-			// at this point command validation has been done so any more errors dont' require help to be printed
-			cmd.SilenceErrors = true
-
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
+			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
+			return nil
 		},
 	}
 
@@ -91,10 +89,35 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
+	branch := &cobra.Command{
+		Use:     "branch [branchName] [test regex]",
+		Short:   "triggers acceptance tests matching regex for a branch name",
+		Long:    `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
+		Aliases: []string{"b"},
+		Args:    cobra.ExactArgs(2),
+		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			branch := args[0]
+			testRegEx := args[1]
+
+			if !strings.HasPrefix(branch, "refs/") {
+				branch = "refs/heads/" + branch
+			}
+
+			// At this point command validation has been done so any more errors don't require help to be printed
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+
+		},
+	}
+	root.AddCommand(branch)
+
 	pr := &cobra.Command{
 		Use:     "pr # [test_regex]",
 		Short:   "triggers acceptance tests matching regex for a PR",
-		Long:    `TODO`,
+		Long:    `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:    cobra.RangeArgs(1, 2),
 		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user", "repo", "fileregex", "splittests"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -109,8 +132,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				return fmt.Errorf("pr should be a number: %v", err)
 			}
 
-			// at this point command validation has been done so any more errors dont' require help to be printed
 			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
 
 			state, err := PrState(repo, pr)
 			if err != nil {
@@ -131,7 +154,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"))
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
 		},
 	}
 	root.AddCommand(pr)
@@ -139,39 +162,42 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	list := &cobra.Command{
 		Use:     "list #",
 		Short:   "attempts to discover what acceptance tests to run for a PR",
-		Long:    `TODO`,
+		Long:    `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
 		Args:    cobra.RangeArgs(1, 1),
 		PreRunE: ValidateParams([]string{"repo", "fileregex", "splittests"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 
-			// at this point command validation has been done so any more errors dont' require help to be printed
 			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
 
 			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
-
 			return nil
 		},
 	}
-	pr.AddCommand(list)
+	root.AddCommand(list)
 
-	status := &cobra.Command{
-		Use:     "status #",
-		Short:   "shows the test status for a specifed TC build ID",
-		Long:    "shows the test status for a specifed TC build ID",
+	results := &cobra.Command{
+		Use:     "results #",
+		Short:   "shows the test results for a specifed TC build ID",
+		Long:    "Shows the test results for a specifed TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:    cobra.RangeArgs(1, 1),
 		PreRunE: ValidateParams([]string{"server", "user"}),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
-			return TcTestStatus(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"))
+
+			cmd.SilenceErrors = true
+			cmd.SilenceUsage = true
+
+			return TcTestResults(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
 		},
 	}
-	root.AddCommand(status)
+	root.AddCommand(results)
 
 	pflags := root.PersistentFlags()
-	pflags.StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's ur;")
+	pflags.StringVarP(&flags.TC.ServerUrl, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.BuildTypeId, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
 	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
@@ -182,28 +208,73 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	pflags.BoolVar(&flags.ServicePackagesMode, "servicepackages", false, "enable service packages mode for AzureRM")
 
+	pflags.BoolVarP(&flags.Wait.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
+	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "q", 60, "How long to wait for a queued build to start running before tctest times out")
+	pflags.IntVarP(&flags.Wait.RunTimeout, "run-timeout", "t", 60, "How long to wait for a running build to finish before tctest times out")
 
-	viper.BindPFlag("server", pflags.Lookup("server"))
-	viper.BindPFlag("buildtypeid", pflags.Lookup("buildtypeid"))
-	viper.BindPFlag("user", pflags.Lookup("user"))
-	viper.BindPFlag("pass", pflags.Lookup("pass"))
+	if err := viper.BindPFlag("server", pflags.Lookup("server")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'server' flag: %s", err))
+	}
+	if err := viper.BindPFlag("buildtypeid", pflags.Lookup("buildtypeid")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'buildtypeid' flag: %s", err))
+	}
+	if err := viper.BindPFlag("user", pflags.Lookup("user")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'user' flag: %s", err))
+	}
+	if err := viper.BindPFlag("pass", pflags.Lookup("pass")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'pass' flag: %s", err))
+	}
 
-	viper.BindPFlag("repo", pflags.Lookup("repo"))
-	viper.BindPFlag("fileregex", pflags.Lookup("fileregex"))
-	viper.BindPFlag("splittests", pflags.Lookup("splittests"))
+	if err := viper.BindPFlag("repo", pflags.Lookup("repo")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'repo' flag: %s", err))
+	}
+	if err := viper.BindPFlag("fileregex", pflags.Lookup("fileregex")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'fileregex' flag: %s", err))
+	}
+	if err := viper.BindPFlag("splittests", pflags.Lookup("splittests")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'splittests' flag: %s", err))
+	}
 
-	viper.BindPFlag("servicepackages", pflags.Lookup("servicepackages"))
+	if err := viper.BindPFlag("servicepackages", pflags.Lookup("servicepackages")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'servicepackages' flag: %s", err))
+	}
 
-	viper.BindEnv("server", "TCTEST_SERVER")
-	viper.BindEnv("buildtypeid", "TCTEST_BUILDTYPEID")
-	viper.BindEnv("user", "TCTEST_USER")
-	viper.BindEnv("pass", "TCTEST_PASS")
+	if err := viper.BindPFlag("wait", pflags.Lookup("wait")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'wait' flag: %s", err))
+	}
+	if err := viper.BindPFlag("queue-timeout", pflags.Lookup("queue-timeout")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'queue-timeout' flag: %s", err))
+	}
+	if err := viper.BindPFlag("run-timeout", pflags.Lookup("run-timeout")); err != nil {
+		fmt.Println(fmt.Errorf("error binding 'run-timeout' flag: %s", err))
+	}
 
-	viper.BindEnv("repo", "TCTEST_REPO")
-	viper.BindEnv("fileregex", "TCTEST_FILEREGEX")
-	viper.BindEnv("splittests", "TCTEST_SPLITTESTS")
+	if err := viper.BindEnv("server", "TCTEST_SERVER"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_SERVER' env var: %s", err))
+	}
+	if err := viper.BindEnv("buildtypeid", "TCTEST_BUILDTYPEID"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_BUILDTYPEID' env var: %s", err))
+	}
+	if err := viper.BindEnv("user", "TCTEST_USER"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_USER' env var: %s", err))
+	}
+	if err := viper.BindEnv("pass", "TCTEST_PASS"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_PASS' env var: %s", err))
+	}
 
-	viper.BindEnv("servicepackages", "TCTEST_SERVICEPACKAGESMODE")
+	if err := viper.BindEnv("repo", "TCTEST_REPO"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_REPO' env var: %s", err))
+	}
+	if err := viper.BindEnv("fileregex", "TCTEST_FILEREGEX"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_FILEREGEX' env var: %s", err))
+	}
+	if err := viper.BindEnv("splittests", "TCTEST_SPLITTESTS"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_SPLITTESTS' env var: %s", err))
+	}
+
+	if err := viper.BindEnv("servicepackages", "TCTEST_SERVICEPACKAGESMODE"); err != nil {
+		fmt.Println(fmt.Errorf("error building 'TCTEST_SERVICEPACKAGESMODE' env var: %s", err))
+	}
 
 	//todo config file
 	/*viper.SetConfigName("config") // name of config file (without extension)

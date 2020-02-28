@@ -24,11 +24,11 @@ While all commands can be configured from the command line, environment variable
 
 To run a build on a branch with a test pattern:
 ```bash
-tctest master TestAcc -s ci.katbyte.me -b AzureRm -u katbyte
+tctest branch master TestAcc -s ci.katbyte.me -b AzureRm -u katbyte
 ```
-or when environment variables are set
+or when environment variables are set:
 ```bash
-tctest master TestAcc
+tctest branch master TestAcc
 ```
 
 ## For a PR
@@ -39,12 +39,29 @@ tctest pr 3232 TestAcc -s ci.katbyte.me -b AzureRm -u katbyte -r terraform-provi
 ```
 
 
-if no test pattern is specified the modified files in the PR will be checked and it will be generated automatically
+If no test pattern is specified the modified files in the PR will be checked and it will be generated automatically:
 ```bash
 tctest pr 3232
 ```  
 
-or simply list all the tests discovered
+To list all the tests discovered for a given PR:
 ```bash
-tctest pr list 3232
+tctest list 3232
+```
+
+To run tests against a PR and display results when complete:
+```bash
+tctest pr 3232 --wait
+```
+
+## Build results
+
+To show the PASS/FAIL/SKIP results for a TeamCity build number:
+```bash
+tctest results 12345
+```
+
+To wait for a running or queued build to complete and then show the results:
+```bash
+tctest results 12345 --wait
 ```
