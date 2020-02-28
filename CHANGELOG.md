@@ -1,4 +1,4 @@
-## 0.2.0 (Jan 22th, 2020)
+## 0.3.0 (Unreleased)
 
 - Prevent _test_test.go PR file lookup ([#20](https://github.com/katbyte/tctest/issues/20))
 
