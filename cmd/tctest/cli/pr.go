@@ -47,6 +47,7 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 
 		if strings.HasSuffix(f, "_test.go") {
 			filesm[f] = true
+			continue
 		}
 
 		if !fileRegEx.MatchString(f) {
