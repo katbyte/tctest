@@ -52,7 +52,7 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 }
 
 func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string, wait bool) (string, string, error) {
-	url := fmt.Sprintf("https://%s/app/rest/buildQueue", server)
+	url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue", server)
 	body := fmt.Sprintf(`
 <build>
 	<buildType id="%s"/>
@@ -83,7 +83,7 @@ func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string, wait boo
 }
 
 func TcTestResults(server, buildId, user, pass string, wait bool) error {
-	url := fmt.Sprintf("https://%s/app/rest/builds/%s/state", server, buildId)
+	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildId)
 	statusCode, buildStatus, err := makeTcApiCall(url, "", "GET", user, pass)
 	if err != nil {
 		return fmt.Errorf("error looking for build %s state: %v", buildId, err)
@@ -110,7 +110,7 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
-		url := fmt.Sprintf("https://%s/app/rest/buildQueue/id:%s", server, buildId)
+		url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue/id:%s", server, buildId)
 		statusCode, _, err := makeTcApiCall(url, "", "GET", user, pass)
 
 		if err != nil {
@@ -170,7 +170,7 @@ func makeTcApiCall(url, body, method, user, pass string) (int, string, error) {
 
 func waitForBuild(server, buildId, user, pass string) error {
 	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildId)
-	url := fmt.Sprintf("https://%s/app/rest/builds/%s/state", server, buildId)
+	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildId)
 
 	// At some point we might want these to be user configurable
 	queueTimeTimeout := 60
