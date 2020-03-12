@@ -1,3 +1,7 @@
+## 0.3.1 (2020-04-12)
+
+- Update TeamCity API endpoints to `/app/rest/2018.1` [GH-21]
+
 ## 0.3.0 (2020-02-29)
 
 - Prevent _test_test.go PR file lookup ([#20](https://github.com/katbyte/tctest/issues/20))
