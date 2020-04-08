@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	// nolint misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 )
@@ -44,7 +45,6 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 	// convert non test files to test files and only retain unique
 	filesm := map[string]bool{}
 	for _, f := range files {
-
 		if strings.HasSuffix(f, "_test.go") {
 			filesm[f] = true
 			continue
@@ -64,7 +64,7 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 		}
 	}
 
-	if len(filesm) <= 0 {
+	if len(filesm) == 0 {
 		return nil, fmt.Errorf("found no files matching: %s", fileRegExStr)
 	}
 	// log.Println(files) TODO debug message here
@@ -176,7 +176,7 @@ func PrFileTests(repo, sha, file string) ([]string, error) {
 	}
 
 	if err := s.Err(); err != nil {
-		fmt.Printf("pr file scanner error occured: %s", err)
+		fmt.Printf("pr file scanner error occurred: %s", err)
 	}
 
 	return tests, nil

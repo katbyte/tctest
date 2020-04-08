@@ -10,19 +10,21 @@ import (
 	"syscall"
 	"time"
 
+	// nolint misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool) error {
+// probably should figure out a better way to do this then all the params here (this should just take properties?)
+func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegEx)
 	c.Printf("  <darkGray>%s@%s#%s</>\n", user, server, buildTypeId)
 
 	// prompt for password if not passed in somehow
 	if pass == "" {
 		fmt.Print("  password:")
-		passBytes, err := terminal.ReadPassword(int(syscall.Stdin))
+		passBytes, err := terminal.ReadPassword(syscall.Stdin)
 		if err != nil {
 			return fmt.Errorf("unable to read in password : %v", err)
 		}
@@ -30,7 +32,7 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 		fmt.Println("")
 	}
 
-	buildId, buildUrl, err := TcBuild(server, buildTypeId, branch, testRegEx, user, pass, wait)
+	buildId, buildUrl, err := TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass, wait)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
@@ -38,6 +40,7 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 	c.Printf("  build <green>%s</> queued: <darkGray>%s</>\n", buildId, buildUrl)
 
 	if wait {
+		common.Log.Debugf("waiting...")
 		err := waitForBuild(server, buildId, user, pass)
 		if err != nil {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
@@ -51,19 +54,33 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 	return nil
 }
 
-func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string, wait bool) (string, string, error) {
+func TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) (string, string, error) {
 	url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue", server)
+
+	bodyAddtionalProperties := ""
+	if buildProperties != "" {
+		common.Log.Debugf("adding additional properties:")
+		for _, p := range strings.Split(buildProperties, ";") {
+			parts := strings.Split(p, "=")
+			if len(parts) != 2 {
+				return "", "", fmt.Errorf("unable to parse build property '%s': missing =s", p)
+			}
+			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
+			bodyAddtionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
+		}
+	}
+
 	body := fmt.Sprintf(`
 <build>
 	<buildType id="%s"/>
 	<properties>
 		<property name="BRANCH_NAME" value="%s"/>
 		<property name="TEST_PATTERN" value="%s"/>
-
-	</properties>
+%s	</properties>
 </build>
-`, buildTypeId, branch, testRegEx)
+`, buildTypeId, branch, testRegEx, bodyAddtionalProperties)
 
+	common.Log.Debugf("calling api with body:\n%s", body)
 	statusCode, body, err := makeTcApiCall(url, body, "POST", user, pass)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
@@ -124,7 +141,7 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 		}
-		return fmt.Errorf("build %s still queued, check results later...", buildId)
+		return fmt.Errorf("build %s still queued, check results later", buildId)
 	}
 	if statusCode != http.StatusOK {
 		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
@@ -139,7 +156,7 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 
 	if buildStatus == "running" && !wait {
 		// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
-		return fmt.Errorf("build %s is still running, test results may be incomplete!", buildId)
+		return fmt.Errorf("build %s is still running, test results may be incomplete", buildId)
 	}
 
 	return nil
@@ -154,7 +171,7 @@ func makeTcApiCall(url, body, method, user, pass string) (int, string, error) {
 	req.SetBasicAuth(user, pass)
 	req.Header.Set("Content-Type", "application/xml")
 
-	resp, err := common.Http.Do(req)
+	resp, err := common.HTTP.Do(req)
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %v", err)
 	}
@@ -169,9 +186,9 @@ func makeTcApiCall(url, body, method, user, pass string) (int, string, error) {
 	return resp.StatusCode, string(b), nil
 }
 
-func waitForBuild(server, buildId, user, pass string) error {
-	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildId)
-	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildId)
+func waitForBuild(server, buildID, user, pass string) error {
+	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildID)
+	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildID)
 
 	// At some point we might want these to be user configurable
 	queueTimeTimeout := 60
@@ -180,10 +197,10 @@ func waitForBuild(server, buildId, user, pass string) error {
 	var queueTime, runningTime int
 	for {
 		if runningTime > runningTimeTimout {
-			return fmt.Errorf("timeout waiting for build %s to become finished (running for %d minutes)", buildId, runningTimeTimout)
+			return fmt.Errorf("timeout waiting for build %s to become finished (running for %d minutes)", buildID, runningTimeTimout)
 		}
 		if queueTime > queueTimeTimeout {
-			return fmt.Errorf("timeout waiting for build %s to start running (queued for %d minutes)", buildId, queueTimeTimeout)
+			return fmt.Errorf("timeout waiting for build %s to start running (queued for %d minutes)", buildID, queueTimeTimeout)
 		}
 
 		statusCode, body, err := makeTcApiCall(url, "", "GET", user, pass)
@@ -191,7 +208,7 @@ func waitForBuild(server, buildId, user, pass string) error {
 			return err
 		}
 		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
+			return fmt.Errorf("no build ID %s found in running builds or queue", buildID)
 		}
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
@@ -210,5 +227,4 @@ func waitForBuild(server, buildId, user, pass string) error {
 
 		time.Sleep(1 * time.Minute)
 	}
-
 }
