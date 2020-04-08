@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	// nolint misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 	"golang.org/x/crypto/ssh/terminal"
@@ -23,7 +24,7 @@ func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass s
 	// prompt for password if not passed in somehow
 	if pass == "" {
 		fmt.Print("  password:")
-		passBytes, err := terminal.ReadPassword(int(syscall.Stdin))
+		passBytes, err := terminal.ReadPassword(syscall.Stdin)
 		if err != nil {
 			return fmt.Errorf("unable to read in password : %v", err)
 		}
@@ -226,5 +227,4 @@ func waitForBuild(server, buildId, user, pass string) error {
 
 		time.Sleep(1 * time.Minute)
 	}
-
 }

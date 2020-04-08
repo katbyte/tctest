@@ -41,7 +41,7 @@ func ValidateParams(params []string) func(cmd *cobra.Command, args []string) err
 	return func(cmd *cobra.Command, args []string) error {
 		for _, p := range params {
 			if viper.GetString(p) == "" {
-				return fmt.Errorf(p + " paramter can't be empty")
+				return fmt.Errorf(p + " parameter can't be empty")
 			}
 		}
 
@@ -50,7 +50,6 @@ func ValidateParams(params []string) func(cmd *cobra.Command, args []string) err
 }
 
 func Make() *cobra.Command {
-
 	flags := FlagData{}
 
 	// This is a no-op to avoid accidentally triggering broken builds on malformed commands
@@ -61,7 +60,6 @@ func Make() *cobra.Command {
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
 			return nil
 		},
@@ -98,7 +96,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			cmd.SilenceUsage = true
 
 			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
-
 		},
 	}
 	root.AddCommand(branch)
@@ -139,7 +136,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				}
 
 				testRegEx = "(" + strings.Join(*tests, "|") + ")"
-
 			}
 
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
@@ -170,8 +166,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	results := &cobra.Command{
 		Use:           "results #",
-		Short:         "shows the test results for a specifed TC build ID",
-		Long:          "Shows the test results for a specifed TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
+		Short:         "shows the test results for a specified TC build ID",
+		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
 		PreRunE:       ValidateParams([]string{"server", "user"}),
 		SilenceErrors: true,

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	// nolint misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/cmd/tctest/cli"
 	"github.com/katbyte/tctest/common"
