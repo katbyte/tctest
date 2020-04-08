@@ -13,23 +13,27 @@ linters:
     - errcheck
     - gofmt
     - goimports
+    - gocritic
     - gosimple
     - govet
     - ineffassign
     - interfacer
     - nakedret
     - misspell
+    - scopelint
     - staticcheck
     - structcheck
     - typecheck
-    - unused
     - unconvert
+    - unparam
+    - unused
     - varcheck
     - vet
     - vetshadow
     - whitespace
 
 linters-settings:
+  stylecheck:
+    ignore: ST1003
   misspell:
     locale: uk
-    ignore-words:

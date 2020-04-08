@@ -80,7 +80,7 @@ func TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass
 </build>
 `, buildTypeId, branch, testRegEx, bodyAddtionalProperties)
 
-	common.Log.Debugf("calling api with body:\n", body)
+	common.Log.Debugf("calling api with body:\n%s", body)
 	statusCode, body, err := makeTcApiCall(url, body, "POST", user, pass)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
@@ -141,7 +141,7 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 		}
-		return fmt.Errorf("build %s still queued, check results later...", buildId)
+		return fmt.Errorf("build %s still queued, check results later", buildId)
 	}
 	if statusCode != http.StatusOK {
 		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
@@ -156,7 +156,7 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 
 	if buildStatus == "running" && !wait {
 		// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
-		return fmt.Errorf("build %s is still running, test results may be incomplete!", buildId)
+		return fmt.Errorf("build %s is still running, test results may be incomplete", buildId)
 	}
 
 	return nil
@@ -171,7 +171,7 @@ func makeTcApiCall(url, body, method, user, pass string) (int, string, error) {
 	req.SetBasicAuth(user, pass)
 	req.Header.Set("Content-Type", "application/xml")
 
-	resp, err := common.Http.Do(req)
+	resp, err := common.HTTP.Do(req)
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %v", err)
 	}
@@ -186,9 +186,9 @@ func makeTcApiCall(url, body, method, user, pass string) (int, string, error) {
 	return resp.StatusCode, string(b), nil
 }
 
-func waitForBuild(server, buildId, user, pass string) error {
-	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildId)
-	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildId)
+func waitForBuild(server, buildID, user, pass string) error {
+	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildID)
+	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildID)
 
 	// At some point we might want these to be user configurable
 	queueTimeTimeout := 60
@@ -197,10 +197,10 @@ func waitForBuild(server, buildId, user, pass string) error {
 	var queueTime, runningTime int
 	for {
 		if runningTime > runningTimeTimout {
-			return fmt.Errorf("timeout waiting for build %s to become finished (running for %d minutes)", buildId, runningTimeTimout)
+			return fmt.Errorf("timeout waiting for build %s to become finished (running for %d minutes)", buildID, runningTimeTimout)
 		}
 		if queueTime > queueTimeTimeout {
-			return fmt.Errorf("timeout waiting for build %s to start running (queued for %d minutes)", buildId, queueTimeTimeout)
+			return fmt.Errorf("timeout waiting for build %s to start running (queued for %d minutes)", buildID, queueTimeTimeout)
 		}
 
 		statusCode, body, err := makeTcApiCall(url, "", "GET", user, pass)
@@ -208,7 +208,7 @@ func waitForBuild(server, buildId, user, pass string) error {
 			return err
 		}
 		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
+			return fmt.Errorf("no build ID %s found in running builds or queue", buildID)
 		}
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)

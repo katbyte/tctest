@@ -64,7 +64,7 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 		}
 	}
 
-	if len(filesm) <= 0 {
+	if len(filesm) == 0 {
 		return nil, fmt.Errorf("found no files matching: %s", fileRegExStr)
 	}
 	// log.Println(files) TODO debug message here
