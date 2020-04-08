@@ -15,6 +15,7 @@ type TCFlags struct {
 	BuildTypeId string
 	User        string
 	Pass        string
+	Parameters  string
 }
 
 type PRFlags struct {
@@ -35,19 +36,6 @@ type FlagData struct {
 	Wait                WaitFlags
 	ServicePackagesMode bool
 }
-
-// colours
-// PR - cyan
-// urls dim blue
-// tests - pink/purple
-
-// OUTPUT
-//discovering tests (github url to PR)
-// test1 colour?)
-// test2
-//triggering build_id(white) @ BRANCH(white) with PATTERN(white)...
-//  started build dim green) #123(bright green) (url to build) (dim)
-//if wait, live update buildlog every x seconds
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
@@ -109,7 +97,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
 
 		},
 	}
@@ -155,7 +143,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
 		},
 	}
 	root.AddCommand(pr)
@@ -202,6 +190,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.StringVarP(&flags.TC.BuildTypeId, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
 	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
+	pflags.StringVarP(&flags.TC.Parameters, "properties", "", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 
 	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
@@ -219,6 +208,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		"buildtypeid":     "TCTEST_BUILDTYPEID",
 		"user":            "TCTEST_USER",
 		"pass":            "TCTEST_PASS",
+		"properties":      "TCTEST_PROPERTIES",
 		"repo":            "TCTEST_REPO",
 		"fileregex":       "TCTEST_FILEREGEX",
 		"splittests":      "TCTEST_SPLITTESTS",

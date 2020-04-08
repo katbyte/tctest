@@ -15,7 +15,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
-func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool) error {
+// probably should figure out a better way to do this then all the params here (this should just take properties?)
+func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegEx)
 	c.Printf("  <darkGray>%s@%s#%s</>\n", user, server, buildTypeId)
 
@@ -30,7 +31,7 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 		fmt.Println("")
 	}
 
-	buildId, buildUrl, err := TcBuild(server, buildTypeId, branch, testRegEx, user, pass, wait)
+	buildId, buildUrl, err := TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass, wait)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
@@ -38,6 +39,7 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 	c.Printf("  build <green>%s</> queued: <darkGray>%s</>\n", buildId, buildUrl)
 
 	if wait {
+		common.Log.Debugf("waiting...")
 		err := waitForBuild(server, buildId, user, pass)
 		if err != nil {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
@@ -51,19 +53,33 @@ func TcCmd(server, buildTypeId, branch, testRegEx, user, pass string, wait bool)
 	return nil
 }
 
-func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string, wait bool) (string, string, error) {
+func TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) (string, string, error) {
 	url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue", server)
+
+	bodyAddtionalProperties := ""
+	if buildProperties != "" {
+		common.Log.Debugf("adding additional properties:")
+		for _, p := range strings.Split(buildProperties, ";") {
+			parts := strings.Split(p, "=")
+			if len(parts) != 2 {
+				return "", "", fmt.Errorf("unable to parse build property '%s': missing =s", p)
+			}
+			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
+			bodyAddtionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
+		}
+	}
+
 	body := fmt.Sprintf(`
 <build>
 	<buildType id="%s"/>
 	<properties>
 		<property name="BRANCH_NAME" value="%s"/>
 		<property name="TEST_PATTERN" value="%s"/>
-
-	</properties>
+%s	</properties>
 </build>
-`, buildTypeId, branch, testRegEx)
+`, buildTypeId, branch, testRegEx, bodyAddtionalProperties)
 
+	common.Log.Debugf("calling api with body:\n", body)
 	statusCode, body, err := makeTcApiCall(url, body, "POST", user, pass)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
