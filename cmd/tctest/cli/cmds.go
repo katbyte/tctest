@@ -80,24 +80,24 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	}
 
 	root.AddCommand(&cobra.Command{
-		Use:   "version",
-		Short: "Print the version number of tctest",
-		Long:  `Print the version number of tctest`,
-		Args:  cobra.NoArgs,
-		SilenceErrors:true,
+		Use:           "version",
+		Short:         "Print the version number of tctest",
+		Long:          `Print the version number of tctest`,
+		Args:          cobra.NoArgs,
+		SilenceErrors: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
 		},
 	})
 
 	branch := &cobra.Command{
-		Use:     "branch [branchName] [test regex]",
-		Short:   "triggers acceptance tests matching regex for a branch name",
-		Long:    `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
-		Aliases: []string{"b"},
-		Args:    cobra.ExactArgs(2),
-		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user"}),
-		SilenceErrors:true,
+		Use:           "branch [branchName] [test regex]",
+		Short:         "triggers acceptance tests matching regex for a branch name",
+		Long:          `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
+		Aliases:       []string{"b"},
+		Args:          cobra.ExactArgs(2),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "user"}),
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
 			testRegEx := args[1]
@@ -116,12 +116,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	root.AddCommand(branch)
 
 	pr := &cobra.Command{
-		Use:     "pr # [test_regex]",
-		Short:   "triggers acceptance tests matching regex for a PR",
-		Long:    `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
-		Args:    cobra.RangeArgs(1, 2),
-		PreRunE: ValidateParams([]string{"server", "buildtypeid", "user", "repo", "fileregex", "splittests"}),
-		SilenceErrors:true,
+		Use:           "pr # [test_regex]",
+		Short:         "triggers acceptance tests matching regex for a PR",
+		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
+		Args:          cobra.RangeArgs(1, 2),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "user", "repo", "fileregex", "splittests"}),
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 			testRegEx := ""
@@ -161,12 +161,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	root.AddCommand(pr)
 
 	list := &cobra.Command{
-		Use:     "list #",
-		Short:   "attempts to discover what acceptance tests to run for a PR",
-		Long:    `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
-		Args:    cobra.RangeArgs(1, 1),
-		PreRunE: ValidateParams([]string{"repo", "fileregex", "splittests"}),
-		SilenceErrors:true,
+		Use:           "list #",
+		Short:         "attempts to discover what acceptance tests to run for a PR",
+		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
+		Args:          cobra.RangeArgs(1, 1),
+		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splittests"}),
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
 
@@ -181,12 +181,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	root.AddCommand(list)
 
 	results := &cobra.Command{
-		Use:     "results #",
-		Short:   "shows the test results for a specifed TC build ID",
-		Long:    "Shows the test results for a specifed TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
-		Args:    cobra.RangeArgs(1, 1),
-		PreRunE: ValidateParams([]string{"server", "user"}),
-		SilenceErrors:true,
+		Use:           "results #",
+		Short:         "shows the test results for a specifed TC build ID",
+		Long:          "Shows the test results for a specifed TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
+		Args:          cobra.RangeArgs(1, 1),
+		PreRunE:       ValidateParams([]string{"server", "user"}),
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
 
@@ -215,17 +215,17 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
-		"server": "TCTEST_SERVER",
-		"buildtypeid": "TCTEST_BUILDTYPEID",
-		"user": "TCTEST_USER",
-		"pass": "TCTEST_PASS",
-		"repo": "TCTEST_REPO",
-		"fileregex": "TCTEST_FILEREGEX",
-		"splittests": "TCTEST_SPLITTESTS",
+		"server":          "TCTEST_SERVER",
+		"buildtypeid":     "TCTEST_BUILDTYPEID",
+		"user":            "TCTEST_USER",
+		"pass":            "TCTEST_PASS",
+		"repo":            "TCTEST_REPO",
+		"fileregex":       "TCTEST_FILEREGEX",
+		"splittests":      "TCTEST_SPLITTESTS",
 		"servicepackages": "TCTEST_SERVICEPACKAGESMODE",
-		"wait": "TCTEST_WAIT",
-		"queue-timeout": "",
-		"run-timeout": "",
+		"wait":            "TCTEST_WAIT",
+		"queue-timeout":   "",
+		"run-timeout":     "",
 	}
 
 	for name, env := range m {
