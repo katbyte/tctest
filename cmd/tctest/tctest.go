@@ -11,6 +11,7 @@ import (
 func main() {
 	if err := cli.Make().Execute(); err != nil {
 		common.Log.Errorf(c.Sprintf("<red>tctest:</> %v", err))
+
 		os.Exit(1)
 	}
 

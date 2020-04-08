@@ -59,6 +59,7 @@ func TcBuild(server, buildTypeId, branch, testRegEx, user, pass string, wait boo
 	<properties>
 		<property name="BRANCH_NAME" value="%s"/>
 		<property name="TEST_PATTERN" value="%s"/>
+
 	</properties>
 </build>
 `, buildTypeId, branch, testRegEx)
