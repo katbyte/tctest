@@ -15,23 +15,21 @@ import (
 )
 
 type TeamCity struct {
-	server      string
-	buildTypeId string // TODO: remove this from the top level
-	token       string
+	server string
+	token  string
 }
 
-func NewTeamCity(server, buildTypeId, token string) TeamCity {
+func NewTeamCity(server, token string) TeamCity {
 	return TeamCity{
-		server:      server,
-		buildTypeId: buildTypeId,
-		token:       token,
+		server: server,
+		token:  token,
 	}
 }
 
-func (tc TeamCity) Command(buildProperties, branch, testRegex string, wait bool) error {
+func (tc TeamCity) Command(buildTypeId, buildProperties, branch, testRegex string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegex)
 
-	buildId, buildUrl, err := tc.runBuild(buildProperties, branch, testRegex, wait)
+	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex, wait)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
@@ -53,9 +51,9 @@ func (tc TeamCity) Command(buildProperties, branch, testRegex string, wait bool)
 	return nil
 }
 
-func (tc TeamCity) runBuild(buildProperties, branch, testRegEx string, wait bool) (string, string, error) {
-	common.Log.Debugf("triggerig build for %q", tc.buildTypeId)
-	statusCode, body, err := tc.triggerBuild(tc.buildTypeId, branch, testRegEx, buildProperties)
+func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch, testRegEx string, wait bool) (string, string, error) {
+	common.Log.Debugf("triggering build for %q", buildTypeId)
+	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
 	}
@@ -186,7 +184,7 @@ func (tc TeamCity) waitForBuild(buildID string) error {
 	}
 }
 
-func (tc TeamCity) triggerBuild(buildId, branch, testPattern, buildProperties string) (int, string, error) {
+func (tc TeamCity) triggerBuild(buildTypeId, branch, testPattern, buildProperties string) (int, string, error) {
 	bodyAdditionalProperties := ""
 	if buildProperties != "" {
 		common.Log.Debugf("adding additional properties:")
@@ -208,7 +206,7 @@ func (tc TeamCity) triggerBuild(buildId, branch, testPattern, buildProperties st
 		<property name="TEST_PATTERN" value="%s"/>
 %s	</properties>
 </build>
-`, tc.buildTypeId, branch, testPattern, bodyAdditionalProperties)
+`, buildTypeId, branch, testPattern, bodyAdditionalProperties)
 	return tc.makePostRequest("/app/rest/2018.1/buildQueue", body)
 }
 
