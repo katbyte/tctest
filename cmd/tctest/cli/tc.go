@@ -7,32 +7,34 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	// nolint misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
-	"golang.org/x/crypto/ssh/terminal"
 )
 
-// probably should figure out a better way to do this then all the params here (this should just take properties?)
-func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) error {
-	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegEx)
-	c.Printf("  <darkGray>%s@%s#%s</>\n", user, server, buildTypeId)
+type TeamCity struct {
+	server      string
+	buildTypeId string
+	username    string
+	password    string
+}
 
-	// prompt for password if not passed in somehow
-	if pass == "" {
-		fmt.Print("  password:")
-		passBytes, err := terminal.ReadPassword(syscall.Stdin)
-		if err != nil {
-			return fmt.Errorf("unable to read in password : %v", err)
-		}
-		pass = string(passBytes)
-		fmt.Println("")
+func NewTeamCity(server, buildTypeId, username, password string) TeamCity {
+	return TeamCity{
+		server:      server,
+		buildTypeId: buildTypeId,
+		username:    username,
+		password:    password,
 	}
+}
 
-	buildId, buildUrl, err := TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass, wait)
+func (tc TeamCity) Command(buildProperties, branch, testRegex string, wait bool) error {
+	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegex)
+	c.Printf("  <darkGray>%s@%s#%s</>\n", tc.username, tc.server, tc.buildTypeId)
+
+	buildId, buildUrl, err := tc.runBuild(buildProperties, branch, testRegex, wait)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
@@ -41,11 +43,11 @@ func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass s
 
 	if wait {
 		common.Log.Debugf("waiting...")
-		err := waitForBuild(server, buildId, user, pass)
+		err := tc.waitForBuild(buildId)
 		if err != nil {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
 		}
-		err = TcTestResults(server, buildId, user, pass, wait)
+		err = tc.testResults(buildId, wait)
 		if err != nil {
 			return fmt.Errorf("error printing results from build %s: %v", buildId, err)
 		}
@@ -54,34 +56,9 @@ func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass s
 	return nil
 }
 
-func TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) (string, string, error) {
-	url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue", server)
-
-	bodyAddtionalProperties := ""
-	if buildProperties != "" {
-		common.Log.Debugf("adding additional properties:")
-		for _, p := range strings.Split(buildProperties, ";") {
-			parts := strings.Split(p, "=")
-			if len(parts) != 2 {
-				return "", "", fmt.Errorf("unable to parse build property '%s': missing =s", p)
-			}
-			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
-			bodyAddtionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
-		}
-	}
-
-	body := fmt.Sprintf(`
-<build>
-	<buildType id="%s"/>
-	<properties>
-		<property name="BRANCH_NAME" value="%s"/>
-		<property name="TEST_PATTERN" value="%s"/>
-%s	</properties>
-</build>
-`, buildTypeId, branch, testRegEx, bodyAddtionalProperties)
-
-	common.Log.Debugf("calling api with body:\n%s", body)
-	statusCode, body, err := makeTcApiCall(url, body, "POST", user, pass)
+func (tc TeamCity) runBuild(buildProperties, branch, testRegEx string, wait bool) (string, string, error) {
+	common.Log.Debugf("triggerig build for %q", tc.buildTypeId)
+	statusCode, body, err := tc.triggerBuild(tc.buildTypeId, branch, testRegEx, buildProperties)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
 	}
@@ -97,12 +74,11 @@ func TcBuild(server, buildTypeId, buildProperties, branch, testRegEx, user, pass
 		return "", "", fmt.Errorf("unable to decode XML: %d", statusCode)
 	}
 
-	return data.BuildId, fmt.Sprintf("https://%s/viewQueued.html?itemId=%s", server, data.BuildId), nil
+	return data.BuildId, fmt.Sprintf("https://%s/viewQueued.html?itemId=%s", tc.server, data.BuildId), nil
 }
 
-func TcTestResults(server, buildId, user, pass string, wait bool) error {
-	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildId)
-	statusCode, buildStatus, err := makeTcApiCall(url, "", "GET", user, pass)
+func (tc TeamCity) testResults(buildId string, wait bool) error {
+	statusCode, buildStatus, err := tc.buildState(buildId)
 	if err != nil {
 		return fmt.Errorf("error looking for build %s state: %v", buildId, err)
 	}
@@ -114,23 +90,20 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 	}
 
 	if buildStatus != "finished" && wait {
-		err := waitForBuild(server, buildId, user, pass)
+		err := tc.waitForBuild(buildId)
 		if err != nil {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
 		}
 	}
 
-	url = fmt.Sprintf("https://%s/downloadBuildLog.html?buildId=%s", server, buildId)
-	statusCode, body, err := makeTcApiCall(url, "", "GET", user, pass)
+	statusCode, body, err := tc.buildLog(buildId)
 	if err != nil {
 		return fmt.Errorf("error looking for build %s results: %v", buildId, err)
 	}
 
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
-		url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue/id:%s", server, buildId)
-		statusCode, _, err := makeTcApiCall(url, "", "GET", user, pass)
-
+		statusCode, _, err := tc.buildQueue(buildId)
 		if err != nil {
 			return fmt.Errorf("error checking for build %s in queue: %v", buildId, err)
 		}
@@ -162,33 +135,20 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 	return nil
 }
 
-func makeTcApiCall(url, body, method, user, pass string) (int, string, error) {
-	req, err := http.NewRequest(method, url, strings.NewReader(body))
-	if err != nil {
-		return 0, "", fmt.Errorf("building http request for url %s failed: %v", url, err)
-	}
-
-	req.SetBasicAuth(user, pass)
-	req.Header.Set("Content-Type", "application/xml")
-
-	resp, err := common.HTTP.Do(req)
-	if err != nil {
-		return 0, "", fmt.Errorf("http request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// The calling function will figure out what to do with these
-	// because e.g. sometimes a 404 is an error, but sometimes it just means something might be queued
-	b, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return 0, "", fmt.Errorf("error reading response body: %v", err)
-	}
-	return resp.StatusCode, string(b), nil
+func (tc TeamCity) buildLog(buildId string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildId=%s", buildId))
 }
 
-func waitForBuild(server, buildID, user, pass string) error {
+func (tc TeamCity) buildQueue(buildId string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%s", buildId))
+}
+
+func (tc TeamCity) buildState(buildId string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%s/state", buildId))
+}
+
+func (tc TeamCity) waitForBuild(buildID string) error {
 	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildID)
-	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds/%s/state", server, buildID)
 
 	// At some point we might want these to be user configurable
 	queueTimeTimeout := 60
@@ -203,7 +163,7 @@ func waitForBuild(server, buildID, user, pass string) error {
 			return fmt.Errorf("timeout waiting for build %s to start running (queued for %d minutes)", buildID, queueTimeTimeout)
 		}
 
-		statusCode, body, err := makeTcApiCall(url, "", "GET", user, pass)
+		statusCode, body, err := tc.buildState(buildID)
 		if err != nil {
 			return err
 		}
@@ -227,4 +187,69 @@ func waitForBuild(server, buildID, user, pass string) error {
 
 		time.Sleep(1 * time.Minute)
 	}
+}
+
+func (tc TeamCity) triggerBuild(buildId, branch, testPattern, buildProperties string) (int, string, error) {
+	bodyAdditionalProperties := ""
+	if buildProperties != "" {
+		common.Log.Debugf("adding additional properties:")
+		for _, p := range strings.Split(buildProperties, ";") {
+			parts := strings.Split(p, "=")
+			if len(parts) != 2 {
+				return 0, "", fmt.Errorf("unable to parse build property '%s': missing =s", p)
+			}
+			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
+			bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
+		}
+	}
+
+	body := fmt.Sprintf(`
+<build>
+	<buildType id="%s"/>
+	<properties>
+		<property name="BRANCH_NAME" value="%s"/>
+		<property name="TEST_PATTERN" value="%s"/>
+%s	</properties>
+</build>
+`, tc.buildTypeId, branch, testPattern, bodyAdditionalProperties)
+	return tc.makePostRequest("/app/rest/2018.1/buildQueue", body)
+}
+
+func (tc TeamCity) makeGetRequest(endpoint string) (int, string, error) {
+	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
+	req, err := http.NewRequest("GET", uri, nil)
+	if err != nil {
+		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
+	}
+
+	return tc.performHttpRequest(req)
+}
+
+func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
+	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
+	req, err := http.NewRequest("POST", uri, strings.NewReader(body))
+	if err != nil {
+		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
+	}
+
+	return tc.performHttpRequest(req)
+}
+
+func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
+	req.SetBasicAuth(tc.username, tc.password)
+	req.Header.Set("Content-Type", "application/xml")
+
+	resp, err := common.HTTP.Do(req)
+	if err != nil {
+		return 0, "", fmt.Errorf("http request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// The calling function will figure out what to do with these
+	// because e.g. sometimes a 404 is an error, but sometimes it just means something might be queued
+	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return 0, "", fmt.Errorf("error reading response body: %v", err)
+	}
+	return resp.StatusCode, string(b), nil
 }

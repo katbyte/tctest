@@ -52,6 +52,8 @@ func ValidateParams(params []string) func(cmd *cobra.Command, args []string) err
 func Make() *cobra.Command {
 	flags := FlagData{}
 
+	tc := NewTeamCity(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("user"), viper.GetString("pass"))
+
 	// This is a no-op to avoid accidentally triggering broken builds on malformed commands
 	root := &cobra.Command{
 		Use:   "tctest [command]",
@@ -95,7 +97,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			return tc.Command(viper.GetString("properties"), branch, testRegEx, viper.GetBool("wait"))
 		},
 	}
 	root.AddCommand(branch)
@@ -139,7 +141,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			return tc.Command(viper.GetString("properties"), branch, testRegEx, viper.GetBool("wait"))
 		},
 	}
 	root.AddCommand(pr)
@@ -176,7 +178,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			return TcTestResults(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			return tc.testResults(buildId, viper.GetBool("wait"))
 		},
 	}
 	root.AddCommand(results)
