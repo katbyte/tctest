@@ -16,23 +16,20 @@ import (
 
 type TeamCity struct {
 	server      string
-	buildTypeId string
-	username    string
-	password    string
+	buildTypeId string // TODO: remove this from the top level
+	token       string
 }
 
-func NewTeamCity(server, buildTypeId, username, password string) TeamCity {
+func NewTeamCity(server, buildTypeId, token string) TeamCity {
 	return TeamCity{
 		server:      server,
 		buildTypeId: buildTypeId,
-		username:    username,
-		password:    password,
+		token:       token,
 	}
 }
 
 func (tc TeamCity) Command(buildProperties, branch, testRegex string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegex)
-	c.Printf("  <darkGray>%s@%s#%s</>\n", tc.username, tc.server, tc.buildTypeId)
 
 	buildId, buildUrl, err := tc.runBuild(buildProperties, branch, testRegex, wait)
 	if err != nil {
@@ -236,7 +233,7 @@ func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 }
 
 func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
-	req.SetBasicAuth(tc.username, tc.password)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tc.token))
 	req.Header.Set("Content-Type", "application/xml")
 
 	resp, err := common.HTTP.Do(req)
