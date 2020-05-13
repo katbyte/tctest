@@ -135,6 +135,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					return fmt.Errorf("pr cmd failed: %v", err)
 				}
 
+				if tests == nil || len(*tests) == 0 {
+					return fmt.Errorf("unable to automatically find tests (starting with Test). Cancelling to prevent running all tests unexpectedly. If you wish to run a specific test pattern or all tests, provide an explicit test pattern.")
+				}
+
 				testRegEx = "(" + strings.Join(*tests, "|") + ")"
 			}
 
