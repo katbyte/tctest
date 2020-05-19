@@ -54,7 +54,8 @@ To run tests against a PR and display results when complete:
 tctest pr 3232 --wait
 ```
 
-## Build results
+## Build results: 
+*By TeamCity Build Number*
 
 To show the PASS/FAIL/SKIP results for a TeamCity build number:
 ```bash
@@ -64,4 +65,19 @@ tctest results 12345
 To wait for a running or queued build to complete and then show the results:
 ```bash
 tctest results 12345 --wait
+```
+
+*By Github PR Number*
+
+To show the PASS/FAIL/SKIP results for **all** TeamCity builds for a Github PR:
+```bash
+tctest pr-results 12345
+```
+To show the PASS/FAIL/SKIP results for the **latest** TeamCity build for a Github PR:
+```bash
+tctest pr-results 12345 --latest
+```
+To wait for a running or queued build to complete and then show the results:
+```bash
+tctest pr-results 12345 --wait
 ```

@@ -16,6 +16,20 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 )
 
+type TCBuilds struct {
+	XMLName xml.Name  `xml:"builds"`
+	Builds  []TCBuild `xml:"build"`
+}
+
+type TCBuild struct {
+	XMLName    xml.Name `xml:"build"`
+	ID         string   `xml:"id,attr"`
+	Number     string   `xml:"number,attr"`
+	Status     string   `xml:"status,attr"`
+	State      string   `xml:"state,attr"`
+	BranchName string   `xml:"branchName,attr"`
+}
+
 // probably should figure out a better way to do this then all the params here (this should just take properties?)
 func TcCmd(server, buildTypeId, buildProperties, branch, testRegEx, user, pass string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegEx)
@@ -126,37 +140,87 @@ func TcTestResults(server, buildId, user, pass string, wait bool) error {
 		return fmt.Errorf("error looking for build %s results: %v", buildId, err)
 	}
 
-	if statusCode == http.StatusNotFound {
-		// Possibly a queued build, check for it
-		url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue/id:%s", server, buildId)
-		statusCode, _, err := makeTcApiCall(url, "", "GET", user, pass)
-
-		if err != nil {
-			return fmt.Errorf("error checking for build %s in queue: %v", buildId, err)
-		}
-
-		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
-		}
-		if statusCode != http.StatusOK {
-			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
-		}
-		return fmt.Errorf("build %s still queued, check results later", buildId)
-	}
-	if statusCode != http.StatusOK {
-		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	if err := validateStatusCode(statusCode, buildId, server, user, pass); err != nil {
+		return err
 	}
 
-	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
-	for _, line := range strings.Split(body, "\n") {
-		if r.MatchString(line) {
-			fmt.Printf("%s\n", line)
-		}
-	}
+	outputTestResults(body)
 
 	if buildStatus == "running" && !wait {
 		// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
 		return fmt.Errorf("build %s is still running, test results may be incomplete", buildId)
+	}
+
+	return nil
+}
+
+func TcTestResultsByPR(pr, server, buildTypeId, user, pass string, latest, wait bool) error {
+	// prompt for password if not passed in somehow
+	if pass == "" {
+		fmt.Print("  password:")
+		passBytes, err := terminal.ReadPassword(syscall.Stdin)
+		if err != nil {
+			return fmt.Errorf("unable to read in password : %v", err)
+		}
+		pass = string(passBytes)
+		fmt.Println("")
+	}
+
+	url := fmt.Sprintf("https://%s/app/rest/2018.1/builds?locator=buildType:%s,branch:name:/pull/%s/merge", server, buildTypeId, pr)
+	if latest {
+		url += ",count:1"
+	}
+
+	statusCode, respBody, err := makeTcApiCall(url, "", "GET", user, pass)
+	if err != nil {
+		return fmt.Errorf("error looking for builds for PR %s state: %v", pr, err)
+	}
+	if statusCode == http.StatusNotFound {
+		return fmt.Errorf("no build for PR %s found in running builds or queue", pr)
+	}
+	if statusCode != http.StatusOK {
+		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	}
+	if respBody == "" {
+		return fmt.Errorf("empty xml file of builds for PR %s", pr)
+	}
+
+	buildLocatorResults := []byte(respBody)
+	var tcb TCBuilds
+	err = xml.Unmarshal(buildLocatorResults, &tcb)
+	if err != nil {
+		return err
+	}
+	if len(tcb.Builds) == 0 {
+		return fmt.Errorf("no builds parsed from XML response")
+	}
+	for _, build := range tcb.Builds {
+		if build.State != "finished" && wait {
+			err := waitForBuild(server, build.ID, user, pass)
+			if err != nil {
+				return fmt.Errorf("error waiting for PR %s, build %s to finish: %v", pr, build.ID, err)
+			}
+		}
+	}
+
+	for _, build := range tcb.Builds {
+		url = fmt.Sprintf("https://%s/downloadBuildLog.html?buildId=%s", server, build.ID)
+		statusCode, body, err := makeTcApiCall(url, "", "GET", user, pass)
+		if err != nil {
+			return fmt.Errorf("error looking for PR %s, build %s results: %v", pr, build.ID, err)
+		}
+
+		if err := validateStatusCode(statusCode, build.ID, server, user, pass); err != nil {
+			return err
+		}
+
+		fmt.Printf("Test Results (buildID: %s, buildNumber: %s, branch: %s):\n", build.ID, build.Number, build.BranchName)
+		outputTestResults(body)
+
+		if build.Status == "running" && !wait {
+			// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
+			return fmt.Errorf("build %s for PR %s is still running, test results may be incomplete", build.ID, pr)
+		}
 	}
 
 	return nil
@@ -226,5 +290,38 @@ func waitForBuild(server, buildID, user, pass string) error {
 		}
 
 		time.Sleep(1 * time.Minute)
+	}
+}
+
+func validateStatusCode(statusCode int, buildId, server, username, password string) error {
+	if statusCode == http.StatusNotFound {
+		// Possibly a queued build, check for it
+		url := fmt.Sprintf("https://%s/app/rest/2018.1/buildQueue/id:%s", server, buildId)
+		statusCode, _, err := makeTcApiCall(url, "", "GET", username, password)
+
+		if err != nil {
+			return fmt.Errorf("error checking for build %s in queue: %v", buildId, err)
+		}
+
+		if statusCode == http.StatusNotFound {
+			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
+		}
+		if statusCode != http.StatusOK {
+			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+		}
+		return fmt.Errorf("build %s still queued, check results later", buildId)
+	}
+	if statusCode != http.StatusOK {
+		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	}
+	return nil
+}
+
+func outputTestResults(body string) {
+	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
+	for _, line := range strings.Split(body, "\n") {
+		if r.MatchString(line) {
+			fmt.Printf("%s\n", line)
+		}
 	}
 }
