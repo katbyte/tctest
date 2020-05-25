@@ -39,7 +39,7 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 func (tc TeamCity) Command(buildTypeId, buildProperties, branch, testRegex string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegex)
 
-	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex, wait)
+	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
@@ -61,7 +61,7 @@ func (tc TeamCity) Command(buildTypeId, buildProperties, branch, testRegex strin
 	return nil
 }
 
-func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch, testRegEx string, wait bool) (string, string, error) {
+func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch, testRegEx string) (string, string, error) {
 	common.Log.Debugf("triggering build for %q", buildTypeId)
 	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties)
 	if err != nil {
@@ -242,7 +242,7 @@ func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 
 func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 	if tc.token != nil {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tc.token))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", *tc.token))
 	} else {
 		req.SetBasicAuth(*tc.username, *tc.password)
 	}
