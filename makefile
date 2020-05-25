@@ -6,7 +6,7 @@ all: fmt imports build
 
 tools:
 	@echo "==> installing required tooling..."
-	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$GOPATH/bin v1.24.0
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$GOPATH/bin v1.27.0
 
 fmt:
 	@echo "==> Fixing source code with gofmt..."
