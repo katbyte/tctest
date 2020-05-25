@@ -223,7 +223,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags := root.PersistentFlags()
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.BuildTypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
-	pflags.StringVarP(&flags.TC.Token, "token", "k", "", "the TeamCity token to use (consider exporting pass to TCTEST_TOKEN instead)")
+	pflags.StringVarP(&flags.TC.Token, "token", "k", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN instead)")
 	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
 	pflags.StringVarP(&flags.TC.Parameters, "properties", "", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
