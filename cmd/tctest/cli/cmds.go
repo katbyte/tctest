@@ -14,6 +14,8 @@ type TCFlags struct {
 	ServerURL   string
 	BuildTypeID string
 	Token       string
+	User        string
+	Pass        string
 	Parameters  string
 }
 

@@ -242,7 +242,7 @@ func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 
 func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 	if tc.token != nil {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", t*c.token))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tc.token))
 	} else {
 		req.SetBasicAuth(*tc.username, *tc.password)
 	}
