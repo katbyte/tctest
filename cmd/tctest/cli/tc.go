@@ -15,14 +15,24 @@ import (
 )
 
 type TeamCity struct {
-	server string
-	token  string
+	server   string
+	token    *string
+	username *string
+	password *string
 }
 
-func NewTeamCity(server, token string) TeamCity {
+func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
 	return TeamCity{
 		server: server,
-		token:  token,
+		token:  &token,
+	}
+}
+
+func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
+	return TeamCity{
+		server:   server,
+		username: &username,
+		password: &password,
 	}
 }
 
@@ -231,7 +241,12 @@ func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 }
 
 func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tc.token))
+	if tc.token != nil {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", t*c.token))
+	} else {
+		req.SetBasicAuth(*tc.username, *tc.password)
+	}
+
 	req.Header.Set("Content-Type", "application/xml")
 
 	resp, err := common.HTTP.Do(req)
