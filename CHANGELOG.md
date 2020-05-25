@@ -1,7 +1,8 @@
 
 ## 0.4.0 (2020-04-12)
 
-- command/pr: Prevent auto-detection running all tests unexpectedly ([#28](https://github.com/katbyte/tctest/issues/28))
+- support TeamCity token Auth ([#28](https://github.com/katbyte/tctest/issues/26))
+- prevent test auto-detection running all tests unexpectedly ([#28](https://github.com/katbyte/tctest/issues/28))
 
 ## 0.3.1 (2020-04-12)
 
