@@ -12,8 +12,8 @@ var HTTP = http.DefaultClient
 
 func HttpGetReader(url string) (*io.ReadCloser, error) {
 	Log.Debug("HTTP GET: " + url)
+	
 	resp, err := HTTP.Get(url)
-
 	if err != nil {
 		return nil, fmt.Errorf("HTTP error: %v", err)
 	}
