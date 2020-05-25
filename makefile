@@ -4,6 +4,10 @@ default: fmt build
 
 all: fmt imports build
 
+tools:
+	@echo "==> installing required tooling..."
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.27.0
+
 fmt:
 	@echo "==> Fixing source code with gofmt..."
 	find . -name '*.go' | grep -v vendor | xargs gofmt -s -w

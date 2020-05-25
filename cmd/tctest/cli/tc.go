@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	// nolint misspell
+	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 )
@@ -196,13 +196,16 @@ func (tc TeamCity) waitForBuild(buildID string) error {
 
 func (tc TeamCity) triggerBuild(buildTypeId, branch, testPattern, buildProperties string) (int, string, error) {
 	bodyAdditionalProperties := ""
+
 	if buildProperties != "" {
 		common.Log.Debugf("adding additional properties:")
+
 		for _, p := range strings.Split(buildProperties, ";") {
 			parts := strings.Split(p, "=")
 			if len(parts) != 2 {
 				return 0, "", fmt.Errorf("unable to parse build property '%s': missing =s", p)
 			}
+
 			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
 			bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
 		}
@@ -217,12 +220,14 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch, testPattern, buildPropertie
 %s	</properties>
 </build>
 `, buildTypeId, branch, testPattern, bodyAdditionalProperties)
+
 	return tc.makePostRequest("/app/rest/2018.1/buildQueue", body)
 }
 
 func (tc TeamCity) makeGetRequest(endpoint string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
 	req, err := http.NewRequest("GET", uri, nil)
+
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
 	}
@@ -233,6 +238,7 @@ func (tc TeamCity) makeGetRequest(endpoint string) (int, string, error) {
 func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
 	req, err := http.NewRequest("POST", uri, strings.NewReader(body))
+
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
 	}
@@ -261,5 +267,6 @@ func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("error reading response body: %v", err)
 	}
+
 	return resp.StatusCode, string(b), nil
 }
