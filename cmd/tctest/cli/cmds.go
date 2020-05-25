@@ -13,8 +13,7 @@ import (
 type TCFlags struct {
 	ServerURL   string
 	BuildTypeID string
-	User        string
-	Pass        string
+	Token       string
 	Parameters  string
 }
 
@@ -82,7 +81,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Long:          `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
 		Aliases:       []string{"b"},
 		Args:          cobra.ExactArgs(2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "user"}),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
@@ -95,7 +94,21 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			server := viper.GetString("server")
+			token := viper.GetString("token")
+			buildTypeId := viper.GetString("buildtypeid")
+			password := viper.GetString("password")
+			properties := viper.GetString("properties")
+			username := viper.GetString("username")
+			wait := viper.GetBool("wait")
+
+			if token != "" {
+				tc := NewTeamCityUsingTokenAuth(server, token)
+				return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
+			}
+
+			tc := NewTeamCityUsingBasicAuth(server, username, password)
+			return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
 		},
 	}
 	root.AddCommand(branch)
@@ -105,7 +118,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:          cobra.RangeArgs(1, 2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "user", "repo", "fileregex", "splittests"}),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splittests"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr := args[0]
@@ -142,8 +155,22 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				testRegEx = "(" + strings.Join(*tests, "|") + ")"
 			}
 
+			server := viper.GetString("server")
+			buildTypeId := viper.GetString("buildtypeid")
 			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-			return TcCmd(viper.GetString("server"), viper.GetString("buildtypeid"), viper.GetString("properties"), branch, testRegEx, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			token := viper.GetString("token")
+			properties := viper.GetString("properties")
+			password := viper.GetString("password")
+			username := viper.GetString("username")
+			wait := viper.GetBool("wait")
+
+			if token != "" {
+				tc := NewTeamCityUsingTokenAuth(server, token)
+				return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
+			}
+
+			tc := NewTeamCityUsingBasicAuth(server, username, password)
+			return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
 		},
 	}
 	root.AddCommand(pr)
@@ -173,14 +200,26 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
-		PreRunE:       ValidateParams([]string{"server", "user"}),
+		PreRunE:       ValidateParams([]string{"server"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildId := args[0]
 
 			cmd.SilenceUsage = true
 
-			return TcTestResults(viper.GetString("server"), buildId, viper.GetString("user"), viper.GetString("pass"), viper.GetBool("wait"))
+			server := viper.GetString("server")
+			password := viper.GetString("password")
+			username := viper.GetString("username")
+			token := viper.GetString("token")
+			wait := viper.GetBool("wait")
+
+			if token != "" {
+				tc := NewTeamCityUsingTokenAuth(server, token)
+				return tc.testResults(buildId, wait)
+			}
+
+			tc := NewTeamCityUsingBasicAuth(server, username, password)
+			return tc.testResults(buildId, wait)
 		},
 	}
 	root.AddCommand(results)
@@ -188,6 +227,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags := root.PersistentFlags()
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.BuildTypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
+	pflags.StringVarP(&flags.TC.Token, "token", "k", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN instead)")
 	pflags.StringVarP(&flags.TC.User, "user", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "pass", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
 	pflags.StringVarP(&flags.TC.Parameters, "properties", "", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
@@ -206,8 +246,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	m := map[string]string{
 		"server":          "TCTEST_SERVER",
 		"buildtypeid":     "TCTEST_BUILDTYPEID",
-		"user":            "TCTEST_USER",
-		"pass":            "TCTEST_PASS",
+		"token":           "TCTEST_TOKEN",
+		"username":        "TCTEST_USER",
+		"password":        "TCTEST_PASS",
 		"properties":      "TCTEST_PROPERTIES",
 		"repo":            "TCTEST_REPO",
 		"fileregex":       "TCTEST_FILEREGEX",
