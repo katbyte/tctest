@@ -104,13 +104,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			username := viper.GetString("username")
 			wait := viper.GetBool("wait")
 
-			if token != "" {
-				tc := NewTeamCityUsingTokenAuth(server, token)
-				return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
-			}
-
-			tc := NewTeamCityUsingBasicAuth(server, username, password)
-			return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
+			return NewTeamCity(server, token, username, password).Command(buildTypeId, properties, branch, testRegEx, wait)
 		},
 	}
 	root.AddCommand(branch)
@@ -123,56 +117,57 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splittests"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pr := args[0]
-			testRegEx := ""
+			prs := args[0]
+			testRegExParam := ""
 			repo := viper.GetString("repo")
 
 			if len(args) == 2 {
-				testRegEx = args[1]
-			}
-			if _, err := strconv.Atoi(pr); err != nil {
-				return fmt.Errorf("pr should be a number: %v", err)
+				testRegExParam = args[1]
 			}
 
 			cmd.SilenceUsage = true
 
-			state, err := PrState(repo, pr)
-			if err != nil {
-				return fmt.Errorf("unable to get pr state: %v", err)
-			}
-			if state == "closed" {
-				return fmt.Errorf("cannot start build for a closed pr")
-			}
-
-			if testRegEx == "" {
-				tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
+			for _, pr := range strings.Split(prs, ",") {
+				if _, err := strconv.Atoi(pr); err != nil {
+					return fmt.Errorf("pr should be a number: %v", err)
+				}
+				state, err := PrState(repo, pr)
 				if err != nil {
-					return fmt.Errorf("pr cmd failed: %v", err)
+					return fmt.Errorf("unable to get pr state: %v", err)
+				}
+				if state == "closed" {
+					return fmt.Errorf("cannot start build for a closed pr")
 				}
 
-				if tests == nil || len(*tests) == 0 {
-					return fmt.Errorf("unable to automatically find tests (starting with Test). Cancelling to prevent running all tests unexpectedly. If you wish to run a specific test pattern or all tests, provide an explicit test pattern.")
+				testRegEx := testRegExParam
+				if testRegEx == "" {
+					tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
+					if err != nil {
+						return fmt.Errorf("pr cmd failed: %v", err)
+					}
+
+					if tests == nil || len(*tests) == 0 {
+						return fmt.Errorf("unable to automatically find tests (starting with Test). Cancelling to prevent running all tests unexpectedly. If you wish to run a specific test pattern or all tests, provide an explicit test pattern.")
+					}
+
+					testRegEx = "(" + strings.Join(*tests, "|") + ")"
 				}
 
-				testRegEx = "(" + strings.Join(*tests, "|") + ")"
+				server := viper.GetString("server")
+				buildTypeId := viper.GetString("buildtypeid")
+				branch := fmt.Sprintf("refs/pull/%s/merge", pr)
+				token := viper.GetString("token")
+				properties := viper.GetString("properties")
+				password := viper.GetString("password")
+				username := viper.GetString("username")
+				wait := viper.GetBool("wait")
+
+				if err := NewTeamCity(server, token, username, password).Command(buildTypeId, properties, branch, testRegEx, wait); err != nil {
+					return err
+				}
 			}
 
-			server := viper.GetString("server")
-			buildTypeId := viper.GetString("buildtypeid")
-			branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-			token := viper.GetString("token")
-			properties := viper.GetString("properties")
-			password := viper.GetString("password")
-			username := viper.GetString("username")
-			wait := viper.GetBool("wait")
-
-			if token != "" {
-				tc := NewTeamCityUsingTokenAuth(server, token)
-				return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
-			}
-
-			tc := NewTeamCityUsingBasicAuth(server, username, password)
-			return tc.Command(buildTypeId, properties, branch, testRegEx, wait)
+			return nil
 		},
 	}
 	root.AddCommand(pr)
@@ -215,13 +210,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			token := viper.GetString("token")
 			wait := viper.GetBool("wait")
 
-			if token != "" {
-				tc := NewTeamCityUsingTokenAuth(server, token)
-				return tc.testResults(buildId, wait)
-			}
-
-			tc := NewTeamCityUsingBasicAuth(server, username, password)
-			return tc.testResults(buildId, wait)
+			return NewTeamCity(server, token, username, password).testResults(buildId, wait)
 		},
 	}
 	root.AddCommand(results)

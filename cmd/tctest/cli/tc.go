@@ -21,6 +21,19 @@ type TeamCity struct {
 	password *string
 }
 
+func NewTeamCity(server, token, username, password string) TeamCity {
+	if token != "" {
+		return NewTeamCityUsingTokenAuth(server, token)
+	}
+
+	if username != "" {
+		return NewTeamCityUsingBasicAuth(server, username, password)
+	}
+
+	// should probably do something better here
+	panic("token & username are both empty")
+}
+
 func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
 	return TeamCity{
 		server: server,
@@ -211,13 +224,17 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch, testPattern, buildPropertie
 		}
 	}
 
+	// for now we have two types of build - historical providers (BRANCH_NAME & TEST_PATTERN), new azurerm (teamcity.build.branch, TEST_PREFIX)
+	// should be safe to send both
 	body := fmt.Sprintf(`
 <build>
-	<buildType id="%s"/>
+	<buildType id="%[1]s"/>
 	<properties>
-		<property name="BRANCH_NAME" value="%s"/>
-		<property name="TEST_PATTERN" value="%s"/>
-%s	</properties>
+        <property name="teamcity.build.branch" value="%[2]s"/>
+		<property name="BRANCH_NAME" value="%[2]s"/>
+		<property name="TEST_PATTERN" value="%[3]s"/>
+        <property name="TEST_PREFIX" value="%[3]s"/>
+%[4]s	</properties>
 </build>
 `, buildTypeId, branch, testPattern, bodyAdditionalProperties)
 
