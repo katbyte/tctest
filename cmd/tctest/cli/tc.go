@@ -201,10 +201,10 @@ func (tc TeamCity) testResultsByPR(pr, buildTypeId string, latest, wait bool) er
 
 		if build.State == "running" && !wait {
 			// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
-			return fmt.Errorf("build (ID: %s) for PR %s is still running, test results may be incomplete", build.ID, pr)
+			fmt.Errorf("build (ID: %s) for PR %s is still running, test results may be incomplete\n", build.ID, pr)
 		}
 
-		fmt.Printf("Complete Build Log: %s\n\n", build.WebURL)
+		fmt.Printf("Build Log: %s\n\n", build.WebURL)
 	}
 
 	return nil

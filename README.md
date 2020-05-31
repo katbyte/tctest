@@ -74,13 +74,13 @@ tctest results 12345 --wait
 
 To show the PASS/FAIL/SKIP results for **all** TeamCity builds for a Github PR:
 ```bash
-tctest pr-results 12345
+tctest results pr 12345
 ```
 To show the PASS/FAIL/SKIP results for the **latest** TeamCity build for a Github PR:
 ```bash
-tctest pr-results 12345 --latest
+tctest results pr 12345 --latest
 ```
 To wait for a running or queued build to complete and then show the results:
 ```bash
-tctest pr-results 12345 --wait
+tctest results pr 12345 --wait
 ```
