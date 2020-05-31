@@ -9,17 +9,20 @@ issues:
 linters:
   disable-all: true
   enable:
+    - asciicheck
     - deadcode
     - errcheck
+    - gocritic
+    - godot
     - gofmt
     - goimports
-    - gocritic
     - gosimple
     - govet
     - ineffassign
     - interfacer
     - nakedret
     - misspell
+    - nolintlint
     - scopelint
     - staticcheck
     - structcheck

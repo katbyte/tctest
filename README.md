@@ -1,5 +1,8 @@
 # tctest
 
+[![Build Status](https://travis-ci.org/katbyte/tctest.svg?branch=master)](https://travis-ci.com/katbyte/tctest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/katbyte/tctest)](https://goreportcard.com/report/github.com/katbyte/tctest)
+
 A command-line utility to trigger builds in teamcity to run provider acceptance tests. Given a PR# it can find the files modified, tests to run and generate a TEST_PATTERN.    
 
 Example:

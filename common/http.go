@@ -12,7 +12,16 @@ var HTTP = http.DefaultClient
 
 func HttpGetReader(url string) (*io.ReadCloser, error) {
 	Log.Debug("HTTP GET: " + url)
-	resp, err := HTTP.Get(url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("User-Agent", "tctest/1.x Go-http-client/1.1")
+	//req.Header.Add("Authorization", "token )
+
+	resp, err := HTTP.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("HTTP error: %v", err)
 	}
@@ -29,6 +38,7 @@ func HttpReadByte(url string) (*[]byte, error) {
 	if r != nil {
 		defer (*r).Close()
 	}
+
 	if err != nil {
 		return nil, fmt.Errorf("unable to get reader: %v", err)
 	}

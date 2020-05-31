@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	// nolint misspell
+	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 )
