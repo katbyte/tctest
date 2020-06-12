@@ -20,9 +20,10 @@ type TCFlags struct {
 }
 
 type PRFlags struct {
-	Repo      string
-	FileRegEx string
-	TestSplit string
+	Repo          string
+	FileRegEx     string
+	TestSplit     string
+	LatestTCBuild bool
 }
 
 type WaitFlags struct {
@@ -215,6 +216,31 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	}
 	root.AddCommand(results)
 
+	resultsByPR := &cobra.Command{
+		Use:           "pr #",
+		Short:         "shows the test results for a specified PR #",
+		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
+		Args:          cobra.RangeArgs(1, 1),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pr := args[0]
+
+			cmd.SilenceUsage = true
+
+			server := viper.GetString("server")
+			buildTypeId := viper.GetString("buildtypeid")
+			password := viper.GetString("password")
+			username := viper.GetString("username")
+			token := viper.GetString("token")
+			latest := viper.GetBool("latest")
+			wait := viper.GetBool("wait")
+
+			return NewTeamCity(server, token, username, password).testResultsByPR(pr, buildTypeId, latest, wait)
+		},
+	}
+	results.AddCommand(resultsByPR)
+
 	pflags := root.PersistentFlags()
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.BuildTypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
@@ -226,6 +252,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
+	pflags.BoolVarP(&flags.PR.LatestTCBuild, "latest", "l", false, "gets the latest build in TeamCity")
 
 	pflags.BoolVar(&flags.ServicePackagesMode, "servicepackages", false, "enable service packages mode for AzureRM")
 
@@ -248,6 +275,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		"wait":            "TCTEST_WAIT",
 		"queue-timeout":   "",
 		"run-timeout":     "",
+		"latest":          "TCTEST_LATESTBUILD",
 	}
 
 	for name, env := range m {
