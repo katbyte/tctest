@@ -1,7 +1,7 @@
 ## 0.4.0 (2020-04-12)
 
 - results command can now look up a PR ([#30](https://github.com/katbyte/tctest/issues/30))
-- multiple PRs can now be specified 
+- multiple PRs can now be specified `tctest pr 1111,2222,3333`
 
 ## 0.4.0 (2020-04-12)
 
