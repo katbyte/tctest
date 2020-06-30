@@ -119,7 +119,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
 			testRegExParam := ""
-			repo := viper.GetString("repo")
 
 			if len(args) == 2 {
 				testRegExParam = args[1]
@@ -128,20 +127,14 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			cmd.SilenceUsage = true
 
 			for _, pr := range strings.Split(prs, ",") {
-				if _, err := strconv.Atoi(pr); err != nil {
-					return fmt.Errorf("pr should be a number: %v", err)
-				}
-				state, err := PrState(repo, pr)
+				pri, err := strconv.Atoi(pr)
 				if err != nil {
-					return fmt.Errorf("unable to get pr state: %v", err)
-				}
-				if state == "closed" {
-					return fmt.Errorf("cannot start build for a closed pr")
+					return fmt.Errorf("pr should be a number: %v", err)
 				}
 
 				testRegEx := testRegExParam
 				if testRegEx == "" {
-					tests, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
+					tests, err := PrCmd(viper.GetString("repo"), pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
 					if err != nil {
 						return fmt.Errorf("pr cmd failed: %v", err)
 					}
@@ -180,11 +173,14 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splittests"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pr := args[0]
+			pri, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("pr should be a number: %v", err)
+			}
 
 			cmd.SilenceUsage = true
 
-			if _, err := PrCmd(viper.GetString("repo"), pr, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
+			if _, err := PrCmd(viper.GetString("repo"), pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 			return nil

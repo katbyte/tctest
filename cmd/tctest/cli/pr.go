@@ -2,22 +2,28 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/google/go-github/github"
 	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 )
 
-func PrUrl(repo, pr string) string {
-	return "https://github.com/" + repo + "/pull/" + pr
+func PrUrl(repo string, pr int) string {
+	return "https://github.com/" + repo + "/pull/" + strconv.Itoa(pr)
 }
 
-func PrCmd(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
-	c.Printf("Discovering tests for pr <cyan>#%s</> <darkGray>(%s)...</>\n", pr, PrUrl(repo, pr))
-	tests, err := PrTests(repo, pr, fileRegExStr, splitTestsAt, servicePackagesMode)
+func PrCmd(ownerrepo string, pr int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
+	parts := strings.Split(ownerrepo, "/")
+	owner, repo := parts[0], parts[1]
+
+	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, PrUrl(repo, pr))
+	tests, err := PrTests(owner, repo, pr, fileRegExStr, splitTestsAt, servicePackagesMode)
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %v", err)
 	}
@@ -28,54 +34,85 @@ func PrCmd(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bool
 	return tests, nil
 }
 
-func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
+func PrTests(owner, repo string, pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
+	ctx := context.Background()
+	client := github.NewClient(nil)
 	fileRegEx := regexp.MustCompile(fileRegExStr)
 
-	sha, err := PrMergeCommit(repo, pr)
+	common.Log.Debugf("fetching data for PR %s/%s/#%d...", owner, repo, pri)
+	pr, _, err := client.PullRequests.Get(ctx, owner, repo, pri)
 	if err != nil {
-		return nil, fmt.Errorf("error getting pr merge commit sha1: %v", err)
+		return nil, err
 	}
 
-	files, err := PrFiles(repo, pr)
-	if err != nil {
-		return nil, fmt.Errorf("error getting pr files: %v", err)
+	common.Log.Debugf("  checking pr state: %v", *pr.State)
+	if pr.State != nil && *pr.State == "closed" {
+		return nil, fmt.Errorf("cannot start build for a closed pr")
 	}
 
-	// filter out uninteresting files and
-	// convert non test files to test files and only retain unique
-	filesm := map[string]bool{}
+	common.Log.Tracef("listing files...")
+	files, _, err := client.PullRequests.ListFiles(ctx, owner, repo, pri, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// filter out uninteresting files and convert non test files to test files and only retain unique
+	filesFiltered := map[string]bool{}
 	for _, f := range files {
-		if strings.HasSuffix(f, "_test.go") {
-			filesm[f] = true
+		if f.Filename == nil {
 			continue
 		}
 
-		if !fileRegEx.MatchString(f) {
+		name := *f.Filename
+		common.Log.Debugf("  checking file %v", *f.Filename)
+
+		if strings.HasSuffix(name, "_test.go") {
+			filesFiltered[name] = true
 			continue
 		}
 
-		f := strings.Replace(f, ".go", "_test.go", 1)
+		if !fileRegEx.MatchString(name) {
+			continue
+		}
+
+		f := strings.Replace(name, ".go", "_test.go", 1)
 
 		if servicePackagesMode {
 			i := strings.LastIndex(f, "/")
-			filesm[f[:i]+"/tests"+f[i:]] = true
+			filesFiltered[f[:i]+"/tests"+f[i:]] = true
 		} else {
-			filesm[f] = true
+			filesFiltered[f] = true
 		}
 	}
 
-	if len(filesm) == 0 {
+	if len(filesFiltered) == 0 {
 		return nil, fmt.Errorf("found no files matching: %s", fileRegExStr)
 	}
 	// log.Println(files) TODO debug message here
 
 	// for each file get content and parse out test files
 	testsm := map[string]bool{}
-	for f := range filesm {
-		tests, err := PrFileTests(repo, sha, f)
+	for f := range filesFiltered {
+		testRegEx := regexp.MustCompile("func Test")
+
+		reader, err := client.Repositories.DownloadContents(ctx, owner, repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
-			common.Log.Warningf("unable to fetch tests from file (%s): %v", f, err)
-			continue
+			return nil, err
+		}
+
+		var tests []string
+		s := bufio.NewScanner(reader)
+		for s.Scan() {
+			l := s.Text()
+
+			if testRegEx.MatchString(l) {
+				common.Log.Tracef("found test line: %s", l)
+				tests = append(tests, strings.Split(l, " ")[1]) //should always be true because test pattern is "func Test"
+			}
+		}
+
+		if err := s.Err(); err != nil {
+			fmt.Printf("pr file scanner error occurred: %s", err)
 		}
 
 		for _, t := range tests {
@@ -92,92 +129,4 @@ func PrTests(repo, pr, fileRegExStr, splitTestsAt string, servicePackagesMode bo
 	}
 
 	return &tests, nil
-}
-
-func PrMergeCommit(repo, pr string) (string, error) {
-	url := "https://api.github.com/repos/" + repo + "/pulls/" + pr
-	json := struct {
-		MergeCommitSha string `json:"merge_commit_sha"`
-	}{}
-
-	// get the merge commit SHA to look at for file content
-	if err := common.HttpUnmarshalJson(url, &json); err != nil {
-		return "", fmt.Errorf("error getting merge commit SHA: %v", err)
-	}
-
-	if json.MergeCommitSha == "" {
-		return "", fmt.Errorf("unable to find merge_commit_sha @ %s", url)
-	}
-
-	common.Log.Debugf("merge commit: %s", json.MergeCommitSha)
-	return json.MergeCommitSha, nil
-}
-
-func PrState(repo, pr string) (string, error) {
-	url := "https://api.github.com/repos/" + repo + "/pulls/" + pr
-	json := struct {
-		State string `json:"state"`
-	}{}
-
-	// get the merge commit SHA to look at for file content
-	if err := common.HttpUnmarshalJson(url, &json); err != nil {
-		return "", fmt.Errorf("error getting pr state: %v", err)
-	}
-
-	if json.State == "" {
-		return "", fmt.Errorf("unable to find state @ %s", url)
-	}
-
-	common.Log.Debugf("pr state is %s", json.State)
-	return json.State, nil
-}
-
-func PrFiles(repo, pr string) ([]string, error) {
-	url := "https://api.github.com/repos/" + repo + "/pulls/" + pr + "/files"
-	var json []struct {
-		FileName string `json:"filename"`
-	}
-
-	// get the list of files for the PR
-	if err := common.HttpUnmarshalJson(url, &json); err != nil {
-		return nil, fmt.Errorf("error getting file list: %v", err)
-	}
-	// log.Println(files) TODO debug message here for number of files
-
-	var files []string
-	for _, v := range json {
-		files = append(files, v.FileName)
-		common.Log.Debugf("prfile: %s", v.FileName)
-	}
-
-	return files, nil
-}
-
-func PrFileTests(repo, sha, file string) ([]string, error) {
-	testRegEx := regexp.MustCompile("func Test")
-	url := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s", repo, sha, file)
-
-	// get file content
-	reader, err := common.HttpGetReader(url)
-	if err != nil {
-		return nil, fmt.Errorf("unable to get content from %s: %v", url, err)
-	}
-
-	// find test lines
-	var tests []string
-	s := bufio.NewScanner(*reader)
-	for s.Scan() {
-		l := s.Text()
-
-		if testRegEx.MatchString(l) {
-			common.Log.Tracef("found test line: %s", l)
-			tests = append(tests, strings.Split(l, " ")[1]) //should always be true because test pattern is "func Test"
-		}
-	}
-
-	if err := s.Err(); err != nil {
-		fmt.Printf("pr file scanner error occurred: %s", err)
-	}
-
-	return tests, nil
 }
