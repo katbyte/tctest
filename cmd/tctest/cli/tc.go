@@ -12,6 +12,7 @@ import (
 	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
+	"github.com/spf13/viper"
 )
 
 type TeamCity struct {
@@ -33,6 +34,14 @@ type TCBuild struct {
 	State      string   `xml:"state,attr"`
 	BranchName string   `xml:"branchName,attr"`
 	WebURL     string   `xml:"webUrl,attr"`
+}
+
+func NewTeamCityFromViper() TeamCity {
+	server := viper.GetString("server")
+	token := viper.GetString("token")
+	password := viper.GetString("password")
+	username := viper.GetString("username")
+	return NewTeamCity(server, token, username, password)
 }
 
 func NewTeamCity(server, token, username, password string) TeamCity {
@@ -63,7 +72,7 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 	}
 }
 
-func (tc TeamCity) Command(buildTypeId, buildProperties, branch, testRegex string, wait bool) error {
+func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex string, wait bool) error {
 	c.Printf("triggering <magenta>%s</> for <darkGray>%s...</>\n", branch, testRegex)
 
 	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex)
@@ -79,7 +88,7 @@ func (tc TeamCity) Command(buildTypeId, buildProperties, branch, testRegex strin
 		if err != nil {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
 		}
-		err = tc.testResults(buildId, wait)
+		err = tc.TestResultsCmd(buildId, wait)
 		if err != nil {
 			return fmt.Errorf("error printing results from build %s: %v", buildId, err)
 		}
@@ -109,7 +118,7 @@ func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch, testRegEx stri
 	return data.BuildId, fmt.Sprintf("https://%s/viewQueued.html?itemId=%s", tc.server, data.BuildId), nil
 }
 
-func (tc TeamCity) testResults(buildId string, wait bool) error {
+func (tc TeamCity) TestResultsCmd(buildId string, wait bool) error {
 	statusCode, buildStatus, err := tc.buildState(buildId)
 	if err != nil {
 		return fmt.Errorf("error looking for build %s state: %v", buildId, err)
@@ -147,7 +156,7 @@ func (tc TeamCity) testResults(buildId string, wait bool) error {
 	return nil
 }
 
-func (tc TeamCity) testResultsByPR(pr, buildTypeId string, latest, wait bool) error {
+func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeId string, latest, wait bool) error {
 	locatorParams := fmt.Sprintf("buildType:%s,branch:name:/pull/%s/merge,running:any", buildTypeId, pr)
 	if latest {
 		locatorParams += ",count:1"

@@ -2,28 +2,26 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/google/go-github/github"
+
 	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
 )
 
-func PrUrl(repo string, pr int) string {
-	return "https://github.com/" + repo + "/pull/" + strconv.Itoa(pr)
+func (gr GithubRepo) PrUrl(pr int) string {
+	return "https://github.com/" + gr.Owner + "/" + gr.Repo + "/pull/" + strconv.Itoa(pr)
 }
 
-func PrCmd(ownerrepo string, pr int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
-	parts := strings.Split(ownerrepo, "/")
-	owner, repo := parts[0], parts[1]
+func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
 
-	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, PrUrl(repo, pr))
-	tests, err := PrTests(owner, repo, pr, fileRegExStr, splitTestsAt, servicePackagesMode)
+	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, gr.PrUrl(pr))
+	tests, err := gr.PrTests(pr, fileRegExStr, splitTestsAt, servicePackagesMode)
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %v", err)
 	}
@@ -34,13 +32,12 @@ func PrCmd(ownerrepo string, pr int, fileRegExStr, splitTestsAt string, serviceP
 	return tests, nil
 }
 
-func PrTests(owner, repo string, pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
-	ctx := context.Background()
-	client := github.NewClient(nil)
+func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
+	client, ctx := gr.NewClient()
 	fileRegEx := regexp.MustCompile(fileRegExStr)
 
-	common.Log.Debugf("fetching data for PR %s/%s/#%d...", owner, repo, pri)
-	pr, _, err := client.PullRequests.Get(ctx, owner, repo, pri)
+	common.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Repo, pri)
+	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Repo, pri)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +48,7 @@ func PrTests(owner, repo string, pri int, fileRegExStr, splitTestsAt string, ser
 	}
 
 	common.Log.Tracef("listing files...")
-	files, _, err := client.PullRequests.ListFiles(ctx, owner, repo, pri, nil)
+	files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Repo, pri, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +92,7 @@ func PrTests(owner, repo string, pri int, fileRegExStr, splitTestsAt string, ser
 	for f := range filesFiltered {
 		testRegEx := regexp.MustCompile("func Test")
 
-		reader, err := client.Repositories.DownloadContents(ctx, owner, repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
+		reader, err := client.Repositories.DownloadContents(ctx, gr.Owner, gr.Repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
 			return nil, err
 		}

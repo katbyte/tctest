@@ -21,6 +21,7 @@ type TCFlags struct {
 
 type PRFlags struct {
 	Repo          string
+	Token         string
 	FileRegEx     string
 	TestSplit     string
 	LatestTCBuild bool
@@ -97,15 +98,11 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			server := viper.GetString("server")
-			token := viper.GetString("token")
 			buildTypeId := viper.GetString("buildtypeid")
-			password := viper.GetString("password")
 			properties := viper.GetString("properties")
-			username := viper.GetString("username")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCity(server, token, username, password).Command(buildTypeId, properties, branch, testRegEx, wait)
+			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, wait)
 		},
 	}
 	root.AddCommand(branch)
@@ -135,7 +132,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 				testRegEx := testRegExParam
 				if testRegEx == "" {
-					tests, err := PrCmd(viper.GetString("repo"), pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
+					tests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
 					if err != nil {
 						return fmt.Errorf("pr cmd failed: %v", err)
 					}
@@ -147,16 +144,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					testRegEx = "(" + strings.Join(*tests, "|") + ")"
 				}
 
-				server := viper.GetString("server")
 				buildTypeId := viper.GetString("buildtypeid")
 				branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-				token := viper.GetString("token")
 				properties := viper.GetString("properties")
-				password := viper.GetString("password")
-				username := viper.GetString("username")
 				wait := viper.GetBool("wait")
 
-				if err := NewTeamCity(server, token, username, password).Command(buildTypeId, properties, branch, testRegEx, wait); err != nil {
+				if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, wait); err != nil {
 					return err
 				}
 			}
@@ -181,7 +174,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			if _, err := PrCmd(viper.GetString("repo"), pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
+			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 			return nil
@@ -201,13 +194,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			server := viper.GetString("server")
-			password := viper.GetString("password")
-			username := viper.GetString("username")
-			token := viper.GetString("token")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCity(server, token, username, password).testResults(buildId, wait)
+			return NewTeamCityFromViper().TestResultsCmd(buildId, wait)
 		},
 	}
 	root.AddCommand(results)
@@ -224,15 +213,11 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			server := viper.GetString("server")
 			buildTypeId := viper.GetString("buildtypeid")
-			password := viper.GetString("password")
-			username := viper.GetString("username")
-			token := viper.GetString("token")
 			latest := viper.GetBool("latest")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCity(server, token, username, password).testResultsByPR(pr, buildTypeId, latest, wait)
+			return NewTeamCityFromViper().TestResultsByPRCmd(pr, buildTypeId, latest, wait)
 		},
 	}
 	results.AddCommand(resultsByPR)
@@ -240,11 +225,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags := root.PersistentFlags()
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.BuildTypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
-	pflags.StringVarP(&flags.TC.Token, "token", "k", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN instead)")
+	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "t", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.StringVarP(&flags.TC.User, "username", "u", "", "the TeamCity user to use")
 	pflags.StringVarP(&flags.TC.Pass, "password", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
 	pflags.StringVarP(&flags.TC.Parameters, "properties", "", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 
+	pflags.StringVarP(&flags.PR.Token, "token-gh", "", "", "github oauth token (consider exporting token to TCTEST_TOKEN_GH instead)")
 	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
@@ -253,14 +239,15 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.BoolVar(&flags.ServicePackagesMode, "servicepackages", false, "enable service packages mode for AzureRM")
 
 	pflags.BoolVarP(&flags.Wait.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
-	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "q", 60, "How long to wait for a queued build to start running before tctest times out")
-	pflags.IntVarP(&flags.Wait.RunTimeout, "run-timeout", "t", 60, "How long to wait for a running build to finish before tctest times out")
+	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
+	pflags.IntVarP(&flags.Wait.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
 		"server":          "TCTEST_SERVER",
 		"buildtypeid":     "TCTEST_BUILDTYPEID",
-		"token":           "TCTEST_TOKEN",
+		"token-tc":        "TCTEST_TOKEN_TC",
+		"token-gh":        "TCTEST_TOKEN_GH",
 		"username":        "TCTEST_USER",
 		"password":        "TCTEST_PASS",
 		"properties":      "TCTEST_PROPERTIES",
