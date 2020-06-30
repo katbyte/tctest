@@ -21,6 +21,20 @@ type TeamCity struct {
 	password *string
 }
 
+type TCBuilds struct {
+	XMLName xml.Name  `xml:"builds"`
+	Builds  []TCBuild `xml:"build"`
+}
+
+type TCBuild struct {
+	XMLName    xml.Name `xml:"build"`
+	ID         string   `xml:"id,attr"`
+	Number     string   `xml:"number,attr"`
+	State      string   `xml:"state,attr"`
+	BranchName string   `xml:"branchName,attr"`
+	WebURL     string   `xml:"webUrl,attr"`
+}
+
 func NewTeamCity(server, token, username, password string) TeamCity {
 	if token != "" {
 		return NewTeamCityUsingTokenAuth(server, token)
@@ -119,35 +133,78 @@ func (tc TeamCity) testResults(buildId string, wait bool) error {
 		return fmt.Errorf("error looking for build %s results: %v", buildId, err)
 	}
 
-	if statusCode == http.StatusNotFound {
-		// Possibly a queued build, check for it
-		statusCode, _, err := tc.buildQueue(buildId)
-		if err != nil {
-			return fmt.Errorf("error checking for build %s in queue: %v", buildId, err)
-		}
-
-		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
-		}
-		if statusCode != http.StatusOK {
-			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
-		}
-		return fmt.Errorf("build %s still queued, check results later", buildId)
-	}
-	if statusCode != http.StatusOK {
-		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	if err := tc.checkBuildLogStatus(statusCode, buildId); err != nil {
+		return err
 	}
 
-	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
-	for _, line := range strings.Split(body, "\n") {
-		if r.MatchString(line) {
-			fmt.Printf("%s\n", line)
-		}
-	}
+	outputTestResults(body)
 
 	if buildStatus == "running" && !wait {
 		// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
 		return fmt.Errorf("build %s is still running, test results may be incomplete", buildId)
+	}
+
+	return nil
+}
+
+func (tc TeamCity) testResultsByPR(pr, buildTypeId string, latest, wait bool) error {
+	locatorParams := fmt.Sprintf("buildType:%s,branch:name:/pull/%s/merge,running:any", buildTypeId, pr)
+	if latest {
+		locatorParams += ",count:1"
+	}
+
+	statusCode, respBody, err := tc.buildLocator(locatorParams)
+	if err != nil {
+		return fmt.Errorf("error looking for builds for PR %s state: %v", pr, err)
+	}
+	if statusCode == http.StatusNotFound {
+		return fmt.Errorf("no build for PR %s found in running builds or queue", pr)
+	}
+	if statusCode != http.StatusOK {
+		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	}
+	if respBody == "" {
+		return fmt.Errorf("empty xml file of builds for PR %s", pr)
+	}
+
+	buildLocatorResults := []byte(respBody)
+	var tcb TCBuilds
+	err = xml.Unmarshal(buildLocatorResults, &tcb)
+	if err != nil {
+		return err
+	}
+	if len(tcb.Builds) == 0 {
+		return fmt.Errorf("no builds parsed from XML response")
+	}
+
+	for _, build := range tcb.Builds {
+		if build.State != "finished" && wait {
+			err := tc.waitForBuild(build.ID)
+			if err != nil {
+				return fmt.Errorf("error waiting for PR %s, build %s to finish: %v", pr, build.ID, err)
+			}
+		}
+	}
+
+	for _, build := range tcb.Builds {
+		statusCode, body, err := tc.buildLog(build.ID)
+		if err != nil {
+			return fmt.Errorf("error looking for PR %s, build %s results: %v", pr, build.ID, err)
+		}
+
+		if err := tc.checkBuildLogStatus(statusCode, build.ID); err != nil {
+			return err
+		}
+
+		fmt.Printf("Test Results (buildID: %s, buildNumber: %s, branch: %s):\n", build.ID, build.Number, build.BranchName)
+		outputTestResults(body)
+
+		if build.State == "running" && !wait {
+			// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
+			fmt.Printf("[WARN] build (ID: %s) for PR %s is still running, test results may be incomplete\n", build.ID, pr)
+		}
+
+		fmt.Printf("Build Log: %s\n\n", build.WebURL)
 	}
 
 	return nil
@@ -163,6 +220,10 @@ func (tc TeamCity) buildQueue(buildId string) (int, string, error) {
 
 func (tc TeamCity) buildState(buildId string) (int, string, error) {
 	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%s/state", buildId))
+}
+
+func (tc TeamCity) buildLocator(queryArgs string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds?locator=%s", queryArgs))
 }
 
 func (tc TeamCity) waitForBuild(buildID string) error {
@@ -286,4 +347,35 @@ func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 	}
 
 	return resp.StatusCode, string(b), nil
+}
+
+func (tc TeamCity) checkBuildLogStatus(statusCode int, buildId string) error {
+	if statusCode == http.StatusNotFound {
+		// Possibly a queued build, check for it
+		statusCode, _, err := tc.buildQueue(buildId)
+		if err != nil {
+			return fmt.Errorf("error checking for build %s in queue: %v", buildId, err)
+		}
+
+		if statusCode == http.StatusNotFound {
+			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
+		}
+		if statusCode != http.StatusOK {
+			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+		}
+		return fmt.Errorf("build %s still queued, check results later", buildId)
+	}
+	if statusCode != http.StatusOK {
+		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	}
+	return nil
+}
+
+func outputTestResults(body string) {
+	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
+	for _, line := range strings.Split(body, "\n") {
+		if r.MatchString(line) {
+			fmt.Printf("%s\n", line)
+		}
+	}
 }
