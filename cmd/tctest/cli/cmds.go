@@ -102,7 +102,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			properties := viper.GetString("properties")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, wait)
+			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, nil, testRegEx, wait)
 		},
 	}
 	root.AddCommand(branch)
@@ -131,8 +131,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				}
 
 				testRegEx := testRegExParam
+				var services, tests *[]string
 				if testRegEx == "" {
-					tests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
+					tests, services, err = NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
 					if err != nil {
 						return fmt.Errorf("pr cmd failed: %v", err)
 					}
@@ -149,7 +150,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				properties := viper.GetString("properties")
 				wait := viper.GetBool("wait")
 
-				if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, wait); err != nil {
+				if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, services, testRegEx, wait); err != nil {
 					return err
 				}
 			}
@@ -174,7 +175,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
+			if _, _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 			return nil

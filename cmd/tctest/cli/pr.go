@@ -18,39 +18,41 @@ func (gr GithubRepo) PrUrl(pr int) string {
 	return "https://github.com/" + gr.Owner + "/" + gr.Repo + "/pull/" + strconv.Itoa(pr)
 }
 
-func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
+func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
 
 	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, gr.PrUrl(pr))
-	tests, err := gr.PrTests(pr, fileRegExStr, splitTestsAt, servicePackagesMode)
+	tests, services, err := gr.PrTests(pr, fileRegExStr, splitTestsAt, servicePackagesMode)
 	if err != nil {
-		return nil, fmt.Errorf("pr list failed: %v", err)
+		return nil, nil, fmt.Errorf("pr list failed: %v", err)
 	}
 
 	for _, t := range *tests {
 		fmt.Printf("    %s\n", t)
 	}
-	return tests, nil
+
+	return tests, services, nil
 }
 
-func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, error) {
+// todo break this apart - get/check PR state, get files, filter/process files, get tests, get services
+func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
 	client, ctx := gr.NewClient()
 	fileRegEx := regexp.MustCompile(fileRegExStr)
 
 	common.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Repo, pri)
 	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Repo, pri)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	common.Log.Debugf("  checking pr state: %v", *pr.State)
 	if pr.State != nil && *pr.State == "closed" {
-		return nil, fmt.Errorf("cannot start build for a closed pr")
+		return nil, nil, fmt.Errorf("cannot start build for a closed pr")
 	}
 
 	common.Log.Tracef("listing files...")
 	files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Repo, pri, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// filter out uninteresting files and convert non test files to test files and only retain unique
@@ -83,18 +85,19 @@ func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, service
 	}
 
 	if len(filesFiltered) == 0 {
-		return nil, fmt.Errorf("found no files matching: %s", fileRegExStr)
+		return nil, nil, fmt.Errorf("found no files matching: %s", fileRegExStr)
 	}
 	// log.Println(files) TODO debug message here
 
-	// for each file get content and parse out test files
+	// for each file get content and parse out test files & services
 	testsm := map[string]bool{}
+	servicesm := map[string]bool{}
 	for f := range filesFiltered {
 		testRegEx := regexp.MustCompile("func Test")
 
 		reader, err := client.Repositories.DownloadContents(ctx, gr.Owner, gr.Repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		var tests []string
@@ -117,6 +120,13 @@ func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, service
 			// if there is nothing split on `(` to make sure we just get the full function name
 			testsm[strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]] = true
 		}
+
+		if servicePackagesMode {
+			parts := strings.Split(f, "/services/")
+			if len(parts) == 2 {
+				servicesm[strings.Split(parts[1], "/")[0]] = true
+			}
+		}
 	}
 
 	tests := []string{}
@@ -125,5 +135,11 @@ func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, service
 		tests = append(tests, k)
 	}
 
-	return &tests, nil
+	services := []string{}
+	for k := range servicesm {
+		common.Log.Debugf("service: %s", k)
+		services = append(services, k)
+	}
+
+	return &tests, &services, nil
 }
