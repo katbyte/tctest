@@ -19,7 +19,6 @@ func (gr GithubRepo) PrUrl(pr int) string {
 }
 
 func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
-
 	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, gr.PrUrl(pr))
 	tests, services, err := gr.PrTests(pr, fileRegExStr, splitTestsAt, servicePackagesMode)
 	if err != nil {
@@ -33,7 +32,7 @@ func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePac
 	return tests, services, nil
 }
 
-// todo break this apart - get/check PR state, get files, filter/process files, get tests, get services
+// todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
 func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
 	client, ctx := gr.NewClient()
 	fileRegEx := regexp.MustCompile(fileRegExStr)

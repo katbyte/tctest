@@ -73,7 +73,6 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 }
 
 func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch string, services *[]string, testRegex string, wait bool) error {
-
 	serviceInfo := ""
 	if services != nil && len(*services) > 0 {
 		serviceInfo = "[<yellow>" + strings.Join(*services, ",") + "</>]"

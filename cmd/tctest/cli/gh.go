@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/google/go-github/github"
@@ -21,7 +20,7 @@ func NewGithubRepoFromViper() GithubRepo {
 
 	parts := strings.Split(ownerrepo, "/")
 	if len(parts) != 2 {
-		panic(fmt.Sprint("repo was not in the format owner/repo")) // this is bad but works for now
+		panic("repo was not in the format owner/repo") // this is bad but works for now
 	}
 	owner, repo := parts[0], parts[1]
 
