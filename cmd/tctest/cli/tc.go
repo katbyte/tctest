@@ -157,7 +157,7 @@ func (tc TeamCity) TestResultsCmd(buildId string, wait bool) error {
 }
 
 func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeId string, latest, wait bool) error {
-	locatorParams := fmt.Sprintf("buildType:%s,branch:name:/pull/%s/merge,running:any", buildTypeId, pr)
+	locatorParams := fmt.Sprintf("buildType:%s,branch:name:refs/pull/%s/merge,running:any", buildTypeId, pr)
 	if latest {
 		locatorParams += ",count:1"
 	}
