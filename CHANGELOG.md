@@ -1,5 +1,8 @@
 ## 0.4.0 (2020-04-12)
 
+- support for Github OAUTH tokens via `TCTEST_TOKEN_GH`
+- teamcity token is now read from `TCTEST_TOKEN_TC` and shorthand option `-t`
+- shorthand opts have been removed from `queue-timeout` and `run-timeout`
 - results command can now look up a PR ([#30](https://github.com/katbyte/tctest/issues/30))
 - multiple PRs can now be specified `tctest pr 1111,2222,3333`
 
