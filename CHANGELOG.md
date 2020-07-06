@@ -1,5 +1,6 @@
 ## 0.4.0 (2020-04-12)
 
+- support detecting azurerm `services`
 - support for Github OAUTH tokens via `TCTEST_TOKEN_GH`
 - teamcity token is now read from `TCTEST_TOKEN_TC` and shorthand option `-t`
 - shorthand opts have been removed from `queue-timeout` and `run-timeout`
