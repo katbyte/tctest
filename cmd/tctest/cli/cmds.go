@@ -231,7 +231,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.StringVarP(&flags.TC.Pass, "password", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
 	pflags.StringVarP(&flags.TC.Parameters, "properties", "", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 
-	pflags.StringVarP(&flags.PR.Token, "token-gh", "", "", "github oauth token (consider exporting token to TCTEST_TOKEN_GH instead)")
+	pflags.StringVarP(&flags.PR.Token, "token-gh", "", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
@@ -248,7 +248,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		"server":          "TCTEST_SERVER",
 		"buildtypeid":     "TCTEST_BUILDTYPEID",
 		"token-tc":        "TCTEST_TOKEN_TC",
-		"token-gh":        "TCTEST_TOKEN_GH",
+		"token-gh":        "GITHUB_TOKEN",
 		"username":        "TCTEST_USER",
 		"password":        "TCTEST_PASS",
 		"properties":      "TCTEST_PROPERTIES",

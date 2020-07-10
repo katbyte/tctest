@@ -33,9 +33,9 @@ func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePac
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
+func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
 	client, ctx := gr.NewClient()
-	fileRegEx := regexp.MustCompile(fileRegExStr)
+	fileRegEx := regexp.MustCompile(filterRegExStr)
 
 	common.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Repo, pri)
 	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Repo, pri)
@@ -56,13 +56,14 @@ func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, service
 
 	// filter out uninteresting files and convert non test files to test files and only retain unique
 	filesFiltered := map[string]bool{}
+	common.Log.Debugf("  filtering files (%s)", filterRegExStr)
 	for _, f := range files {
 		if f.Filename == nil {
 			continue
 		}
 
 		name := *f.Filename
-		common.Log.Debugf("  checking file %v", *f.Filename)
+		common.Log.Debugf("    %v", *f.Filename)
 
 		if strings.HasSuffix(name, "_test.go") {
 			filesFiltered[name] = true
@@ -82,21 +83,24 @@ func (gr GithubRepo) PrTests(pri int, fileRegExStr, splitTestsAt string, service
 			filesFiltered[f] = true
 		}
 	}
+	common.Log.Debugf("  FOUND %d", len(filesFiltered))
 
 	if len(filesFiltered) == 0 {
-		return nil, nil, fmt.Errorf("found no files matching: %s", fileRegExStr)
+		return nil, nil, fmt.Errorf("found no files matching: %s", filterRegExStr)
 	}
 	// log.Println(files) TODO debug message here
 
 	// for each file get content and parse out test files & services
 	testsm := map[string]bool{}
 	servicesm := map[string]bool{}
+	common.Log.Debugf("  parsing content:")
 	for f := range filesFiltered {
 		testRegEx := regexp.MustCompile("func Test")
 
+		common.Log.Debugf("    download %s", f)
 		reader, err := client.Repositories.DownloadContents(ctx, gr.Owner, gr.Repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("downloading file %s", f)
 		}
 
 		var tests []string
