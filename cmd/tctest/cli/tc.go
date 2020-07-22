@@ -38,7 +38,7 @@ type TCBuild struct {
 
 func NewTeamCityFromViper() TeamCity {
 	server := viper.GetString("server")
-	token := viper.GetString("token")
+	token := viper.GetString("token-tc")
 	password := viper.GetString("password")
 	username := viper.GetString("username")
 	return NewTeamCity(server, token, username, password)
