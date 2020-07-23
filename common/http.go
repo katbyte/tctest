@@ -10,6 +10,12 @@ import (
 
 var HTTP = http.DefaultClient
 
+func NewHTTPClient(name string) *http.Client {
+	return &http.Client{
+		Transport: NewTransport(name, http.DefaultTransport),
+	}
+}
+
 type transport struct {
 	name      string
 	transport http.RoundTripper

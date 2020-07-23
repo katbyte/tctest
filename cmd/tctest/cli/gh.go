@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
 	"github.com/google/go-github/github"
@@ -46,17 +45,15 @@ func NewGithubRepo(owner, repo, token string) GithubRepo {
 
 func (gr GithubRepo) NewClient() (*github.Client, context.Context) {
 	ctx := context.Background()
-	httpClient := &http.Client{
-		Transport: http.DefaultTransport,
-	}
+	httpClient := common.NewHTTPClient("GitHub")
 
 	if gr.Token != nil {
 		t := oauth2.StaticTokenSource(
 			&oauth2.Token{AccessToken: *gr.Token},
 		)
 		httpClient = oauth2.NewClient(ctx, t)
+		httpClient.Transport = common.NewTransport("GitHub", httpClient.Transport)
 	}
 
-	httpClient.Transport = common.NewTransport("GitHub", httpClient.Transport)
 	return github.NewClient(httpClient), ctx
 }
