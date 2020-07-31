@@ -34,7 +34,7 @@ project {
 }
 
 object build : BuildType({
-    name = "build"
+    name = "make build"
 
     vcs {
         root(DslContext.settingsRoot)
@@ -49,7 +49,10 @@ object build : BuildType({
 
     triggers {
         vcs {
-            triggerRules = "+:*"
+            triggerRules = """
+                +:refs/head/*
+                +:refs/pull/*/merge
+            """.trimIndent()
             branchFilter = ""
         }
     }
@@ -68,7 +71,7 @@ object build : BuildType({
 })
 
 object lint : BuildType({
-    name = "lint"
+    name = "make lint"
 
     vcs {
         root(DslContext.settingsRoot)
