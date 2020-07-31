@@ -83,20 +83,23 @@ object lint : BuildType({
 
     triggers {
         vcs {
-            triggerRules = "+:*"
+            triggerRules = """
+                +:refs/head/*
+                +:refs/pull/*/merge
+            """.trimIndent()
             branchFilter = ""
         }
     }
 
     features {
-        commitStatusPublisher {
-            vcsRootExtId = "${DslContext.settingsRoot.id}"
-            publisher = github {
-                githubUrl = "https://api.github.com"
-                authType = personalToken {
-                    token = "credentialsJSON:f8789b57-76c2-4c9b-b8df-8de0d5cddf89"
+            commitStatusPublisher {
+                vcsRootExtId = "${DslContext.settingsRoot.id}"
+                publisher = github {
+                    githubUrl = "https://api.github.com"
+                    authType = personalToken {
+                        token = "credentialsJSON:f8789b57-76c2-4c9b-b8df-8de0d5cddf89"
+                    }
                 }
             }
         }
-    }
 })
