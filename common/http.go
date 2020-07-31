@@ -56,7 +56,9 @@ func prettyPrintJsonLines(b []byte) string {
 	for i, p := range parts {
 		if b := []byte(p); json.Valid(b) {
 			var out bytes.Buffer
-			json.Indent(&out, b, "", " ")
+			if err := json.Indent(&out, b, "", " "); err != nil {
+				Log.Errorf("json.Indent failed with %s", err)
+			}
 			parts[i] = out.String()
 		}
 	}
