@@ -87,4 +87,16 @@ object lint : BuildType({
             branchFilter = ""
         }
     }
+
+    features {
+        commitStatusPublisher {
+            vcsRootExtId = "${DslContext.settingsRoot.id}"
+            publisher = github {
+                githubUrl = "https://api.github.com"
+                authType = personalToken {
+                    token = "credentialsJSON:f8789b57-76c2-4c9b-b8df-8de0d5cddf89"
+                }
+            }
+        }
+    }
 })
