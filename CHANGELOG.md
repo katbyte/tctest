@@ -1,4 +1,4 @@
-## 0.4.0 (2020-04-12)
+## 0.5.0 (UNRELEASED)
 
 - support detecting azurerm `services`
 - support for Github OAUTH tokens via `TCTEST_TOKEN_GH`
@@ -6,6 +6,7 @@
 - shorthand opts have been removed from `queue-timeout` and `run-timeout`
 - results command can now look up a PR ([#30](https://github.com/katbyte/tctest/issues/30))
 - multiple PRs can now be specified `tctest pr 1111,2222,3333`
+- support more then 1000 files and files larger then 1MB([#42](https://github.com/katbyte/tctest/issues/42))
 
 ## 0.4.0 (2020-04-12)
 
