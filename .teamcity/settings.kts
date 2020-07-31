@@ -41,8 +41,8 @@ object build : BuildType({
 
     steps {
         script {
-            name = "make"
-            scriptContent = "make"
+            name = "make build"
+            scriptContent = "make build"
         }
     }
 
@@ -62,7 +62,7 @@ object lint : BuildType({
     steps {
         script {
             name = "make lint"
-            scriptContent = "make"
+            scriptContent = "make lint"
         }
     }
 
