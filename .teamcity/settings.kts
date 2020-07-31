@@ -48,6 +48,8 @@ object build : BuildType({
 
     triggers {
         vcs {
+            triggerRules = "+:*"
+            branchFilter = ""
         }
     }
 })
