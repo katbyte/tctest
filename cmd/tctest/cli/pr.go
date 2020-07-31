@@ -35,6 +35,7 @@ func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, servicePac
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
 func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, servicePackagesMode bool) (*[]string, *[]string, error) {
 	client, ctx := gr.NewClient()
+	httpClient := common.NewHTTPClient("HTTP")
 	fileRegEx := regexp.MustCompile(filterRegExStr)
 
 	common.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Repo, pri)
@@ -98,13 +99,33 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, servi
 		testRegEx := regexp.MustCompile("func Test")
 
 		common.Log.Debugf("    download %s", f)
-		reader, err := client.Repositories.DownloadContents(ctx, gr.Owner, gr.Repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
+
+		// DownloadContents always performs a directory listing for the file,
+		// which has a 1000 file limit.
+		fileContents, _, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
-			return nil, nil, fmt.Errorf("downloading file %s", f)
+			return nil, nil, fmt.Errorf("downloading file (%s) metadata: %s", f, err)
 		}
 
+		if fileContents == nil {
+			return nil, nil, fmt.Errorf("downloading file (%s) metadata: no contents", f)
+		}
+
+		// GetContents has a 1MB limit. Use the DownloadURL to ensure we get full contents.
+		if fileContents.DownloadURL == nil || *fileContents.DownloadURL == "" {
+			return nil, nil, fmt.Errorf("downloading file (%s) metadata: missing DownloadURL", f)
+		}
+
+		resp, err := httpClient.Get(*fileContents.DownloadURL)
+
+		if err != nil {
+			return nil, nil, fmt.Errorf("downloading file (%s): %s", f, err)
+		}
+
+		defer resp.Body.Close()
+
 		var tests []string
-		s := bufio.NewScanner(reader)
+		s := bufio.NewScanner(resp.Body)
 		for s.Scan() {
 			l := s.Text()
 
