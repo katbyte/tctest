@@ -62,7 +62,7 @@ object lint : BuildType({
     steps {
         script {
             name = "make lint"
-            scriptContent = "make lint"
+            scriptContent = "make tools; make lint"
         }
     }
 
