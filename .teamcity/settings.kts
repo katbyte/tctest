@@ -68,6 +68,8 @@ object lint : BuildType({
 
     triggers {
         vcs {
+            triggerRules = "+:*"
+            branchFilter = ""
         }
     }
 })
