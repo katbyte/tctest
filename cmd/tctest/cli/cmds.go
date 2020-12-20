@@ -8,6 +8,9 @@ import (
 	"github.com/katbyte/tctest/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	//nolint:misspell
+	c "github.com/gookit/color"
 )
 
 type TCFlags struct {
@@ -38,6 +41,7 @@ type FlagData struct {
 	PR                  PRFlags
 	Wait                WaitFlags
 	ServicePackagesMode bool
+	AllTests            bool
 }
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
@@ -102,7 +106,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			properties := viper.GetString("properties")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, nil, testRegEx, wait)
+			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, "", testRegEx, wait)
 		},
 	}
 	root.AddCommand(branch)
@@ -130,28 +134,56 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					return fmt.Errorf("pr should be a number: %v", err)
 				}
 
-				testRegEx := testRegExParam
-				var services, tests *[]string
-				if testRegEx == "" {
-					tests, services, err = NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages"))
-					if err != nil {
-						return fmt.Errorf("pr cmd failed: %v", err)
-					}
-
-					if tests == nil || len(*tests) == 0 {
-						return fmt.Errorf("unable to automatically find tests (starting with Test). Cancelling to prevent running all tests unexpectedly. If you wish to run a specific test pattern or all tests, provide an explicit test pattern.")
-					}
-
-					testRegEx = "(" + strings.Join(*tests, "|") + ")"
+				// todo get a map of tests -> service
+				serviceTests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"))
+				if err != nil {
+					c.Printf("  <red>ERROR: discovering tests:</> %v\n", err)
+					continue
 				}
 
-				buildTypeId := viper.GetString("buildtypeid")
-				branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-				properties := viper.GetString("properties")
-				wait := viper.GetBool("wait")
+				if serviceTests == nil {
+					c.Printf("  <red>ERROR: service tests in nil</>\n")
+					continue
+				}
 
-				if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, services, testRegEx, wait); err != nil {
-					return err
+				// trigger a build for each service
+				for s, tests := range *serviceTests {
+					serviceInfo := ""
+					if s != "" {
+						serviceInfo = "[<yellow>" + s + "</>]"
+					}
+
+					// genreatae test regex if we don't have it
+					testRegEx := testRegExParam
+					if testRegEx == "" {
+						// if no testregex and no tests throw an error (-a is required for all)
+						if len(tests) == 0 {
+							c.Printf("  %s<red>ERROR: no tests found, use -a to run all tests\n", serviceInfo)
+							continue
+						}
+
+						testRegEx = "(" + strings.Join(tests, "|") + ")"
+					}
+
+					// if all tests switch set regex to TestAcc
+					if viper.GetBool("alltests") {
+						testRegEx = "TestAcc"
+					}
+
+					// if we have a service put it on the end of the build type id
+					buildTypeId := viper.GetString("buildtypeid")
+					if s != "" {
+						buildTypeId += "_" + strings.ToUpper(s)
+					}
+
+					branch := fmt.Sprintf("refs/pull/%s/merge", pr)
+					properties := viper.GetString("properties")
+					wait := viper.GetBool("wait")
+
+					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait); err != nil {
+						return err
+					}
+					fmt.Println()
 				}
 			}
 
@@ -175,7 +207,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			if _, _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("servicepackages")); err != nil {
+			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 			return nil
@@ -237,7 +269,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
 	pflags.BoolVarP(&flags.PR.LatestTCBuild, "latest", "l", false, "gets the latest build in TeamCity")
 
-	pflags.BoolVar(&flags.ServicePackagesMode, "servicepackages", false, "enable service packages mode for AzureRM")
+	pflags.BoolVarP(&flags.AllTests, "alltests", "a", false, "run all tests regardless of those found")
 
 	pflags.BoolVarP(&flags.Wait.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
 	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
@@ -245,21 +277,21 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
-		"server":          "TCTEST_SERVER",
-		"buildtypeid":     "TCTEST_BUILDTYPEID",
-		"token-tc":        "TCTEST_TOKEN_TC",
-		"token-gh":        "GITHUB_TOKEN",
-		"username":        "TCTEST_USER",
-		"password":        "TCTEST_PASS",
-		"properties":      "TCTEST_PROPERTIES",
-		"repo":            "TCTEST_REPO",
-		"fileregex":       "TCTEST_FILEREGEX",
-		"splittests":      "TCTEST_SPLITTESTS",
-		"servicepackages": "TCTEST_SERVICEPACKAGESMODE",
-		"wait":            "TCTEST_WAIT",
-		"queue-timeout":   "",
-		"run-timeout":     "",
-		"latest":          "TCTEST_LATESTBUILD",
+		"server":        "TCTEST_SERVER",
+		"buildtypeid":   "TCTEST_BUILDTYPEID",
+		"token-tc":      "TCTEST_TOKEN_TC",
+		"token-gh":      "GITHUB_TOKEN",
+		"username":      "TCTEST_USER",
+		"password":      "TCTEST_PASS",
+		"properties":    "TCTEST_PROPERTIES",
+		"repo":          "TCTEST_REPO",
+		"fileregex":     "TCTEST_FILEREGEX",
+		"splittests":    "TCTEST_SPLITTESTS",
+		"wait":          "TCTEST_WAIT",
+		"alltests":      "",
+		"queue-timeout": "",
+		"run-timeout":   "",
+		"latest":        "TCTEST_LATESTBUILD",
 	}
 
 	for name, env := range m {
@@ -274,7 +306,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		}
 	}
 
-	//todo config file
+	// todo config file
 	/*viper.SetConfigName("config") // name of config file (without extension)
 	viper.AddConfigPath("/etc/appname/")   // path to look for the config file in
 	viper.AddConfigPath("$HOME/.appname")  // call multiple times to add many search paths

@@ -72,20 +72,15 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 	}
 }
 
-func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch string, services *[]string, testRegex string, wait bool) error {
-	serviceInfo := ""
-	if services != nil && len(*services) > 0 {
-		serviceInfo = "[<yellow>" + strings.Join(*services, ",") + "</>]"
-	}
+func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, serviceInfo string, wait bool) error {
+	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, serviceInfo, buildTypeId)
 
-	c.Printf("triggering <magenta>%s</>%s for <darkGray>%s...</>\n", branch, serviceInfo, testRegex)
-
-	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, services, testRegex)
+	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
 
-	c.Printf("  build <green>%s</> queued: <darkGray>%s</>\n", buildId, buildUrl)
+	c.Printf("  build <green>%s</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildId, buildUrl, testRegex)
 
 	if wait {
 		common.Log.Debugf("waiting...")
@@ -102,9 +97,9 @@ func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch string, service
 	return nil
 }
 
-func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, services *[]string, testRegEx string) (string, string, error) {
+func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, testRegEx string) (string, string, error) {
 	common.Log.Debugf("triggering build for %q", buildTypeId)
-	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, services, testRegEx, buildProperties)
+	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
 	}
@@ -282,7 +277,7 @@ func (tc TeamCity) waitForBuild(buildID string) error {
 	}
 }
 
-func (tc TeamCity) triggerBuild(buildTypeId, branch string, services *[]string, testPattern, buildProperties string) (int, string, error) {
+func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildProperties string) (int, string, error) {
 	bodyAdditionalProperties := ""
 
 	if buildProperties != "" {
@@ -297,10 +292,6 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, services *[]string, 
 			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
 			bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
 		}
-	}
-
-	if services != nil && len(*services) > 0 {
-		bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"SERVICES\" value=\"%s\"/>\n", strings.Join(*services, ","))
 	}
 
 	// for now we have two types of build - historical providers (BRANCH_NAME & TEST_PATTERN), new azurerm (teamcity.build.branch, TEST_PREFIX)
