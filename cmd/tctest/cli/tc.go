@@ -298,6 +298,7 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
 	// should be safe to send both
 	body := fmt.Sprintf(`
 <build>
+	<triggeringOptions queueAtTop="true"/>
 	<buildType id="%[1]s"/>
 	<properties>
         <property name="teamcity.build.branch" value="%[2]s"/>
