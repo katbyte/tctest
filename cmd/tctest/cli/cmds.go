@@ -42,7 +42,7 @@ type FlagData struct {
 	Wait                WaitFlags
 	ServicePackagesMode bool
 	AllTests            bool
-	SkipQueue			bool
+	SkipQueue           bool
 }
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
