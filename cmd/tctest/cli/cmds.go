@@ -297,7 +297,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		"queue-timeout": "",
 		"run-timeout":   "",
 		"latest":        "TCTEST_LATESTBUILD",
-		"skip-queue":  "",
+		"skip-queue":    "TCTEST_SKIP_QUEUE",
 	}
 
 	for name, env := range m {
