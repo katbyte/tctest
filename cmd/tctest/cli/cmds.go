@@ -36,10 +36,6 @@ type WaitFlags struct {
 	RunTimeout   int
 }
 
-//type TriggerFlags struct {
-//	QueueAtTop bool
-//}
-
 type FlagData struct {
 	TC                  TCFlags
 	PR                  PRFlags
