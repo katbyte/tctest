@@ -106,7 +106,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			properties := viper.GetString("properties")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, "", testRegEx, wait)
+			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait)
 		},
 	}
 	root.AddCommand(branch)
