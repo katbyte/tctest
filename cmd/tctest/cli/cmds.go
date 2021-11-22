@@ -42,6 +42,7 @@ type FlagData struct {
 	Wait                WaitFlags
 	ServicePackagesMode bool
 	AllTests            bool
+	SkipQueue           bool
 }
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
@@ -105,6 +106,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			buildTypeId := viper.GetString("buildtypeid")
 			properties := viper.GetString("properties")
 			wait := viper.GetBool("wait")
+			skipQueue := viper.GetBool("skip-queue")
 
 			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait)
 		},
@@ -179,8 +181,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					branch := fmt.Sprintf("refs/pull/%s/merge", pr)
 					properties := viper.GetString("properties")
 					wait := viper.GetBool("wait")
+					skipQueue := viper.GetBool("skip-queue")
 
-					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait); err != nil {
+					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait, skipQueue); err != nil {
 						return err
 					}
 					fmt.Println()
@@ -275,6 +278,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.Wait.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
 
+	pflags.BoolVarP(&flags.SkipQueue, "skip-queue", "", false, "Put the build to the queue top")
+
 	// binding map for viper/pflag -> env
 	m := map[string]string{
 		"server":        "TCTEST_SERVER",
@@ -292,6 +297,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		"queue-timeout": "",
 		"run-timeout":   "",
 		"latest":        "TCTEST_LATESTBUILD",
+		"skip-queue":    "TCTEST_SKIP_QUEUE",
 	}
 
 	for name, env := range m {

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,10 +73,10 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 	}
 }
 
-func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, serviceInfo string, wait bool) error {
+func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, serviceInfo string, wait bool, skipQueue bool) error {
 	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, serviceInfo, buildTypeId)
 
-	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex)
+	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex, skipQueue)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %v", err)
 	}
@@ -97,9 +98,9 @@ func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, ser
 	return nil
 }
 
-func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, testRegEx string) (string, string, error) {
+func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, testRegEx string, skipQueue bool) (string, string, error) {
 	common.Log.Debugf("triggering build for %q", buildTypeId)
-	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties)
+	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
 	}
@@ -277,7 +278,7 @@ func (tc TeamCity) waitForBuild(buildID string) error {
 	}
 }
 
-func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildProperties string) (int, string, error) {
+func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
 	bodyAdditionalProperties := ""
 
 	if buildProperties != "" {
@@ -298,6 +299,7 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
 	// should be safe to send both
 	body := fmt.Sprintf(`
 <build>
+	<triggeringOptions queueAtTop="%[5]s"/>
 	<buildType id="%[1]s"/>
 	<properties>
         <property name="teamcity.build.branch" value="%[2]s"/>
@@ -306,7 +308,7 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
         <property name="TEST_PREFIX" value="%[3]s"/>
 %[4]s	</properties>
 </build>
-`, buildTypeId, branch, testPattern, bodyAdditionalProperties)
+`, buildTypeId, branch, testPattern, bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
 	return tc.makePostRequest("/app/rest/2018.1/buildQueue", body)
 }
