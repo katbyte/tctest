@@ -108,7 +108,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			wait := viper.GetBool("wait")
 			skipQueue := viper.GetBool("skip-queue")
 
-			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait)
+			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait, skipQueue)
 		},
 	}
 	root.AddCommand(branch)
