@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v41/github"
 
 	//nolint:misspell
 	c "github.com/gookit/color"

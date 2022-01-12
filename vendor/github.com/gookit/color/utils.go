@@ -1,69 +1,211 @@
 package color
 
 import (
+	"fmt"
 	"io"
-	"os"
+	"log"
 	"strings"
 )
 
-// IsConsole 判断 w 是否为 stderr、stdout、stdin 三者之一
-func IsConsole(out io.Writer) bool {
-	o, ok := out.(*os.File)
-	if !ok {
-		return false
+// SetTerminal by given code.
+func SetTerminal(code string) error {
+	if !Enable || !SupportColor() {
+		return nil
 	}
 
-	return o == os.Stdout || o == os.Stderr || o == os.Stdin
+	_, err := fmt.Fprintf(output, SettingTpl, code)
+	return err
 }
 
-// IsMSys msys(MINGW64) 环境，不一定支持颜色
-func IsMSys() bool {
-	// like "MSYSTEM=MINGW64"
-	if len(os.Getenv("MSYSTEM")) > 0 {
-		return true
+// ResetTerminal terminal setting.
+func ResetTerminal() error {
+	if !Enable || !SupportColor() {
+		return nil
 	}
 
-	return false
+	_, err := fmt.Fprint(output, ResetSet)
+	return err
 }
 
-// IsSupportColor check current console is support color.
-//
-// Supported:
-// 	linux, mac, or windows's ConEmu, Cmder, putty, git-bash.exe
-// Not support:
-// 	windows cmd.exe, powerShell.exe
-func IsSupportColor() bool {
-	// "TERM=xterm"  support color
-	// "TERM=xterm-vt220" support color
-	// "TERM=xterm-256color" support color
-	// "TERM=cygwin" don't support color
-	if strings.Contains(os.Getenv("TERM"), "xterm") {
-		return true
-	}
+/*************************************************************
+ * print methods(will auto parse color tags)
+ *************************************************************/
 
-	// like on ConEmu software, e.g "ConEmuANSI=ON"
-	if os.Getenv("ConEmuANSI") == "ON" {
-		return true
-	}
-
-	// like on ConEmu software, e.g "ANSICON=189x2000 (189x43)"
-	if os.Getenv("ANSICON") != "" {
-		return true
-	}
-
-	return false
+// Print render color tag and print messages
+func Print(a ...interface{}) {
+	Fprint(output, a...)
 }
 
-// IsSupport256Color render
-func IsSupport256Color() bool {
-	// "TERM=xterm-256color"
-	return strings.Contains(os.Getenv("TERM"), "256color")
+// Printf format and print messages
+func Printf(format string, a ...interface{}) {
+	Fprintf(output, format, a...)
 }
 
-// its Win system. linux windows darwin
-// func isWindows() bool {
-// 	return runtime.GOOS == "windows"
+// Println messages with new line
+func Println(a ...interface{}) {
+	Fprintln(output, a...)
+}
+
+// Fprint print rendered messages to writer
+// Notice: will ignore print error
+func Fprint(w io.Writer, a ...interface{}) {
+	_, err := fmt.Fprint(w, Render(a...))
+	saveInternalError(err)
+
+	// if isLikeInCmd {
+	// 	renderColorCodeOnCmd(func() {
+	// 		_, _ = fmt.Fprint(w, Render(a...))
+	// 	})
+	// } else {
+	// 	_, _ = fmt.Fprint(w, Render(a...))
+	// }
+}
+
+// Fprintf print format and rendered messages to writer.
+// Notice: will ignore print error
+func Fprintf(w io.Writer, format string, a ...interface{}) {
+	str := fmt.Sprintf(format, a...)
+	_, err := fmt.Fprint(w, ReplaceTag(str))
+	saveInternalError(err)
+}
+
+// Fprintln print rendered messages line to writer
+// Notice: will ignore print error
+func Fprintln(w io.Writer, a ...interface{}) {
+	str := formatArgsForPrintln(a)
+	_, err := fmt.Fprintln(w, ReplaceTag(str))
+	saveInternalError(err)
+}
+
+// Lprint passes colored messages to a log.Logger for printing.
+// Notice: should be goroutine safe
+func Lprint(l *log.Logger, a ...interface{}) {
+	l.Print(Render(a...))
+}
+
+// Render parse color tags, return rendered string.
+// Usage:
+//	text := Render("<info>hello</> <cyan>world</>!")
+//	fmt.Println(text)
+func Render(a ...interface{}) string {
+	if len(a) == 0 {
+		return ""
+	}
+
+	return ReplaceTag(fmt.Sprint(a...))
+}
+
+// Sprint parse color tags, return rendered string
+func Sprint(a ...interface{}) string {
+	if len(a) == 0 {
+		return ""
+	}
+
+	return ReplaceTag(fmt.Sprint(a...))
+}
+
+// Sprintf format and return rendered string
+func Sprintf(format string, a ...interface{}) string {
+	return ReplaceTag(fmt.Sprintf(format, a...))
+}
+
+// String alias of the ReplaceTag
+func String(s string) string {
+	return ReplaceTag(s)
+}
+
+// Text alias of the ReplaceTag
+func Text(s string) string {
+	return ReplaceTag(s)
+}
+
+// Uint8sToInts convert []uint8 to []int
+// func Uint8sToInts(u8s []uint8 ) []int {
+// 	ints := make([]int, len(u8s))
+// 	for i, u8 := range u8s {
+// 		ints[i] = int(u8)
+// 	}
+// 	return ints
 // }
+
+/*************************************************************
+ * helper methods for print
+ *************************************************************/
+
+// new implementation, support render full color code on pwsh.exe, cmd.exe
+func doPrintV2(code, str string) {
+	_, err := fmt.Fprint(output, RenderString(code, str))
+	saveInternalError(err)
+
+	// if isLikeInCmd {
+	// 	renderColorCodeOnCmd(func() {
+	// 		_, _ = fmt.Fprint(output, RenderString(code, str))
+	// 	})
+	// } else {
+	// 	_, _ = fmt.Fprint(output, RenderString(code, str))
+	// }
+}
+
+// new implementation, support render full color code on pwsh.exe, cmd.exe
+func doPrintlnV2(code string, args []interface{}) {
+	str := formatArgsForPrintln(args)
+	_, err := fmt.Fprintln(output, RenderString(code, str))
+	saveInternalError(err)
+}
+
+// use Println, will add spaces for each arg
+func formatArgsForPrintln(args []interface{}) (message string) {
+	if ln := len(args); ln == 0 {
+		message = ""
+	} else if ln == 1 {
+		message = fmt.Sprint(args[0])
+	} else {
+		message = fmt.Sprintln(args...)
+		// clear last "\n"
+		message = message[:len(message)-1]
+	}
+	return
+}
+
+/*************************************************************
+ * helper methods
+ *************************************************************/
+
+// is on debug mode
+// func isDebugMode() bool {
+// 	return debugMode == "on"
+// }
+
+func debugf(f string, v ...interface{}) {
+	if debugMode {
+		fmt.Print("COLOR_DEBUG: ")
+		fmt.Printf(f, v...)
+		fmt.Println()
+	}
+}
+
+// equals: return ok ? val1 : val2
+func compareVal(ok bool, val1, val2 uint8) uint8 {
+	if ok {
+		return val1
+	}
+	return val2
+}
+
+// equals: return ok ? val1 : val2
+func compareF64Val(ok bool, val1, val2 float64) float64 {
+	if ok {
+		return val1
+	}
+	return val2
+}
+
+func saveInternalError(err error) {
+	if err != nil {
+		debugf("inner error: %s", err.Error())
+		innerErrs = append(innerErrs, err)
+	}
+}
 
 func stringToArr(str, sep string) (arr []string) {
 	str = strings.TrimSpace(str)
@@ -77,6 +219,5 @@ func stringToArr(str, sep string) (arr []string) {
 			arr = append(arr, val)
 		}
 	}
-
 	return
 }

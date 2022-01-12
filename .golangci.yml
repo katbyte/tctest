@@ -19,11 +19,10 @@ linters:
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - nakedret
     - misspell
     - nolintlint
-    - scopelint
+    - exportloopref
     - staticcheck
     - structcheck
     - typecheck

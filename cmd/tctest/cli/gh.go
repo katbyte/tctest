@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/google/go-github/github"
+	"github.com/google/go-github/v41/github"
 	"github.com/katbyte/tctest/common"
 	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
@@ -26,6 +26,7 @@ func NewGithubRepoFromViper() GithubRepo {
 	owner, repo := parts[0], parts[1]
 
 	token := viper.GetString("token-gh")
+	common.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 	return NewGithubRepo(owner, repo, token)
 }
 

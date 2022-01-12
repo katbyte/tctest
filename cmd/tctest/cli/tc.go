@@ -42,6 +42,7 @@ func NewTeamCityFromViper() TeamCity {
 	token := viper.GetString("token-tc")
 	password := viper.GetString("password")
 	username := viper.GetString("username")
+
 	return NewTeamCity(server, token, username, password)
 }
 
@@ -59,6 +60,7 @@ func NewTeamCity(server, token, username, password string) TeamCity {
 }
 
 func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
+	common.Log.Debugf("new tc: %s@%s", token, server)
 	return TeamCity{
 		server: server,
 		token:  &token,
@@ -66,6 +68,7 @@ func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
 }
 
 func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
+	common.Log.Debugf("new tc: %s:%s@%s", username, password, server)
 	return TeamCity{
 		server:   server,
 		username: &username,
