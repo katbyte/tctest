@@ -43,6 +43,7 @@ type FlagData struct {
 	ServicePackagesMode bool
 	AllTests            bool
 	SkipQueue           bool
+	OpenBrowser         bool
 }
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
@@ -107,8 +108,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			properties := viper.GetString("properties")
 			wait := viper.GetBool("wait")
 			skipQueue := viper.GetBool("skip-queue")
+			openBrowser := viper.GetBool("open")
 
-			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait, skipQueue)
+			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait, skipQueue, openBrowser)
 		},
 	}
 	root.AddCommand(branch)
@@ -182,8 +184,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					properties := viper.GetString("properties")
 					wait := viper.GetBool("wait")
 					skipQueue := viper.GetBool("skip-queue")
+					openBrowser := viper.GetBool("open")
 
-					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait, skipQueue); err != nil {
+					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait, skipQueue, openBrowser); err != nil {
 						return err
 					}
 					fmt.Println()
@@ -280,6 +283,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	pflags.BoolVarP(&flags.SkipQueue, "skip-queue", "", false, "Put the build to the queue top")
 
+	pflags.BoolVarP(&flags.OpenBrowser, "open", "", false, "Open the build in a browser")
+
 	// binding map for viper/pflag -> env
 	m := map[string]string{
 		"server":        "TCTEST_SERVER",
@@ -298,6 +303,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		"run-timeout":   "",
 		"latest":        "TCTEST_LATESTBUILD",
 		"skip-queue":    "TCTEST_SKIP_QUEUE",
+		"open":          "TCTEST_OPEN_BROWSER",
 	}
 
 	for name, env := range m {

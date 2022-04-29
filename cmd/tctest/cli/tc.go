@@ -13,6 +13,7 @@ import (
 	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/common"
+	"github.com/pkg/browser"
 	"github.com/spf13/viper"
 )
 
@@ -76,7 +77,7 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 	}
 }
 
-func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, serviceInfo string, wait bool, skipQueue bool) error {
+func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, serviceInfo string, wait bool, skipQueue bool, open bool) error {
 	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, serviceInfo, buildTypeId)
 
 	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex, skipQueue)
@@ -85,6 +86,12 @@ func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, ser
 	}
 
 	c.Printf("  build <green>%s</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildId, buildUrl, testRegex)
+
+	if open {
+		if err := browser.OpenURL(buildUrl); err != nil {
+			c.Printf("failed to open build %s in browser", buildId)
+		}
+	}
 
 	if wait {
 		common.Log.Debugf("waiting...")
