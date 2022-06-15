@@ -139,7 +139,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				}
 
 				// todo get a map of tests -> service
-				serviceTests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"))
+				serviceTests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("open"))
 				if err != nil {
 					c.Printf("  <red>ERROR: discovering tests:</> %v\n", err)
 					continue
@@ -184,9 +184,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					properties := viper.GetString("properties")
 					wait := viper.GetBool("wait")
 					skipQueue := viper.GetBool("skip-queue")
-					openBrowser := viper.GetBool("open")
+					open := viper.GetBool("skip-queue")
 
-					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait, skipQueue, openBrowser); err != nil {
+					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait, skipQueue, open); err != nil {
 						return err
 					}
 					fmt.Println()
@@ -213,7 +213,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests")); err != nil {
+			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("open")); err != nil {
 				return fmt.Errorf("pr cmd failed: %v", err)
 			}
 			return nil

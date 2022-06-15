@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v41/github"
+	"github.com/pkg/browser"
 
 	//nolint:misspell
 	c "github.com/gookit/color"
@@ -18,8 +19,14 @@ func (gr GithubRepo) PrUrl(pr int) string {
 	return "https://github.com/" + gr.Owner + "/" + gr.Repo + "/pull/" + strconv.Itoa(pr)
 }
 
-func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string) (*map[string][]string, error) {
-	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, gr.PrUrl(pr))
+func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, open bool) (*map[string][]string, error) {
+	prUrl := gr.PrUrl(pr)
+	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prUrl)
+	if open {
+		if err := browser.OpenURL(prUrl); err != nil {
+			c.Printf("failed to open build %s in browser", prUrl)
+		}
+	}
 	serviceTests, err := gr.PrTests(pr, fileRegExStr, splitTestsAt)
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %v", err)
