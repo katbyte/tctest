@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-github/v41/github"
+	"github.com/google/go-github/v45/github"
 	common2 "github.com/katbyte/tctest/lib/common"
 	"github.com/pkg/browser"
 
