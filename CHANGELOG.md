@@ -8,7 +8,7 @@
 - results command can now look up a PR ([#30](https://github.com/katbyte/tctest/issues/30))
 - support more then 1000 files and files larger then 1MB ([#42](https://github.com/katbyte/tctest/issues/42))
 - build queue can now be skipped ([#52](https://github.com/katbyte/tctest/issues/52))
-- pr and teamcity build can no be opened in a browser by `--open` ([#54](https://github.com/katbyte/tctest/issues/54))
+- pr and teamcity build can now be opened in a browser with `--open` flag ([#54](https://github.com/katbyte/tctest/issues/54))
 
 ## 0.4.0 (2020-04-12)
 
