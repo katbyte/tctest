@@ -12,7 +12,7 @@ import (
 
 	//nolint:misspell
 	c "github.com/gookit/color"
-	"github.com/katbyte/tctest/common"
+	common2 "github.com/katbyte/tctest/lib/common"
 	"github.com/pkg/browser"
 	"github.com/spf13/viper"
 )
@@ -61,7 +61,7 @@ func NewTeamCity(server, token, username, password string) TeamCity {
 }
 
 func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
-	common.Log.Debugf("new tc: %s@%s", token, server)
+	common2.Log.Debugf("new tc: %s@%s", token, server)
 	return TeamCity{
 		server: server,
 		token:  &token,
@@ -69,7 +69,7 @@ func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
 }
 
 func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
-	common.Log.Debugf("new tc: %s:%s@%s", username, password, server)
+	common2.Log.Debugf("new tc: %s:%s@%s", username, password, server)
 	return TeamCity{
 		server:   server,
 		username: &username,
@@ -94,7 +94,7 @@ func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, ser
 	}
 
 	if wait {
-		common.Log.Debugf("waiting...")
+		common2.Log.Debugf("waiting...")
 		err := tc.waitForBuild(buildId)
 		if err != nil {
 			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
@@ -109,7 +109,7 @@ func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, ser
 }
 
 func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, testRegEx string, skipQueue bool) (string, string, error) {
-	common.Log.Debugf("triggering build for %q", buildTypeId)
+	common2.Log.Debugf("triggering build for %q", buildTypeId)
 	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
 		return "", "", fmt.Errorf("error creating build request: %v", err)
@@ -292,7 +292,7 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
 	bodyAdditionalProperties := ""
 
 	if buildProperties != "" {
-		common.Log.Debugf("adding additional properties:")
+		common2.Log.Debugf("adding additional properties:")
 
 		for _, p := range strings.Split(buildProperties, ";") {
 			parts := strings.Split(p, "=")
@@ -300,7 +300,7 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
 				return 0, "", fmt.Errorf("unable to parse build property '%s': missing =", p)
 			}
 
-			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
+			common2.Log.Debugf("  property:%s=%s", parts[0], parts[1])
 			bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
 		}
 	}
@@ -326,7 +326,6 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
 func (tc TeamCity) makeGetRequest(endpoint string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
 	req, err := http.NewRequest("GET", uri, nil)
-
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
 	}
@@ -337,7 +336,6 @@ func (tc TeamCity) makeGetRequest(endpoint string) (int, string, error) {
 func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
 	req, err := http.NewRequest("POST", uri, strings.NewReader(body))
-
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
 	}
@@ -354,7 +352,7 @@ func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 
 	req.Header.Set("Content-Type", "application/xml")
 
-	resp, err := common.HTTP.Do(req)
+	resp, err := common2.HTTP.Do(req)
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %v", err)
 	}

@@ -15,7 +15,7 @@ basic help:
 
 To install `tctest` from the command line, you can run:
 ```bash
-go install github.com/katbyte/tctest/cmd/tctest
+go install github.com/katbyte/tctest
 ```
 
 ## Configuration

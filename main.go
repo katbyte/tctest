@@ -5,8 +5,8 @@ import (
 
 	//nolint:misspell
 	c "github.com/gookit/color"
-	"github.com/katbyte/tctest/cmd/tctest/cli"
-	"github.com/katbyte/tctest/common"
+	"github.com/katbyte/tctest/cli"
+	"github.com/katbyte/tctest/lib/common"
 )
 
 func main() {

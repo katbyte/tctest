@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/katbyte/tctest/version"
+	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
