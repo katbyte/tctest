@@ -69,7 +69,7 @@ func NewTeamCityUsingTokenAuth(server, token string) TeamCity {
 }
 
 func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
-	common2.Log.Debugf("new tc: %s:%s@%s", username, password, server)
+	common2.Log.Debugf("new tc: %s@%s", username, server)
 	return TeamCity{
 		server:   server,
 		username: &username,
