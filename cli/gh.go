@@ -27,6 +27,7 @@ func NewGithubRepoFromViper() GithubRepo {
 
 	token := viper.GetString("token-gh")
 	common2.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
+
 	return NewGithubRepo(owner, repo, token)
 }
 

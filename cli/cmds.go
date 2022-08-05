@@ -104,13 +104,13 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			buildTypeId := viper.GetString("buildtypeid")
+			buildTypeID := viper.GetString("buildtypeid")
 			properties := viper.GetString("properties")
 			wait := viper.GetBool("wait")
 			skipQueue := viper.GetBool("skip-queue")
 			openBrowser := viper.GetBool("open")
 
-			return NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, "", wait, skipQueue, openBrowser)
+			return NewTeamCityFromViper().BuildCmd(buildTypeID, properties, branch, testRegEx, "", wait, skipQueue, openBrowser)
 		},
 	}
 	root.AddCommand(branch)
@@ -135,18 +135,18 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			for _, pr := range strings.Split(prs, ",") {
 				pri, err := strconv.Atoi(pr)
 				if err != nil {
-					return fmt.Errorf("pr should be a number: %v", err)
+					return fmt.Errorf("pr should be a number: %w", err)
 				}
 
 				// todo get a map of tests -> service
 				serviceTests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("open"))
 				if err != nil {
-					c.Printf("  <red>ERROR: discovering tests:</> %v\n", err)
+					c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
 					continue
 				}
 
 				if serviceTests == nil {
-					c.Printf("  <red>ERROR: service tests in nil</>\n")
+					c.Printf("  <red>ERROR: service tests in nil</>\n\n")
 					continue
 				}
 
@@ -162,7 +162,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					if testRegEx == "" {
 						// if no testregex and no tests throw an error (-a is required for all)
 						if len(tests) == 0 {
-							c.Printf("  %s<red>ERROR: no tests found, use -a to run all tests\n", serviceInfo)
+							c.Printf("  %s<red>ERROR:</> no tests found, use -a to run all tests\n", serviceInfo)
 							continue
 						}
 
@@ -175,9 +175,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					}
 
 					// if we have a service put it on the end of the build type id
-					buildTypeId := viper.GetString("buildtypeid")
+					buildTypeID := viper.GetString("buildtypeid")
 					if s != "" {
-						buildTypeId += "_" + strings.ToUpper(s)
+						buildTypeID += "_" + strings.ToUpper(s)
 					}
 
 					branch := fmt.Sprintf("refs/pull/%s/merge", pr)
@@ -186,8 +186,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					skipQueue := viper.GetBool("skip-queue")
 					open := viper.GetBool("skip-queue")
 
-					if err := NewTeamCityFromViper().BuildCmd(buildTypeId, properties, branch, testRegEx, serviceInfo, wait, skipQueue, open); err != nil {
-						return err
+					if err := NewTeamCityFromViper().BuildCmd(buildTypeID, properties, branch, testRegEx, serviceInfo, wait, skipQueue, open); err != nil {
+						c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 					}
 					fmt.Println()
 				}
@@ -208,14 +208,15 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pri, err := strconv.Atoi(args[0])
 			if err != nil {
-				return fmt.Errorf("pr should be a number: %v", err)
+				return fmt.Errorf("pr should be a number: %w", err)
 			}
 
 			cmd.SilenceUsage = true
 
 			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("open")); err != nil {
-				return fmt.Errorf("pr cmd failed: %v", err)
+				return fmt.Errorf("pr cmd failed: %w", err)
 			}
+
 			return nil
 		},
 	}
@@ -229,13 +230,13 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		PreRunE:       ValidateParams([]string{"server"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			buildId := args[0]
+			buildID := args[0]
 
 			cmd.SilenceUsage = true
 
 			wait := viper.GetBool("wait")
 
-			return NewTeamCityFromViper().TestResultsCmd(buildId, wait)
+			return NewTeamCityFromViper().TestResultsCmd(buildID, wait)
 		},
 	}
 	root.AddCommand(results)
@@ -252,11 +253,11 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			buildTypeId := viper.GetString("buildtypeid")
+			buildTypeID := viper.GetString("buildtypeid")
 			latest := viper.GetBool("latest")
 			wait := viper.GetBool("wait")
 
-			return NewTeamCityFromViper().TestResultsByPRCmd(pr, buildTypeId, latest, wait)
+			return NewTeamCityFromViper().TestResultsByPRCmd(pr, buildTypeID, latest, wait)
 		},
 	}
 	results.AddCommand(resultsByPR)
@@ -308,12 +309,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 	for name, env := range m {
 		if err := viper.BindPFlag(name, pflags.Lookup(name)); err != nil {
-			fmt.Println(fmt.Errorf("error binding '%s' flag: %v", name, err))
+			fmt.Println(fmt.Errorf("error binding '%s' flag: %w", name, err))
 		}
 
 		if env != "" {
 			if err := viper.BindEnv(name, env); err != nil {
-				fmt.Println(fmt.Errorf("error binding '%s' to env '%s' : %v", name, env, err))
+				fmt.Println(fmt.Errorf("error binding '%s' to env '%s' : %w", name, env, err))
 			}
 		}
 	}

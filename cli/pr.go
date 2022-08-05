@@ -15,21 +15,21 @@ import (
 	c "github.com/gookit/color"
 )
 
-func (gr GithubRepo) PrUrl(pr int) string {
+func (gr GithubRepo) PrURL(pr int) string {
 	return "https://github.com/" + gr.Owner + "/" + gr.Repo + "/pull/" + strconv.Itoa(pr)
 }
 
 func (gr GithubRepo) PrCmd(pr int, fileRegExStr, splitTestsAt string, open bool) (*map[string][]string, error) {
-	prUrl := gr.PrUrl(pr)
-	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prUrl)
+	prURL := gr.PrURL(pr)
+	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prURL)
 	if open {
-		if err := browser.OpenURL(prUrl); err != nil {
-			c.Printf("failed to open build %s in browser", prUrl)
+		if err := browser.OpenURL(prURL); err != nil {
+			c.Printf("failed to open build %s in browser", prURL)
 		}
 	}
 	serviceTests, err := gr.PrTests(pr, fileRegExStr, splitTestsAt)
 	if err != nil {
-		return nil, fmt.Errorf("pr list failed: %v", err)
+		return nil, fmt.Errorf("pr list failed: %w", err)
 	}
 
 	for service, tests := range *serviceTests {
@@ -114,6 +114,10 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 
 		common2.Log.Debugf("    download %s", f)
 
+		if pr.MergeCommitSHA == nil {
+			return nil, fmt.Errorf("merge commit SHA is nil, is there a merge conflict?")
+		}
+
 		// DownloadContents always performs a directory listing for the file,
 		// which has a 1000 file limit.
 		fileContents, _, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Repo, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
@@ -131,9 +135,11 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			return nil, fmt.Errorf("downloading file (%s): missing DownloadURL", f)
 		}
 
+		// todo thread ctx
+		// nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
-			return nil, fmt.Errorf("downloading file (%s): %s", f, err)
+			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
 		}
 
 		defer resp.Body.Close()

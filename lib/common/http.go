@@ -25,7 +25,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	reqData, err := httputil.DumpRequestOut(req, true)
 
 	if err == nil {
-		Log.Tracef(logReqMsg, t.name, prettyPrintJsonLines(reqData))
+		Log.Tracef(logReqMsg, t.name, prettyPrintJSON(reqData))
 	} else {
 		Log.Debugf("%s API Request error: %#v", t.name, err)
 	}
@@ -37,7 +37,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	respData, err := httputil.DumpResponse(resp, true)
 	if err == nil {
-		Log.Tracef(logRespMsg, t.name, prettyPrintJsonLines(respData))
+		Log.Tracef(logRespMsg, t.name, prettyPrintJSON(respData))
 	} else {
 		Log.Debugf("%s API Response error: %#v", t.name, err)
 	}
@@ -49,9 +49,9 @@ func NewTransport(name string, t http.RoundTripper) *transport {
 	return &transport{name, t}
 }
 
-// prettyPrintJsonLines iterates through a []byte line-by-line,
+// prettyPrintJSON iterates through a []byte line-by-line,
 // transforming any lines that are complete json into pretty-printed json.
-func prettyPrintJsonLines(b []byte) string {
+func prettyPrintJSON(b []byte) string {
 	parts := strings.Split(string(b), "\n")
 	for i, p := range parts {
 		if b := []byte(p); json.Valid(b) {
@@ -61,6 +61,7 @@ func prettyPrintJsonLines(b []byte) string {
 			parts[i] = out.String()
 		}
 	}
+
 	return strings.Join(parts, "\n")
 }
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
@@ -77,42 +78,42 @@ func NewTeamCityUsingBasicAuth(server, username, password string) TeamCity {
 	}
 }
 
-func (tc TeamCity) BuildCmd(buildTypeId, buildProperties, branch, testRegex, serviceInfo string, wait bool, skipQueue bool, open bool) error {
-	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, serviceInfo, buildTypeId)
+func (tc TeamCity) BuildCmd(buildTypeID, buildProperties, branch, testRegex, serviceInfo string, wait bool, skipQueue bool, open bool) error {
+	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, serviceInfo, buildTypeID)
 
-	buildId, buildUrl, err := tc.runBuild(buildTypeId, buildProperties, branch, testRegex, skipQueue)
+	buildID, buildURL, err := tc.runBuild(buildTypeID, buildProperties, branch, testRegex, skipQueue)
 	if err != nil {
-		return fmt.Errorf("unable to trigger build: %v", err)
+		return fmt.Errorf("unable to trigger build: %w", err)
 	}
 
-	c.Printf("  build <green>%s</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildId, buildUrl, testRegex)
+	c.Printf("  build <green>%s</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildID, buildURL, testRegex)
 
 	if open {
-		if err := browser.OpenURL(buildUrl); err != nil {
-			c.Printf("failed to open build %s in browser", buildId)
+		if err := browser.OpenURL(buildURL); err != nil {
+			c.Printf("failed to open build %s in browser", buildID)
 		}
 	}
 
 	if wait {
 		common2.Log.Debugf("waiting...")
-		err := tc.waitForBuild(buildId)
+		err := tc.waitForBuild(buildID)
 		if err != nil {
-			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
+			return fmt.Errorf("error waiting for build %s to finish: %w", buildID, err)
 		}
-		err = tc.TestResultsCmd(buildId, wait)
+		err = tc.TestResultsCmd(buildID, wait)
 		if err != nil {
-			return fmt.Errorf("error printing results from build %s: %v", buildId, err)
+			return fmt.Errorf("error printing results from build %s: %w", buildID, err)
 		}
 	}
 
 	return nil
 }
 
-func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, testRegEx string, skipQueue bool) (string, string, error) {
-	common2.Log.Debugf("triggering build for %q", buildTypeId)
-	statusCode, body, err := tc.triggerBuild(buildTypeId, branch, testRegEx, buildProperties, skipQueue)
+func (tc TeamCity) runBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (string, string, error) {
+	common2.Log.Debugf("triggering build for %q", buildTypeID)
+	statusCode, body, err := tc.triggerBuild(buildTypeID, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
-		return "", "", fmt.Errorf("error creating build request: %v", err)
+		return "", "", fmt.Errorf("error creating build request: %w", err)
 	}
 
 	if statusCode != http.StatusOK {
@@ -120,40 +121,41 @@ func (tc TeamCity) runBuild(buildTypeId, buildProperties, branch string, testReg
 	}
 
 	data := struct {
-		BuildId string `xml:"id,attr"`
+		BuildID string `xml:"id,attr"`
 	}{}
+
 	if err := xml.NewDecoder(strings.NewReader(body)).Decode(&data); err != nil {
 		return "", "", fmt.Errorf("unable to decode XML: %d", statusCode)
 	}
 
-	return data.BuildId, fmt.Sprintf("https://%s/viewQueued.html?itemId=%s", tc.server, data.BuildId), nil
+	return data.BuildID, fmt.Sprintf("https://%s/viewQueued.html?itemId=%s", tc.server, data.BuildID), nil
 }
 
-func (tc TeamCity) TestResultsCmd(buildId string, wait bool) error {
-	statusCode, buildStatus, err := tc.buildState(buildId)
+func (tc TeamCity) TestResultsCmd(buildID string, wait bool) error {
+	statusCode, buildStatus, err := tc.buildState(buildID)
 	if err != nil {
-		return fmt.Errorf("error looking for build %s state: %v", buildId, err)
+		return fmt.Errorf("error looking for build %s state: %w", buildID, err)
 	}
 	if statusCode == http.StatusNotFound {
-		return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
+		return fmt.Errorf("no build ID %s found in running builds or queue", buildID)
 	}
 	if statusCode != http.StatusOK {
 		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 	}
 
 	if buildStatus != "finished" && wait {
-		err := tc.waitForBuild(buildId)
+		err := tc.waitForBuild(buildID)
 		if err != nil {
-			return fmt.Errorf("error waiting for build %s to finish: %v", buildId, err)
+			return fmt.Errorf("error waiting for build %s to finish: %w", buildID, err)
 		}
 	}
 
-	statusCode, body, err := tc.buildLog(buildId)
+	statusCode, body, err := tc.buildLog(buildID)
 	if err != nil {
-		return fmt.Errorf("error looking for build %s results: %v", buildId, err)
+		return fmt.Errorf("error looking for build %s results: %w", buildID, err)
 	}
 
-	if err := tc.checkBuildLogStatus(statusCode, buildId); err != nil {
+	if err := tc.checkBuildLogStatus(statusCode, buildID); err != nil {
 		return err
 	}
 
@@ -161,21 +163,21 @@ func (tc TeamCity) TestResultsCmd(buildId string, wait bool) error {
 
 	if buildStatus == "running" && !wait {
 		// If we didn't want to wait and it's not finished, print a warning at the end so people notice it
-		return fmt.Errorf("build %s is still running, test results may be incomplete", buildId)
+		return fmt.Errorf("build %s is still running, test results may be incomplete", buildID)
 	}
 
 	return nil
 }
 
-func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeId string, latest, wait bool) error {
-	locatorParams := fmt.Sprintf("buildType:%s,branch:name:refs/pull/%s/merge,running:any", buildTypeId, pr)
+func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeID string, latest, wait bool) error {
+	locatorParams := fmt.Sprintf("buildType:%s,branch:name:refs/pull/%s/merge,running:any", buildTypeID, pr)
 	if latest {
 		locatorParams += ",count:1"
 	}
 
 	statusCode, respBody, err := tc.buildLocator(locatorParams)
 	if err != nil {
-		return fmt.Errorf("error looking for builds for PR %s state: %v", pr, err)
+		return fmt.Errorf("error looking for builds for PR %s state: %w", pr, err)
 	}
 	if statusCode == http.StatusNotFound {
 		return fmt.Errorf("no build for PR %s found in running builds or queue", pr)
@@ -201,7 +203,7 @@ func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeId string, latest, wait bool)
 		if build.State != "finished" && wait {
 			err := tc.waitForBuild(build.ID)
 			if err != nil {
-				return fmt.Errorf("error waiting for PR %s, build %s to finish: %v", pr, build.ID, err)
+				return fmt.Errorf("error waiting for PR %s, build %s to finish: %w", pr, build.ID, err)
 			}
 		}
 	}
@@ -209,7 +211,7 @@ func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeId string, latest, wait bool)
 	for _, build := range tcb.Builds {
 		statusCode, body, err := tc.buildLog(build.ID)
 		if err != nil {
-			return fmt.Errorf("error looking for PR %s, build %s results: %v", pr, build.ID, err)
+			return fmt.Errorf("error looking for PR %s, build %s results: %w", pr, build.ID, err)
 		}
 
 		if err := tc.checkBuildLogStatus(statusCode, build.ID); err != nil {
@@ -230,16 +232,16 @@ func (tc TeamCity) TestResultsByPRCmd(pr, buildTypeId string, latest, wait bool)
 	return nil
 }
 
-func (tc TeamCity) buildLog(buildId string) (int, string, error) {
-	return tc.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildId=%s", buildId))
+func (tc TeamCity) buildLog(buildID string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildID=%s", buildID))
 }
 
-func (tc TeamCity) buildQueue(buildId string) (int, string, error) {
-	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%s", buildId))
+func (tc TeamCity) buildQueue(buildID string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%s", buildID))
 }
 
-func (tc TeamCity) buildState(buildId string) (int, string, error) {
-	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%s/state", buildId))
+func (tc TeamCity) buildState(buildID string) (int, string, error) {
+	return tc.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%s/state", buildID))
 }
 
 func (tc TeamCity) buildLocator(queryArgs string) (int, string, error) {
@@ -288,7 +290,7 @@ func (tc TeamCity) waitForBuild(buildID string) error {
 	}
 }
 
-func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
+func (tc TeamCity) triggerBuild(buildTypeID, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
 	bodyAdditionalProperties := ""
 
 	if buildProperties != "" {
@@ -318,32 +320,32 @@ func (tc TeamCity) triggerBuild(buildTypeId, branch string, testPattern, buildPr
         <property name="TEST_PREFIX" value="%[3]s"/>
 %[4]s	</properties>
 </build>
-`, buildTypeId, branch, testPattern, bodyAdditionalProperties, strconv.FormatBool(skipQueue))
+`, buildTypeID, branch, testPattern, bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
 	return tc.makePostRequest("/app/rest/2018.1/buildQueue", body)
 }
 
 func (tc TeamCity) makeGetRequest(endpoint string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
-	req, err := http.NewRequest("GET", uri, nil)
+	req, err := http.NewRequestWithContext(context.Background(), "GET", uri, nil)
 	if err != nil {
-		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
+		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}
 
-	return tc.performHttpRequest(req)
+	return tc.performRequest(req)
 }
 
 func (tc TeamCity) makePostRequest(endpoint, body string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", tc.server, endpoint)
-	req, err := http.NewRequest("POST", uri, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", uri, strings.NewReader(body))
 	if err != nil {
-		return 0, "", fmt.Errorf("building http request for url %s failed: %v", uri, err)
+		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}
 
-	return tc.performHttpRequest(req)
+	return tc.performRequest(req)
 }
 
-func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
+func (tc TeamCity) performRequest(req *http.Request) (int, string, error) {
 	if tc.token != nil {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", *tc.token))
 	} else {
@@ -354,7 +356,7 @@ func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 
 	resp, err := common2.HTTP.Do(req)
 	if err != nil {
-		return 0, "", fmt.Errorf("http request failed: %v", err)
+		return 0, "", fmt.Errorf("http request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -362,31 +364,33 @@ func (tc TeamCity) performHttpRequest(req *http.Request) (int, string, error) {
 	// because e.g. sometimes a 404 is an error, but sometimes it just means something might be queued
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return 0, "", fmt.Errorf("error reading response body: %v", err)
+		return 0, "", fmt.Errorf("error reading response body: %w", err)
 	}
 
 	return resp.StatusCode, string(b), nil
 }
 
-func (tc TeamCity) checkBuildLogStatus(statusCode int, buildId string) error {
+func (tc TeamCity) checkBuildLogStatus(statusCode int, buildID string) error {
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
-		statusCode, _, err := tc.buildQueue(buildId)
+		statusCode, _, err := tc.buildQueue(buildID)
 		if err != nil {
-			return fmt.Errorf("error checking for build %s in queue: %v", buildId, err)
+			return fmt.Errorf("error checking for build %s in queue: %w", buildID, err)
 		}
 
 		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildId)
+			return fmt.Errorf("no build ID %s found in running builds or queue", buildID)
 		}
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 		}
-		return fmt.Errorf("build %s still queued, check results later", buildId)
+
+		return fmt.Errorf("build %s still queued, check results later", buildID)
 	}
 	if statusCode != http.StatusOK {
 		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 	}
+
 	return nil
 }
 
