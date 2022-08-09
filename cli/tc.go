@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -362,7 +362,7 @@ func (tc TeamCity) performRequest(req *http.Request) (int, string, error) {
 
 	// The calling function will figure out what to do with these
 	// because e.g. sometimes a 404 is an error, but sometimes it just means something might be queued
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return 0, "", fmt.Errorf("error reading response body: %w", err)
 	}
