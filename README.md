@@ -7,10 +7,10 @@
 A command-line utility to trigger builds in teamcity to run provider acceptance tests. Given a PR# it can find the files modified, tests to run and generate a TEST_PATTERN.    
 
 Example:
-![pr-example](_docs/example.png)
+![pr-example](.github/images/example.png)
 
 basic help:
-![help](_docs/help.png)
+![help](.github/images/help.png)
 
 ## Installation
 
@@ -21,8 +21,8 @@ go install github.com/katbyte/tctest
 
 ## Configuration
 
-While all commands can be configured from the command line, environment variables can be used instead. By creating a file such as [`set_env_example.sh`](_docs/set_env_example.sh), it can then be sourced:
-![env](_docs/env.png) 
+While all commands can be configured from the command line, environment variables can be used instead. By creating a file such as [`set_env_example.sh`](.github/images/set_env_example.sh), it can then be sourced:
+![env](.github/images/env.png) 
 
 ## Basic Usage
 
@@ -46,7 +46,13 @@ tctest pr 3232 TestAcc -s ci.katbyte.me -b AzureRm -u katbyte -r terraform-provi
 If no test pattern is specified the modified files in the PR will be checked and it will be generated automatically:
 ```bash
 tctest pr 3232
-```  
+```
+
+Multiple PRs can be specified at once
+```bash
+tctest pr 3232,5454,7676
+````
+
 
 To list all the tests discovered for a given PR:
 ```bash
