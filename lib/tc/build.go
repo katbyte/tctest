@@ -8,33 +8,37 @@ import (
 	"strings"
 	"time"
 
-	//nolint:misspell
 	"github.com/katbyte/tctest/lib/common"
 )
 
 // TODO TODO TODO
 // build id needs to become int everywhere
 
-func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (string, string, error) {
+func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (int, string, error) {
 	common.Log.Debugf("triggering build for %q", buildTypeID)
 	statusCode, body, err := s.TriggerBuild(buildTypeID, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
-		return "", "", fmt.Errorf("error creating build request: %w", err)
+		return 0, "", fmt.Errorf("error creating build request: %w", err)
 	}
 
 	if statusCode != http.StatusOK {
-		return "", "", fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+		return 0, "", fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 	}
 
 	data := struct {
 		BuildID string `xml:"id,attr"`
 	}{}
 
-	if err := xml.NewDecoder(strings.NewReader(body)).Decode(&data); err != nil {
-		return "", "", fmt.Errorf("unable to decode XML: %d", statusCode)
+	bid, err := strconv.Atoi(data.BuildID)
+	if err != nil {
+		return 0, "", fmt.Errorf("unable to convert build.ID (%d) from response into an integer: %w", bid, err)
 	}
 
-	return data.BuildID, fmt.Sprintf("https://%s/viewQueued.html?itemId=%s", s.Server, data.BuildID), nil
+	if err := xml.NewDecoder(strings.NewReader(body)).Decode(&data); err != nil {
+		return 0, "", fmt.Errorf("unable to decode XML: %d", statusCode)
+	}
+
+	return bid, fmt.Sprintf("https://%s/viewQueued.html?itemId=%d", s.Server, bid), nil
 }
 
 // todo is there any reason to not inline this into runbuild?
@@ -55,7 +59,7 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 		}
 	}
 
-	// for now we have two types of build - historical providers (BRANCH_NAME & TEST_PATTERN), new azurerm (teamcity.build.branch, TEST_PREFIX)
+	// for now, we have two types of build - historical providers (BRANCH_NAME & TEST_PATTERN), new azurerm (teamcity.build.branch, TEST_PREFIX)
 	// should be safe to send both
 	body := fmt.Sprintf(`
 <build>
@@ -73,28 +77,28 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 	return s.makePostRequest("/app/rest/2018.1/buildQueue", body)
 }
 
-func (s Server) BuildLog(buildID string) (int, string, error) {
-	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildID=%s", buildID))
+func (s Server) BuildLog(buildID int) (int, string, error) {
+	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildID=%d", buildID))
 }
 
-func (s Server) BuildQueue(buildID string) (int, string, error) {
-	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%s", buildID))
+func (s Server) BuildQueue(buildID int) (int, string, error) {
+	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%d", buildID))
 }
 
-func (s Server) BuildState(buildID string) (int, string, error) {
-	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%s/state", buildID))
+func (s Server) BuildState(buildID int) (int, string, error) {
+	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%d/state", buildID))
 }
 
-func (s Server) WaitForBuild(buildID string, queueTimeout, runTimeout int) error {
-	fmt.Printf("Waiting for build %s status to be 'finished'...\n", buildID)
+func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
+	fmt.Printf("Waiting for build %d status to be 'finished'...\n", buildID)
 
 	var queueTime, runningTime int
 	for {
 		if runningTime > runTimeout {
-			return fmt.Errorf("timeout waiting for build %s to become finished (running for %d minutes)", buildID, runTimeout)
+			return fmt.Errorf("timeout waiting for build %d to become finished (running for %d minutes)", buildID, runTimeout)
 		}
 		if queueTime > queueTimeout {
-			return fmt.Errorf("timeout waiting for build %s to start running (queued for %d minutes)", buildID, queueTimeout)
+			return fmt.Errorf("timeout waiting for build %d to start running (queued for %d minutes)", buildID, queueTimeout)
 		}
 
 		statusCode, body, err := s.BuildState(buildID)
@@ -102,7 +106,7 @@ func (s Server) WaitForBuild(buildID string, queueTimeout, runTimeout int) error
 			return err
 		}
 		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildID)
+			return fmt.Errorf("no build ID %d found in running builds or queue", buildID)
 		}
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
@@ -123,22 +127,22 @@ func (s Server) WaitForBuild(buildID string, queueTimeout, runTimeout int) error
 	}
 }
 
-func (s Server) CheckBuildLogStatus(statusCode int, buildID string) error {
+func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
 		statusCode, _, err := s.BuildQueue(buildID)
 		if err != nil {
-			return fmt.Errorf("error checking for build %s in queue: %w", buildID, err)
+			return fmt.Errorf("error checking for build %d in queue: %w", buildID, err)
 		}
 
 		if statusCode == http.StatusNotFound {
-			return fmt.Errorf("no build ID %s found in running builds or queue", buildID)
+			return fmt.Errorf("no build ID %d found in running builds or queue", buildID)
 		}
 		if statusCode != http.StatusOK {
 			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 		}
 
-		return fmt.Errorf("build %s still queued, check results later", buildID)
+		return fmt.Errorf("build %d still queued, check results later", buildID)
 	}
 	if statusCode != http.StatusOK {
 		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)

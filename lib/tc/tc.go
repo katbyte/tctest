@@ -1,7 +1,6 @@
 package tc
 
 import (
-	//nolint:misspell
 	"github.com/katbyte/tctest/lib/common"
 )
 

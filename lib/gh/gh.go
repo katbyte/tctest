@@ -72,11 +72,11 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 		common2.Log.Debugf("Listing all PRs for %s/%s (Page %d)...", r.Owner, r.Name, opts.ListOptions.Page)
 		prs, resp, err := client.PullRequests.List(ctx, r.Owner, r.Name, opts)
 		if err != nil {
-			return fmt.Errorf("unable to list PRs for %s/%s (Page %d): %v", r.Owner, r.Name, opts.ListOptions.Page, err)
+			return fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.ListOptions.Page, err)
 		}
 
 		if err = cb(prs, resp); err != nil {
-			return fmt.Errorf("callback failed for %s/%s (Page %d): %v", r.Owner, r.Name, opts.ListOptions.Page, err)
+			return fmt.Errorf("callback failed for %s/%s (Page %d): %w", r.Owner, r.Name, opts.ListOptions.Page, err)
 		}
 
 		if resp.NextPage == 0 {
@@ -110,7 +110,7 @@ func (r Repo) GetAllPullRequests(state string) (*map[int]github.PullRequest, err
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all prs for %s/%s: %v", r.Owner, r.Name, err)
+		return nil, fmt.Errorf("failed to get all prs for %s/%s: %w", r.Owner, r.Name, err)
 	}
 
 	keys := make([]int, 0, len(m))

@@ -4,18 +4,18 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
-	//nolint:misspell
+	"strconv"
 )
 
 // TODO TODO TODO
 // build id needs to become int everywhere
 
-type BuildsResp struct {
+type buildsResp struct {
 	XMLName xml.Name          `xml:"builds"`
-	Builds  []BuildsRespBuild `xml:"build"`
+	Builds  []buildsRespBuild `xml:"build"`
 }
 
-type BuildsRespBuild struct {
+type buildsRespBuild struct {
 	XMLName    xml.Name `xml:"build"`
 	ID         string   `xml:"id,attr"`
 	Number     string   `xml:"number,attr"`
@@ -24,26 +24,36 @@ type BuildsRespBuild struct {
 	WebURL     string   `xml:"webUrl,attr"`
 }
 
-func (s Server) BuildLocator(buildTypeId string, pr int, latest, wait bool, queueTimeout, runTimeout int) (*[]BuildsRespBuild, error) {
+type Build struct {
+	ID     int
+	Number int
+	Branch string
+	URL    string
+	State  string
+}
 
-	queryArgs := fmt.Sprintf("buildType:%s,branch:name:refs/pull/%d/merge,running:any", buildTypeId, pr)
+func (s Server) GetBuildsForPR(buildTypeID string, pr int, latest, wait bool, queueTimeout, runTimeout int) (*[]Build, error) {
+	queryArgs := fmt.Sprintf("buildType:%s,branch:name:refs/pull/%d/merge,running:any", buildTypeID, pr)
 	if latest {
 		queryArgs += ",count:1"
 	}
 
 	statusCode, body, err := s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds?locator=%s", queryArgs))
+	if err != nil {
+		return nil, fmt.Errorf("unable to list builds (%s): %w", queryArgs, err)
+	}
 	if statusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("no build for PR %s found in running builds or queue", pr)
+		return nil, fmt.Errorf("no build for PR %d found in running builds or queue", pr)
 	}
 	if statusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP status NOT OK: %d", statusCode)
 	}
 	if body == "" {
-		return nil, fmt.Errorf("empty xml file of builds for PR %s", pr)
+		return nil, fmt.Errorf("empty xml file of builds for PR %d", pr)
 	}
 
 	buildLocatorResults := []byte(body)
-	var tcb BuildsResp
+	var tcb buildsResp
 	err = xml.Unmarshal(buildLocatorResults, &tcb)
 	if err != nil {
 		return nil, err
@@ -52,14 +62,33 @@ func (s Server) BuildLocator(buildTypeId string, pr int, latest, wait bool, queu
 		return nil, fmt.Errorf("no builds parsed from XML response")
 	}
 
+	builds := []Build{}
 	for _, build := range tcb.Builds {
+		b := Build{
+			Branch: build.BranchName,
+			URL:    build.WebURL,
+			State:  build.State,
+		}
+
+		b.ID, err = strconv.Atoi(build.ID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to convert build.ID (%s) from response into an integer: %w", build.ID, err)
+		}
+
+		b.Number, err = strconv.Atoi(build.Number)
+		if err != nil {
+			return nil, fmt.Errorf("unable to convert build.Number (%s) from response into an integer: %w", build.Number, err)
+		}
+
 		if build.State != "finished" && wait {
-			err := s.WaitForBuild(build.ID, queueTimeout, runTimeout)
+			err := s.WaitForBuild(b.ID, queueTimeout, runTimeout)
 			if err != nil {
-				return nil, fmt.Errorf("error waiting for PR %s, build %s to finish: %w", pr, build.ID, err)
+				return nil, fmt.Errorf("error waiting for PR %d, build %d to finish: %w", pr, b.ID, err)
 			}
 		}
+
+		builds = append(builds, b)
 	}
 
-	return &tcb.Builds, nil
+	return &builds, nil
 }

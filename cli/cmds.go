@@ -68,8 +68,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
+			f := GetFlags()
 
-			return GetFlags().BuildCmd(branch, testRegEx, "")
+			return f.BuildCmd(f.TC.Build.TypeID, branch, testRegEx, "")
 		},
 	}
 	root.AddCommand(branch)
@@ -94,11 +95,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			f := GetFlags()
 
+			// parse pr list
 			numbers := []int{}
 			for _, pr := range strings.Split(prs, ",") {
 				pri, err := strconv.Atoi(pr)
 				if err != nil {
-					c.Printf("  %s<red>ERROR:</> unable to convert '%s' into an integer\n", pr)
+					c.Printf("<red>ERROR:</> parsing PRs: unable to convert '%s' into an integer: %w\n", pr, err)
 					continue
 				}
 
@@ -152,9 +154,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 						buildTypeID += "_" + strings.ToUpper(s)
 					}
 
-					branch := fmt.Sprintf("refs/pull/%s/merge", pri)
+					branch := fmt.Sprintf("refs/pull/%d/merge", pri)
 
-					if err := GetFlags().BuildCmd(branch, testRegEx, serviceInfo); err != nil {
+					if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
 						c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 					}
 					fmt.Println()
@@ -181,11 +183,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			if _, err := GetFlags().GetPrTests(pr); err != nil {
-				return fmt.Errorf("failed to get PR tests: %w", err)
-			}
+			_, err = GetFlags().GetPrTests(pr)
 
-			return nil
+			return err
 		},
 	}
 	root.AddCommand(list)
@@ -198,7 +198,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		PreRunE:       ValidateParams([]string{"server"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			buildID := args[0]
+			buildID, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("pr should be a number: %w", err)
+			}
 
 			cmd.SilenceUsage = true
 
