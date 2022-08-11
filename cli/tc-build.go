@@ -36,7 +36,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 		if err != nil {
 			return fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)
 		}
-		err = f.TestResultsCmd(buildID)
+		err = f.BuildResultsCmd(buildID)
 		if err != nil {
 			return fmt.Errorf("error printing results from build %d: %w", buildID, err)
 		}
@@ -45,7 +45,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 	return nil
 }
 
-func (f FlagData) TestResultsCmd(buildID int) error {
+func (f FlagData) BuildResultsCmd(buildID int) error {
 	tc := f.NewServer()
 
 	statusCode, buildStatus, err := tc.BuildState(buildID)
@@ -85,7 +85,7 @@ func (f FlagData) TestResultsCmd(buildID int) error {
 	return nil
 }
 
-func (f FlagData) TestResultsByPRCmd(pr int) error {
+func (f FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewServer()
 
 	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)

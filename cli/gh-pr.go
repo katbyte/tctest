@@ -25,9 +25,9 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 	}
 
 	for service, tests := range *serviceTests {
-		c.Printf("    <yellow>%s</>:\n", service)
+		c.Printf("  <yellow>%s</>:\n", service)
 		for _, t := range tests {
-			c.Printf("      %s\n", t)
+			c.Printf("    %s\n", t)
 		}
 	}
 

@@ -84,7 +84,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
-			testRegExParam := "TestAcc" // default to all tests
+			testRegExParam := ""
 
 			if len(args) == 2 {
 				testRegExParam = args[1]
@@ -93,9 +93,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			f := GetFlags()
-
-			// parse pr list
+			// parse list of prs
 			numbers := []int{}
 			for _, pr := range strings.Split(prs, ",") {
 				pri, err := strconv.Atoi(pr)
@@ -107,63 +105,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				numbers = append(numbers, pri)
 			}
 
-			for _, pri := range numbers {
-				// get
-				// StartBuildForPrTests()
-
-				//
-
-				serviceTests, err := f.GetPrTests(pri)
-				if err != nil {
-					c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
-					continue
-				}
-
-				if serviceTests == nil {
-					c.Printf("  <red>ERROR: service tests in nil</>\n\n")
-					continue
-				}
-
-				// trigger a build for each service
-				for s, tests := range *serviceTests {
-					serviceInfo := ""
-					if s != "" {
-						serviceInfo = "[<yellow>" + s + "</>]"
-					}
-
-					// genreatae test regex if we don't have it
-					testRegEx := testRegExParam
-					if testRegEx == "" {
-						// if no testregex and no tests throw an error (-a is required for all)
-						if len(tests) == 0 {
-							c.Printf("  %s<red>ERROR:</> no tests found, use -a to run all tests\n", serviceInfo)
-							continue
-						}
-
-						testRegEx = "(" + strings.Join(tests, "|") + ")"
-					}
-
-					// if all tests switch set regex to TestAcc
-					if viper.GetBool("alltests") {
-						testRegEx = "TestAcc"
-					}
-
-					// if we have a service put it on the end of the build type id
-					buildTypeID := viper.GetString("buildtypeid")
-					if s != "" {
-						buildTypeID += "_" + strings.ToUpper(s)
-					}
-
-					branch := fmt.Sprintf("refs/pull/%d/merge", pri)
-
-					if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
-						c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
-					}
-					fmt.Println()
-				}
-			}
-
-			return nil
+			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
 		},
 	}
 	root.AddCommand(pr)
@@ -205,7 +147,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			return GetFlags().TestResultsCmd(buildID)
+			return GetFlags().BuildResultsCmd(buildID)
 		},
 	}
 	root.AddCommand(results)
@@ -225,7 +167,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			return GetFlags().TestResultsByPRCmd(pr)
+			return GetFlags().BuildResultsForPRCmd(pr)
 		},
 	}
 	results.AddCommand(resultsByPR)

@@ -8,9 +8,10 @@ import (
 )
 
 type FlagData struct {
-	TC            FlagsTeamCity
 	GH            FlagsGitHub
+	TC            FlagsTeamCity
 	OpenInBrowser bool
+	RunAllTests   bool
 }
 
 type FlagsGitHub struct {
@@ -18,6 +19,12 @@ type FlagsGitHub struct {
 	Repo         string
 	FileRegEx    string
 	SplitTestsOn string
+	FilterPRs    FlagsGitHubPrFilter
+}
+
+type FlagsGitHubPrFilter struct {
+	Authors []string
+	Labels  []string
 }
 
 type FlagsTeamCity struct {
@@ -43,6 +50,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags := root.PersistentFlags()
 
 	pflags.BoolVarP(&flags.OpenInBrowser, "open", "o", false, "Open the PR and build in a browser")
+	pflags.BoolVarP(&flags.RunAllTests, "all", "", false, "run all tests when none are found by passing TestAcc")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -74,7 +82,7 @@ func configureFlags(root *cobra.Command) error {
 		"fileregex":     "TCTEST_FILEREGEX",
 		"splitteston":   "TCTEST_SPLIT_TESTS_ON",
 		"wait":          "TCTEST_WAIT",
-		"alltests":      "",
+		"all":           "",
 		"queue-timeout": "",
 		"run-timeout":   "",
 		"latest":        "TCTEST_LATESTBUILD",
@@ -111,6 +119,7 @@ func GetFlags() FlagData {
 	// there has to be an easier way....
 	return FlagData{
 		OpenInBrowser: viper.GetBool("open"),
+		RunAllTests:   viper.GetBool("all"),
 		TC: FlagsTeamCity{
 			ServerURL: viper.GetString("server"),
 			Token:     viper.GetString("token-tc"),

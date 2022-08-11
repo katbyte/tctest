@@ -11,9 +11,6 @@ import (
 	"github.com/katbyte/tctest/lib/common"
 )
 
-// TODO TODO TODO
-// build id needs to become int everywhere
-
 func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (int, string, error) {
 	common.Log.Debugf("triggering build for %q", buildTypeID)
 	statusCode, body, err := s.TriggerBuild(buildTypeID, branch, testRegEx, buildProperties, skipQueue)
@@ -29,13 +26,13 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx 
 		BuildID string `xml:"id,attr"`
 	}{}
 
+	if err := xml.NewDecoder(strings.NewReader(body)).Decode(&data); err != nil {
+		return 0, "", fmt.Errorf("unable to decode XML: %d", statusCode)
+	}
+
 	bid, err := strconv.Atoi(data.BuildID)
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to convert build.ID (%d) from response into an integer: %w", bid, err)
-	}
-
-	if err := xml.NewDecoder(strings.NewReader(body)).Decode(&data); err != nil {
-		return 0, "", fmt.Errorf("unable to decode XML: %d", statusCode)
 	}
 
 	return bid, fmt.Sprintf("https://%s/viewQueued.html?itemId=%d", s.Server, bid), nil
