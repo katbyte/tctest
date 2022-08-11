@@ -13,39 +13,6 @@ import (
 	c "github.com/gookit/color"
 )
 
-type TCFlags struct {
-	ServerURL   string
-	BuildTypeID string
-	Token       string
-	User        string
-	Pass        string
-	Parameters  string
-}
-
-type PRFlags struct {
-	Repo          string
-	Token         string
-	FileRegEx     string
-	TestSplit     string
-	LatestTCBuild bool
-}
-
-type WaitFlags struct {
-	Wait         bool
-	QueueTimeout int
-	RunTimeout   int
-}
-
-type FlagData struct {
-	TC                  TCFlags
-	PR                  PRFlags
-	Wait                WaitFlags
-	ServicePackagesMode bool
-	AllTests            bool
-	SkipQueue           bool
-	OpenBrowser         bool
-}
-
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		for _, p := range params {
@@ -58,9 +25,7 @@ func ValidateParams(params []string) func(cmd *cobra.Command, args []string) err
 	}
 }
 
-func Make() *cobra.Command {
-	flags := FlagData{}
-
+func Make() (*cobra.Command, error) {
 	// This is a no-op to avoid accidentally triggering broken builds on malformed commands
 	root := &cobra.Command{
 		Use:   "tctest [command]",
@@ -104,13 +69,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
-			buildTypeID := viper.GetString("buildtypeid")
-			properties := viper.GetString("properties")
-			wait := viper.GetBool("wait")
-			skipQueue := viper.GetBool("skip-queue")
-			openBrowser := viper.GetBool("open")
-
-			return NewTeamCityFromViper().BuildCmd(buildTypeID, properties, branch, testRegEx, "", wait, skipQueue, openBrowser)
+			return GetFlags().BuildCmd(branch, testRegEx, "")
 		},
 	}
 	root.AddCommand(branch)
@@ -120,26 +79,39 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:          cobra.RangeArgs(1, 2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splittests"}),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splitteston"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
-			testRegExParam := ""
+			testRegExParam := "TestAcc" // default to all tests
 
 			if len(args) == 2 {
 				testRegExParam = args[1]
 			}
 
+			// At this point command validation has been done so any more errors don't require help to be printed
 			cmd.SilenceUsage = true
 
+			f := GetFlags()
+
+			numbers := []int{}
 			for _, pr := range strings.Split(prs, ",") {
 				pri, err := strconv.Atoi(pr)
 				if err != nil {
-					return fmt.Errorf("pr should be a number: %w", err)
+					c.Printf("  %s<red>ERROR:</> unable to convert '%s' into an integer\n", pr)
+					continue
 				}
 
-				// todo get a map of tests -> service
-				serviceTests, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("open"))
+				numbers = append(numbers, pri)
+			}
+
+			for _, pri := range numbers {
+				// get
+				// StartBuildForPrTests()
+
+				//
+
+				serviceTests, err := f.GetPrTests(pri)
 				if err != nil {
 					c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
 					continue
@@ -180,13 +152,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 						buildTypeID += "_" + strings.ToUpper(s)
 					}
 
-					branch := fmt.Sprintf("refs/pull/%s/merge", pr)
-					properties := viper.GetString("properties")
-					wait := viper.GetBool("wait")
-					skipQueue := viper.GetBool("skip-queue")
-					open := viper.GetBool("skip-queue")
+					branch := fmt.Sprintf("refs/pull/%s/merge", pri)
 
-					if err := NewTeamCityFromViper().BuildCmd(buildTypeID, properties, branch, testRegEx, serviceInfo, wait, skipQueue, open); err != nil {
+					if err := GetFlags().BuildCmd(branch, testRegEx, serviceInfo); err != nil {
 						c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 					}
 					fmt.Println()
@@ -203,18 +171,18 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "attempts to discover what acceptance tests to run for a PR",
 		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
 		Args:          cobra.RangeArgs(1, 1),
-		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splittests"}),
+		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splitteston"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pri, err := strconv.Atoi(args[0])
+			pr, err := strconv.Atoi(args[0])
 			if err != nil {
 				return fmt.Errorf("pr should be a number: %w", err)
 			}
 
 			cmd.SilenceUsage = true
 
-			if _, err := NewGithubRepoFromViper().PrCmd(pri, viper.GetString("fileregex"), viper.GetString("splittests"), viper.GetBool("open")); err != nil {
-				return fmt.Errorf("pr cmd failed: %w", err)
+			if _, err := GetFlags().GetPrTests(pr); err != nil {
+				return fmt.Errorf("failed to get PR tests: %w", err)
 			}
 
 			return nil
@@ -234,9 +202,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			wait := viper.GetBool("wait")
-
-			return NewTeamCityFromViper().TestResultsCmd(buildID, wait)
+			return GetFlags().TestResultsCmd(buildID)
 		},
 	}
 	root.AddCommand(results)
@@ -249,85 +215,21 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			pr := args[0]
+			pr, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("pr should be a number: %w", err)
+			}
 
 			cmd.SilenceUsage = true
 
-			buildTypeID := viper.GetString("buildtypeid")
-			latest := viper.GetBool("latest")
-			wait := viper.GetBool("wait")
-
-			return NewTeamCityFromViper().TestResultsByPRCmd(pr, buildTypeID, latest, wait)
+			return GetFlags().TestResultsByPRCmd(pr)
 		},
 	}
 	results.AddCommand(resultsByPR)
 
-	pflags := root.PersistentFlags()
-	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
-	pflags.StringVarP(&flags.TC.BuildTypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
-	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
-	pflags.StringVarP(&flags.TC.User, "username", "u", "", "the TeamCity user to use")
-	pflags.StringVarP(&flags.TC.Pass, "password", "p", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
-	pflags.StringVarP(&flags.TC.Parameters, "properties", "", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
-
-	pflags.StringVarP(&flags.PR.Token, "token-gh", "", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
-	pflags.StringVarP(&flags.PR.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
-	pflags.StringVarP(&flags.PR.FileRegEx, "fileregex", "", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
-	pflags.StringVar(&flags.PR.TestSplit, "splittests", "_", "split tests here and use the value on the left")
-	pflags.BoolVarP(&flags.PR.LatestTCBuild, "latest", "l", false, "gets the latest build in TeamCity")
-
-	pflags.BoolVarP(&flags.AllTests, "alltests", "a", false, "run all tests regardless of those found")
-
-	pflags.BoolVarP(&flags.Wait.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
-	pflags.IntVarP(&flags.Wait.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
-	pflags.IntVarP(&flags.Wait.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
-
-	pflags.BoolVarP(&flags.SkipQueue, "skip-queue", "", false, "Put the build to the queue top")
-
-	pflags.BoolVarP(&flags.OpenBrowser, "open", "", false, "Open the build in a browser")
-
-	// binding map for viper/pflag -> env
-	m := map[string]string{
-		"server":        "TCTEST_SERVER",
-		"buildtypeid":   "TCTEST_BUILDTYPEID",
-		"token-tc":      "TCTEST_TOKEN_TC",
-		"token-gh":      "GITHUB_TOKEN",
-		"username":      "TCTEST_USER",
-		"password":      "TCTEST_PASS",
-		"properties":    "TCTEST_PROPERTIES",
-		"repo":          "TCTEST_REPO",
-		"fileregex":     "TCTEST_FILEREGEX",
-		"splittests":    "TCTEST_SPLITTESTS",
-		"wait":          "TCTEST_WAIT",
-		"alltests":      "",
-		"queue-timeout": "",
-		"run-timeout":   "",
-		"latest":        "TCTEST_LATESTBUILD",
-		"skip-queue":    "TCTEST_SKIP_QUEUE",
-		"open":          "TCTEST_OPEN_BROWSER",
+	if err := configureFlags(root); err != nil {
+		return nil, fmt.Errorf("unable to configure flags: %w", err)
 	}
 
-	for name, env := range m {
-		if err := viper.BindPFlag(name, pflags.Lookup(name)); err != nil {
-			fmt.Println(fmt.Errorf("error binding '%s' flag: %w", name, err))
-		}
-
-		if env != "" {
-			if err := viper.BindEnv(name, env); err != nil {
-				fmt.Println(fmt.Errorf("error binding '%s' to env '%s' : %w", name, env, err))
-			}
-		}
-	}
-
-	// todo config file
-	/*viper.SetConfigName("config") // name of config file (without extension)
-	viper.AddConfigPath("/etc/appname/")   // path to look for the config file in
-	viper.AddConfigPath("$HOME/.appname")  // call multiple times to add many search paths
-	viper.AddConfigPath(".")               // optionally look for config in the working directory
-	err := viper.ReadInConfig() // Find and read the config file
-	if err != nil { // Handle errors reading the config file
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
-	}*/
-
-	return root
+	return root, nil
 }

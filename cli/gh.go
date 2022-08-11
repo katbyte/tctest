@@ -1,23 +1,19 @@
 package cli
 
 import (
-	"context"
 	"strings"
 
-	"github.com/google/go-github/v45/github"
 	common2 "github.com/katbyte/tctest/lib/common"
-	"github.com/spf13/viper"
-	"golang.org/x/oauth2"
+	"github.com/katbyte/tctest/lib/gh"
 )
 
-type GithubRepo struct {
-	Owner string
-	Repo  string
-	Token *string
+// wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
+type githubRepo struct {
+	gh.Repo
 }
 
-func NewGithubRepoFromViper() GithubRepo {
-	ownerrepo := viper.GetString("repo")
+func (f FlagData) NewRepo() githubRepo {
+	ownerrepo := f.GH.Repo
 
 	parts := strings.Split(ownerrepo, "/")
 	if len(parts) != 2 {
@@ -25,37 +21,8 @@ func NewGithubRepoFromViper() GithubRepo {
 	}
 	owner, repo := parts[0], parts[1]
 
-	token := viper.GetString("token-gh")
+	token := f.GH.Token
 	common2.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 
-	return NewGithubRepo(owner, repo, token)
-}
-
-func NewGithubRepo(owner, repo, token string) GithubRepo {
-	r := GithubRepo{
-		Owner: owner,
-		Repo:  repo,
-		Token: nil,
-	}
-
-	if token != "" {
-		r.Token = &token
-	}
-
-	return r
-}
-
-func (gr GithubRepo) NewClient() (*github.Client, context.Context) {
-	ctx := context.Background()
-	httpClient := common2.NewHTTPClient("GitHub")
-
-	if gr.Token != nil {
-		t := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: *gr.Token},
-		)
-		httpClient = oauth2.NewClient(ctx, t)
-		httpClient.Transport = common2.NewTransport("GitHub", httpClient.Transport)
-	}
-
-	return github.NewClient(httpClient), ctx
+	return githubRepo{gh.NewRepo(owner, repo, token)}
 }
