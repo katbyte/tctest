@@ -56,6 +56,8 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVar(&flags.GH.FileRegEx, "fileregex", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.GH.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "filter-authors", "a", []string{}, "TODO")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.Labels, "filter-labels", "l", []string{}, "TODO")
 
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
@@ -65,29 +67,31 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.TC.Build.Parameters, "properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 	pflags.BoolVarP(&flags.TC.Build.SkipQueue, "skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolVarP(&flags.TC.Build.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
-	pflags.BoolVarP(&flags.TC.Build.Latest, "latest", "l", false, "gets the latest build in TeamCity")
+	pflags.BoolVarP(&flags.TC.Build.Latest, "latest", "", false, "gets the latest build in TeamCity")
 	pflags.IntVarP(&flags.TC.Build.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.TC.Build.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
-		"server":        "TCTEST_SERVER",
-		"buildtypeid":   "TCTEST_BUILDTYPEID",
-		"token-tc":      "TCTEST_TOKEN_TC",
-		"token-gh":      "GITHUB_TOKEN",
-		"username":      "TCTEST_USER",
-		"password":      "TCTEST_PASS",
-		"properties":    "TCTEST_PROPERTIES",
-		"repo":          "TCTEST_REPO",
-		"fileregex":     "TCTEST_FILEREGEX",
-		"splitteston":   "TCTEST_SPLIT_TESTS_ON",
-		"wait":          "TCTEST_WAIT",
-		"all":           "",
-		"queue-timeout": "",
-		"run-timeout":   "",
-		"latest":        "TCTEST_LATESTBUILD",
-		"skip-queue":    "TCTEST_SKIP_QUEUE",
-		"open":          "TCTEST_OPEN_BROWSER",
+		"server":         "TCTEST_SERVER",
+		"buildtypeid":    "TCTEST_BUILDTYPEID",
+		"token-tc":       "TCTEST_TOKEN_TC",
+		"token-gh":       "GITHUB_TOKEN",
+		"username":       "TCTEST_USER",
+		"password":       "TCTEST_PASS",
+		"properties":     "TCTEST_PROPERTIES",
+		"repo":           "TCTEST_REPO",
+		"fileregex":      "TCTEST_FILEREGEX",
+		"splitteston":    "TCTEST_SPLIT_TESTS_ON",
+		"wait":           "TCTEST_WAIT",
+		"all":            "",
+		"queue-timeout":  "",
+		"run-timeout":    "",
+		"filter-authors": "",
+		"filter-labels":  "",
+		"latest":         "TCTEST_LATESTBUILD",
+		"skip-queue":     "TCTEST_SKIP_QUEUE",
+		"open":           "TCTEST_OPEN_BROWSER",
 	}
 
 	for name, env := range m {
@@ -120,6 +124,16 @@ func GetFlags() FlagData {
 	return FlagData{
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
+		GH: FlagsGitHub{
+			Repo:         viper.GetString("repo"),
+			Token:        viper.GetString("token-gh"),
+			FileRegEx:    viper.GetString("fileregex"),
+			SplitTestsOn: viper.GetString("splitteston"),
+			FilterPRs: FlagsGitHubPrFilter{
+				Authors: viper.GetStringSlice("filter-authors"),
+				Labels:  viper.GetStringSlice("filter-labels"),
+			},
+		},
 		TC: FlagsTeamCity{
 			ServerURL: viper.GetString("server"),
 			Token:     viper.GetString("token-tc"),
@@ -134,12 +148,6 @@ func GetFlags() FlagData {
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
 			},
-		},
-		GH: FlagsGitHub{
-			Repo:         viper.GetString("repo"),
-			Token:        viper.GetString("token-gh"),
-			FileRegEx:    viper.GetString("fileregex"),
-			SplitTestsOn: viper.GetString("splitteston"),
 		},
 	}
 }

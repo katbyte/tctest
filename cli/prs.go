@@ -10,7 +10,6 @@ import (
 
 func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 	for _, pri := range prs {
-
 		serviceTests, err := f.GetPrTests(pri)
 		if err != nil {
 			c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
