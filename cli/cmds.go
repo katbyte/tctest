@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/go-github/v45/github"
 	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -130,14 +131,23 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			// get all open PRs
 			// get all pull requests
 			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
-			prs, err := r.GetAllPullRequests("open")
+			prsMap, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
 			if err != nil {
 				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
 				return nil
 			}
 			c.Printf(" found <yellow>%d</>\n", len(*prs))
 
-			// process filters
+			// convert map to list and sort
+			var prs []github.PullRequest
+			for _, pr := range *prsMap {
+				prs = append(prs, pr)
+			}
+			sort.Slice(prs[:], func(i, j int) bool {
+				return prs[i].GetNumber() < prs[j].GetNumber()
+			})
+
+			// setup filter functions
 			filterAuthors := len(f.GH.FilterPRs.Authors) != 0
 			filterLabels := len(f.GH.FilterPRs.Labels) != 0
 
@@ -159,15 +169,18 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				c.Printf("  labels:  <blue>%s</>\n", strings.Join(f.GH.FilterPRs.Labels, "</>,<blue>"))
 			}
 
+			// TODO filter out draft PRs
+			// TODO this is a logic mess, clean up/improve
+			// TODO filter out milestones, ie no blocked
 			var numbers []int
-			for _, pr := range *prs {
+			for _, pr := range prs {
 				test := false
 				user := pr.User.GetLogin()
 				number := pr.GetNumber()
 				name := pr.GetTitle()
 
 				// if no filters we test
-				if !filterAuthors && !filterLabels {
+				if !filterAuthors || !filterLabels {
 					test = true
 				}
 
@@ -175,6 +188,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					if _, ok := authorMap[user]; filterAuthors && ok {
 						test = true
 					}
+				} else if filterLabels {
+					test = true
 				}
 
 				labels := []string{}
@@ -205,6 +220,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				}
 			}
 
+			c.Printf("testing <yellow>%d</> prs\n\n", len(numbers))
 			sort.Ints(numbers)
 			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
 		},

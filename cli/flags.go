@@ -23,8 +23,12 @@ type FlagsGitHub struct {
 }
 
 type FlagsGitHubPrFilter struct {
-	Authors []string
-	Labels  []string
+	Authors      []string
+	LabelsOr     []string
+	LabelsAnd    []string
+	Milestones   []string
+	Drafts       bool
+	LastTimeSpan string
 }
 
 type FlagsTeamCity struct {

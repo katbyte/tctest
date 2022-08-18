@@ -20,6 +20,13 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 	prURL := gr.PrURL(pr)
 	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prURL)
 	serviceTests, err := gr.PrTests(pr, f.GH.FileRegEx, f.GH.SplitTestsOn)
+
+	if f.OpenInBrowser {
+		if err := browser.OpenURL(prURL); err != nil {
+			c.Printf("failed to open build %s in browser", prURL)
+		}
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %w", err)
 	}
@@ -28,12 +35,6 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 		c.Printf("  <yellow>%s</>:\n", service)
 		for _, t := range tests {
 			c.Printf("    %s\n", t)
-		}
-	}
-
-	if f.OpenInBrowser {
-		if err := browser.OpenURL(prURL); err != nil {
-			c.Printf("failed to open build %s in browser", prURL)
 		}
 	}
 

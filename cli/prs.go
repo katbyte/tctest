@@ -58,6 +58,12 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 			}
 			fmt.Println()
 		}
+
+		c.Pdrintf("ran tests for %d PRs!   <red>ERROR: Unable to trigger build:</> %v\n\n", err)
+		if !f.OpenInBrowser {
+			c.Pdrintf("ran tests for %d PRs!   <red>ERROR: Unable to trigger build:</> %v\n\n", err)
+		} else {
+		}
 	}
 
 	return nil
