@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/go-github/v45/github"
-	common "github.com/katbyte/tctest/lib/common"
+	common "github.com/katbyte/tctest/lib/chttp"
 	"golang.org/x/oauth2"
 )
 

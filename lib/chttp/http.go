@@ -1,4 +1,4 @@
-package common
+package chttp
 
 import (
 	"bytes"
@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
+
+	"github.com/katbyte/tctest/lib/clog"
 )
 
 var HTTP = http.DefaultClient
@@ -25,9 +27,9 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	reqData, err := httputil.DumpRequestOut(req, true)
 
 	if err == nil {
-		Log.Tracef(logReqMsg, t.name, prettyPrintJSON(reqData))
+		clog.Log.Tracef(logReqMsg, t.name, prettyPrintJSON(reqData))
 	} else {
-		Log.Debugf("%s API Request error: %#v", t.name, err)
+		clog.Log.Debugf("%s API Request error: %#v", t.name, err)
 	}
 
 	resp, err := t.transport.RoundTrip(req)
@@ -37,9 +39,9 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	respData, err := httputil.DumpResponse(resp, true)
 	if err == nil {
-		Log.Tracef(logRespMsg, t.name, prettyPrintJSON(respData))
+		clog.Log.Tracef(logRespMsg, t.name, prettyPrintJSON(respData))
 	} else {
-		Log.Debugf("%s API Response error: %#v", t.name, err)
+		clog.Log.Debugf("%s API Response error: %#v", t.name, err)
 	}
 
 	return resp, nil

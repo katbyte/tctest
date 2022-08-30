@@ -8,7 +8,7 @@ import (
 
 	//nolint:misspell
 	c "github.com/gookit/color"
-	common "github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/clog"
 	"github.com/pkg/browser"
 )
 
@@ -31,7 +31,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 	}
 
 	if f.TC.Build.Wait {
-		common.Log.Debugf("waiting...")
+		clog.Log.Debugf("waiting...")
 		err := tc.WaitForBuild(buildID, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
 		if err != nil {
 			return fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)

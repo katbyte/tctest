@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/google/go-github/v45/github"
-	"github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/clog"
 )
 
 func (r Repo) PrURL(pr int) string {
@@ -25,7 +25,7 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 	}
 
 	for {
-		common.Log.Debugf("Listing all PRs for %s/%s (Page %d)...", r.Owner, r.Name, opts.ListOptions.Page)
+		clog.Log.Debugf("Listing all PRs for %s/%s (Page %d)...", r.Owner, r.Name, opts.ListOptions.Page)
 		prs, resp, err := client.PullRequests.List(ctx, r.Owner, r.Name, opts)
 		if err != nil {
 			return fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.ListOptions.Page, err)
@@ -50,13 +50,13 @@ func (r Repo) GetAllPullRequests(state string) (*map[int]github.PullRequest, err
 	err := r.ListAllPullRequests(state, func(prs []*github.PullRequest, resp *github.Response) error {
 		for i, p := range prs {
 			if p == nil {
-				common.Log.Debugf("prs[%d] was nil, skipping", i)
+				clog.Log.Debugf("prs[%d] was nil, skipping", i)
 				continue
 			}
 
 			n := p.GetNumber()
 			if n == 0 {
-				common.Log.Debugf("prs[%d].Number was nil/0, skipping", i)
+				clog.Log.Debugf("prs[%d].Number was nil/0, skipping", i)
 				continue
 			}
 

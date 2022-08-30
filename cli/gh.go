@@ -3,7 +3,6 @@ package cli
 import (
 	"strings"
 
-	common "github.com/katbyte/tctest/lib/common"
 	"github.com/katbyte/tctest/lib/gh"
 )
 
@@ -22,7 +21,7 @@ func (f FlagData) NewRepo() githubRepo {
 	owner, repo := parts[0], parts[1]
 
 	token := f.GH.Token
-	common.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
+	clog.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 
 	return githubRepo{gh.NewRepo(owner, repo, token)}
 }

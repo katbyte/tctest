@@ -60,8 +60,12 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVar(&flags.GH.FileRegEx, "fileregex", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.GH.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
+
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "filter-authors", "a", []string{}, "TODO")
-	pflags.StringSliceVarP(&flags.GH.FilterPRs.Labels, "filter-labels", "l", []string{}, "TODO")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsOr, "filter-labels-or", "lo", []string{}, "TODO")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsOr, "filter-labels-and", "la", []string{}, "TODO")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.Milestones, "filter-milestones", "m", []string{}, "TODO")
+	pflags.BoolVarP(&flags.GH.FilterPRs.Drafts, "filter-drafts", "nd", false, "TODO")
 
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
@@ -134,8 +138,11 @@ func GetFlags() FlagData {
 			FileRegEx:    viper.GetString("fileregex"),
 			SplitTestsOn: viper.GetString("splitteston"),
 			FilterPRs: FlagsGitHubPrFilter{
-				Authors: viper.GetStringSlice("filter-authors"),
-				Labels:  viper.GetStringSlice("filter-labels"),
+				Authors:    viper.GetStringSlice("filter-authors"),
+				LabelsOr:   viper.GetStringSlice("filter-labels-or"),
+				LabelsAnd:  viper.GetStringSlice("filter-labels-and"),
+				Milestones: viper.GetStringSlice("filter-milestones"),
+				Drafts:     viper.GetBool("filter-draft"),
 			},
 		},
 		TC: FlagsTeamCity{

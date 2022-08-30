@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/go-github/v45/github"
-	"github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/clog"
 )
 
 func (r Repo) GetLabelsFor(number int) (*[]string, error) {
@@ -17,7 +17,7 @@ func (r Repo) GetLabelsFor(number int) (*[]string, error) {
 
 	allLabels := []string{}
 	for {
-		common.Log.Debugf("Listing labels for %s/%s/%d (Page %d)...", r.Owner, r.Name, number, opts.Page)
+		clog.Log.Debugf("Listing labels for %s/%s/%d (Page %d)...", r.Owner, r.Name, number, opts.Page)
 		labels, resp, err := client.Issues.ListLabelsByIssue(ctx, r.Owner, r.Name, number, opts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.Page, err)

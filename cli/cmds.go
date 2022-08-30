@@ -128,7 +128,6 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			f := GetFlags()
 			r := f.NewRepo()
 
-			// get all open PRs
 			// get all pull requests
 			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
 			prsMap, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
@@ -147,68 +146,11 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				return prs[i].GetNumber() < prs[j].GetNumber()
 			})
 
-			// setup filter functions
-			filterAuthors := len(f.GH.FilterPRs.Authors) != 0
-			filterLabels := len(f.GH.FilterPRs.Labels) != 0
+			// get filters
+			filters := f.GetFilters()
 
-			authorMap := map[string]bool{}
-			if filterAuthors {
-				for _, a := range f.GH.FilterPRs.Authors {
-					authorMap[a] = true
-				}
-				c.Printf("  authors: <magenta>%s</>\n", strings.Join(f.GH.FilterPRs.Authors, "</>,<magenta>"))
-			}
-
-			labelMap := map[string]bool{}
-			if filterLabels {
-				for _, l := range f.GH.FilterPRs.Labels {
-					b := !strings.HasPrefix(l, "-")
-					l = strings.TrimPrefix(l, "-")
-					labelMap[l] = b
-				}
-				c.Printf("  labels:  <blue>%s</>\n", strings.Join(f.GH.FilterPRs.Labels, "</>,<blue>"))
-			}
-
-			// TODO filter out draft PRs
-			// TODO this is a logic mess, clean up/improve
-			// TODO filter out milestones, ie no blocked
 			var numbers []int
 			for _, pr := range prs {
-				test := false
-				user := pr.User.GetLogin()
-				number := pr.GetNumber()
-				name := pr.GetTitle()
-
-				// if no filters we test
-				if !filterAuthors || !filterLabels {
-					test = true
-				}
-
-				if filterAuthors {
-					if _, ok := authorMap[user]; filterAuthors && ok {
-						test = true
-					}
-				} else if filterLabels {
-					test = true
-				}
-
-				labels := []string{}
-				for _, l := range pr.Labels {
-					labels = append(labels, l.GetName())
-				}
-
-				if filterLabels {
-					found := false
-					for _, l := range pr.Labels {
-						labels = append(labels, l.GetName())
-						v, ok := labelMap[l.GetName()]
-						if ok && v {
-							found = true
-						}
-					}
-
-					test = test && found
-				}
 
 				if test {
 					// todo highlight labels matched
