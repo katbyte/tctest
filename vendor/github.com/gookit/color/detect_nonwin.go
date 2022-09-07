@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 // The method in the file has no effect

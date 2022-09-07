@@ -48,7 +48,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	httpClient := chttp.NewHTTPClient("HTTP")
 	fileRegEx := regexp.MustCompile(filterRegExStr)
 
-	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Repo, pri)
+	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
 	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
 	if err != nil {
 		return nil, err

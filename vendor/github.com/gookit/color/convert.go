@@ -32,14 +32,14 @@ var (
 	// ---------- basic(16) <=> RGB color convert ----------
 	// refer from Hyper app
 	basic2hexMap = map[uint8]string{
-		30:  "000000", // black
-		31:  "c51e14", // red
-		32:  "1dc121", // green
-		33:  "c7c329", // yellow
-		34:  "0a2fc4", // blue
-		35:  "c839c5", // magenta
-		36:  "20c5c6", // cyan
-		37:  "c7c7c7", // white
+		30: "000000", // black
+		31: "c51e14", // red
+		32: "1dc121", // green
+		33: "c7c329", // yellow
+		34: "0a2fc4", // blue
+		35: "c839c5", // magenta
+		36: "20c5c6", // cyan
+		37: "c7c7c7", // white
 		// - don't add bg color
 		// 40:  "000000", // black
 		// 41:  "c51e14", // red
@@ -49,14 +49,14 @@ var (
 		// 45:  "c839c5", // magenta
 		// 46:  "20c5c6", // cyan
 		// 47:  "c7c7c7", // white
-		90:  "686868", // lightBlack/darkGray
-		91:  "fd6f6b", // lightRed
-		92:  "67f86f", // lightGreen
-		93:  "fffa72", // lightYellow
-		94:  "6a76fb", // lightBlue
-		95:  "fd7cfc", // lightMagenta
-		96:  "68fdfe", // lightCyan
-		97:  "ffffff", // lightWhite
+		90: "686868", // lightBlack/darkGray
+		91: "fd6f6b", // lightRed
+		92: "67f86f", // lightGreen
+		93: "fffa72", // lightYellow
+		94: "6a76fb", // lightBlue
+		95: "fd7cfc", // lightMagenta
+		96: "68fdfe", // lightCyan
+		97: "ffffff", // lightWhite
 		// - don't add bg color
 		// 100: "686868", // lightBlack/darkGray
 		// 101: "fd6f6b", // lightRed

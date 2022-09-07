@@ -44,8 +44,8 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 	return nil
 }
 
-func (r Repo) GetAllPullRequests(state string) (*map[int]github.PullRequest, error) {
-	m := map[int]github.PullRequest{}
+func (r Repo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
+	var allPRs []github.PullRequest
 
 	err := r.ListAllPullRequests(state, func(prs []*github.PullRequest, resp *github.Response) error {
 		for i, p := range prs {
@@ -60,7 +60,7 @@ func (r Repo) GetAllPullRequests(state string) (*map[int]github.PullRequest, err
 				continue
 			}
 
-			m[p.GetNumber()] = *p
+			allPRs = append(allPRs, *p)
 		}
 
 		return nil
@@ -69,17 +69,9 @@ func (r Repo) GetAllPullRequests(state string) (*map[int]github.PullRequest, err
 		return nil, fmt.Errorf("failed to get all prs for %s/%s: %w", r.Owner, r.Name, err)
 	}
 
-	keys := make([]int, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
+	sort.Slice(allPRs, func(i, j int) bool {
+		return allPRs[i].GetNumber() < allPRs[j].GetNumber()
+	})
 
-	sorted := map[int]github.PullRequest{}
-
-	for _, k := range keys {
-		sorted[k] = m[k]
-	}
-
-	return &sorted, nil
+	return &allPRs, nil
 }

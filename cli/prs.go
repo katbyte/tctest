@@ -56,13 +56,15 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 
 			if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
 				c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
+			} else {
+				ok++
 			}
 			fmt.Println()
 		}
 
 		ok++
 	}
+	c.Printf("triggered tests for <yellow>%d</> PRs!\n\n", ok)
 
-	c.Printf("triggered tests for <yellow>%d</> PRs!\n\n")
 	return nil
 }

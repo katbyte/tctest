@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-github/v45/github"
 	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -130,40 +129,40 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			// get all pull requests
 			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
-			prsMap, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
+			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
 			if err != nil {
 				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
 				return nil
 			}
-			c.Printf(" found <yellow>%d</>\n", len(*prs))
-
-			// convert map to list and sort
-			var prs []github.PullRequest
-			for _, pr := range *prsMap {
-				prs = append(prs, pr)
-			}
-			sort.Slice(prs[:], func(i, j int) bool {
-				return prs[i].GetNumber() < prs[j].GetNumber()
-			})
+			c.Printf(" found <yellow>%d</>. Filters:\n", len(*prs))
 
 			// get filters
 			filters := f.GetFilters()
 
 			var numbers []int
-			for _, pr := range prs {
+			fmt.Println("Filtering:")
+			for _, pr := range *prs {
+				c.Printf("  #<cyan>%d</> <gray>(%s></>\n", pr.GetNumber(), pr.GetHTMLURL())
 
-				if test {
-					// todo highlight labels matched
-					c.Printf(" #<green>%d</> <magenta>%s</> %s - <white>%s</> \n", number, user, strings.Join(labels, "<white>,</>"), name)
-					numbers = append(numbers, number)
-				} else {
-					// todo log
-					// c.Printf(" #<red>%d</> <magenta>%s</> %s - <white>%s</> \n", number, user, strings.Join(labels, "<white>,</>"), name)
+				passed := true
+				for _, f := range filters {
+					ok, err := f.PR(pr)
+					if err != nil {
+						return fmt.Errorf("ERROR: running filter %s: %w", f.Name, err)
+					}
+					passed = passed && ok
 				}
+
+				if passed {
+					numbers = append(numbers, pr.GetNumber())
+				}
+
+				fmt.Println()
 			}
 
-			c.Printf("testing <yellow>%d</> prs\n\n", len(numbers))
 			sort.Ints(numbers)
+			c.Printf("testing <yellow>%d</> prs\n\n", len(numbers))
+
 			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
 		},
 	})

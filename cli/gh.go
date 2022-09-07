@@ -3,6 +3,7 @@ package cli
 import (
 	"strings"
 
+	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/gh"
 )
 
