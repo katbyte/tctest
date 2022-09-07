@@ -9,8 +9,8 @@ import (
 )
 
 func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
+	ok := 0
 	for _, pri := range prs {
-
 		serviceTests, err := f.GetPrTests(pri)
 		if err != nil {
 			c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
@@ -56,10 +56,15 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 
 			if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
 				c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
+			} else {
+				ok++
 			}
 			fmt.Println()
 		}
+
+		ok++
 	}
+	c.Printf("triggered tests for <yellow>%d</> PRs!\n\n", ok)
 
 	return nil
 }

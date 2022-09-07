@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,8 +24,13 @@ type FlagsGitHub struct {
 }
 
 type FlagsGitHubPrFilter struct {
-	Authors []string
-	Labels  []string
+	Authors      []string
+	LabelsOr     []string
+	LabelsAnd    []string
+	Milestone    string
+	Drafts       bool
+	CreationTime time.Duration
+	UpdatedTime  time.Duration
 }
 
 type FlagsTeamCity struct {
@@ -57,6 +63,14 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVar(&flags.GH.FileRegEx, "fileregex", "(^[a-z]*/resource_|^[a-z]*/data_source_)", "the regex to filter files by`")
 	pflags.StringVar(&flags.GH.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
 
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "filter-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsAnd, "filter-labels-and", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
+	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsOr, "filter-labels-or", "", []string{}, "only test PRs that match any label conditions. ie 'label1,label2,-not-this-label'")
+	pflags.StringVarP(&flags.GH.FilterPRs.Milestone, "filter-milestone", "m", "", "filter out PRs that have or do no have a milestone, ie 'this-milstone' or '-not-this-milestone'")
+	pflags.DurationVarP(&flags.GH.FilterPRs.CreationTime, "filter-created-time", "", time.Nanosecond, "filter out PRs that where not created within this duration")
+	pflags.DurationVarP(&flags.GH.FilterPRs.UpdatedTime, "filter-updated-time", "", time.Nanosecond, "filter out PRs that where not created within this duration")
+	pflags.BoolVarP(&flags.GH.FilterPRs.Drafts, "filter-drafts", "d", false, "filter out any PRs that are in draft more")
+
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")
 	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.StringVar(&flags.TC.User, "username", "", "the TeamCity user to use")
@@ -65,29 +79,35 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.TC.Build.Parameters, "properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 	pflags.BoolVarP(&flags.TC.Build.SkipQueue, "skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolVarP(&flags.TC.Build.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
-	pflags.BoolVarP(&flags.TC.Build.Latest, "latest", "l", false, "gets the latest build in TeamCity")
+	pflags.BoolVarP(&flags.TC.Build.Latest, "latest", "", false, "gets the latest build in TeamCity")
 	pflags.IntVarP(&flags.TC.Build.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.TC.Build.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
-		"server":        "TCTEST_SERVER",
-		"buildtypeid":   "TCTEST_BUILDTYPEID",
-		"token-tc":      "TCTEST_TOKEN_TC",
-		"token-gh":      "GITHUB_TOKEN",
-		"username":      "TCTEST_USER",
-		"password":      "TCTEST_PASS",
-		"properties":    "TCTEST_PROPERTIES",
-		"repo":          "TCTEST_REPO",
-		"fileregex":     "TCTEST_FILEREGEX",
-		"splitteston":   "TCTEST_SPLIT_TESTS_ON",
-		"wait":          "TCTEST_WAIT",
-		"all":           "",
-		"queue-timeout": "",
-		"run-timeout":   "",
-		"latest":        "TCTEST_LATESTBUILD",
-		"skip-queue":    "TCTEST_SKIP_QUEUE",
-		"open":          "TCTEST_OPEN_BROWSER",
+		"server":              "TCTEST_SERVER",
+		"buildtypeid":         "TCTEST_BUILDTYPEID",
+		"token-tc":            "TCTEST_TOKEN_TC",
+		"token-gh":            "GITHUB_TOKEN",
+		"username":            "TCTEST_USER",
+		"password":            "TCTEST_PASS",
+		"properties":          "TCTEST_PROPERTIES",
+		"repo":                "TCTEST_REPO",
+		"fileregex":           "TCTEST_FILEREGEX",
+		"splitteston":         "TCTEST_SPLIT_TESTS_ON",
+		"wait":                "TCTEST_WAIT",
+		"all":                 "",
+		"queue-timeout":       "",
+		"run-timeout":         "",
+		"filter-authors":      "",
+		"filter-milestone":    "",
+		"filter-labels-and":   "",
+		"filter-labels-or":    "",
+		"filter-created-time": "",
+		"filter-updated-time": "",
+		"latest":              "TCTEST_LATESTBUILD",
+		"skip-queue":          "TCTEST_SKIP_QUEUE",
+		"open":                "TCTEST_OPEN_BROWSER",
 	}
 
 	for name, env := range m {
@@ -120,6 +140,21 @@ func GetFlags() FlagData {
 	return FlagData{
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
+		GH: FlagsGitHub{
+			Repo:         viper.GetString("repo"),
+			Token:        viper.GetString("token-gh"),
+			FileRegEx:    viper.GetString("fileregex"),
+			SplitTestsOn: viper.GetString("splitteston"),
+			FilterPRs: FlagsGitHubPrFilter{
+				Authors:      viper.GetStringSlice("filter-authors"),
+				LabelsOr:     viper.GetStringSlice("filter-labels-or"),
+				LabelsAnd:    viper.GetStringSlice("filter-labels-and"),
+				Milestone:    viper.GetString("filter-milestone"),
+				CreationTime: viper.GetDuration("filter-created-time"),
+				UpdatedTime:  viper.GetDuration("filter-updated-time"),
+				Drafts:       viper.GetBool("filter-draft"),
+			},
+		},
 		TC: FlagsTeamCity{
 			ServerURL: viper.GetString("server"),
 			Token:     viper.GetString("token-tc"),
@@ -134,12 +169,6 @@ func GetFlags() FlagData {
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
 			},
-		},
-		GH: FlagsGitHub{
-			Repo:         viper.GetString("repo"),
-			Token:        viper.GetString("token-gh"),
-			FileRegEx:    viper.GetString("fileregex"),
-			SplitTestsOn: viper.GetString("splitteston"),
 		},
 	}
 }

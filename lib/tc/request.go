@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/chttp"
 )
 
 func (s Server) makeGetRequest(endpoint string) (int, string, error) {
@@ -40,7 +40,7 @@ func (s Server) performRequest(req *http.Request) (int, string, error) {
 
 	req.Header.Set("Content-Type", "application/xml")
 
-	resp, err := common.HTTP.Do(req)
+	resp, err := chttp.HTTP.Do(req)
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %w", err)
 	}

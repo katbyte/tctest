@@ -8,7 +8,8 @@ import (
 
 	"github.com/google/go-github/v45/github"
 	c "github.com/gookit/color" //nolint:misspell
-	"github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/chttp"
+	"github.com/katbyte/tctest/lib/clog"
 	"github.com/pkg/browser"
 )
 
@@ -20,6 +21,13 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 	prURL := gr.PrURL(pr)
 	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prURL)
 	serviceTests, err := gr.PrTests(pr, f.GH.FileRegEx, f.GH.SplitTestsOn)
+
+	if f.OpenInBrowser {
+		if err := browser.OpenURL(prURL); err != nil {
+			c.Printf("failed to open build %s in browser", prURL)
+		}
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("pr list failed: %w", err)
 	}
@@ -31,33 +39,27 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 		}
 	}
 
-	if f.OpenInBrowser {
-		if err := browser.OpenURL(prURL); err != nil {
-			c.Printf("failed to open build %s in browser", prURL)
-		}
-	}
-
 	return serviceTests, nil
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
 func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
 	client, ctx := gr.NewClient()
-	httpClient := common.NewHTTPClient("HTTP")
+	httpClient := chttp.NewHTTPClient("HTTP")
 	fileRegEx := regexp.MustCompile(filterRegExStr)
 
-	common.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Repo, pri)
+	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
 	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
 	if err != nil {
 		return nil, err
 	}
 
-	common.Log.Debugf("  checking pr state: %v", *pr.State)
+	clog.Log.Debugf("  checking pr state: %v", *pr.State)
 	if pr.State != nil && *pr.State == "closed" {
 		return nil, fmt.Errorf("cannot start build for a closed pr")
 	}
 
-	common.Log.Tracef("listing files...")
+	clog.Log.Tracef("listing files...")
 	files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, nil)
 	if err != nil {
 		return nil, err
@@ -65,14 +67,14 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 
 	// filter out uninteresting files and convert non test files to test files and only retain unique
 	filesFiltered := map[string]bool{}
-	common.Log.Debugf("  filtering files (%s)", filterRegExStr)
+	clog.Log.Debugf("  filtering files (%s)", filterRegExStr)
 	for _, f := range files {
 		if f.Filename == nil {
 			continue
 		}
 
 		name := *f.Filename
-		common.Log.Debugf("    %v", *f.Filename)
+		clog.Log.Debugf("    %v", *f.Filename)
 
 		// if in service package mode skip some files
 		if strings.Contains(name, "/services/") {
@@ -97,7 +99,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		f := strings.Replace(name, ".go", "_test.go", 1)
 		filesFiltered[f] = true
 	}
-	common.Log.Debugf("  FOUND %d", len(filesFiltered))
+	clog.Log.Debugf("  FOUND %d", len(filesFiltered))
 
 	if len(filesFiltered) == 0 {
 		return nil, fmt.Errorf("found no files matching: %s", filterRegExStr)
@@ -106,11 +108,11 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 
 	// for each file get content and parse out test files & services
 	serviceTestMap := map[string]map[string]bool{}
-	common.Log.Debugf("  parsing content:")
+	clog.Log.Debugf("  parsing content:")
 	for f := range filesFiltered {
 		testRegEx := regexp.MustCompile("func Test")
 
-		common.Log.Debugf("    download %s", f)
+		clog.Log.Debugf("    download %s", f)
 
 		if pr.MergeCommitSHA == nil {
 			return nil, fmt.Errorf("merge commit SHA is nil, is there a merge conflict?")
@@ -148,7 +150,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			l := s.Text()
 
 			if testRegEx.MatchString(l) {
-				common.Log.Tracef("found test line: %s", l)
+				clog.Log.Tracef("found test line: %s", l)
 				tests = append(tests, strings.Split(l, " ")[1]) // should always be true because test pattern is "func Test"
 			}
 		}
@@ -164,7 +166,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		}
 
 		for _, t := range tests {
-			common.Log.Debugf("test: %s", t)
+			clog.Log.Debugf("test: %s", t)
 
 			if _, ok := serviceTestMap[service]; !ok {
 				serviceTestMap[service] = make(map[string]bool)
@@ -183,7 +185,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			if service != "" {
 				serviceInfo = fmt.Sprintf("%s: ", service)
 			}
-			common.Log.Debugf("%s%s", serviceInfo, test)
+			clog.Log.Debugf("%s%s", serviceInfo, test)
 			serviceTests[service] = append(serviceTests[service], test)
 		}
 	}

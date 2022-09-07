@@ -1,7 +1,7 @@
 package tc
 
 import (
-	"github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/clog"
 )
 
 type Server struct {
@@ -25,7 +25,7 @@ func NewServer(server, token, username, password string) Server {
 }
 
 func NewServerUsingTokenAuth(server, token string) Server {
-	common.Log.Debugf("new tc: %s@%s", token, server)
+	clog.Log.Debugf("new tc: %s@%s", token, server)
 	return Server{
 		Server: server,
 		token:  &token,
@@ -33,7 +33,7 @@ func NewServerUsingTokenAuth(server, token string) Server {
 }
 
 func NewServerUsingBasicAuth(server, username, password string) Server {
-	common.Log.Debugf("new tc: %s@%s", username, server)
+	clog.Log.Debugf("new tc: %s@%s", username, server)
 	return Server{
 		Server: server,
 		User:   &username,

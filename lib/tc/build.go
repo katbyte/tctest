@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/katbyte/tctest/lib/common"
+	"github.com/katbyte/tctest/lib/clog"
 )
 
 func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (int, string, error) {
-	common.Log.Debugf("triggering build for %q", buildTypeID)
+	clog.Log.Debugf("triggering build for %q", buildTypeID)
 	statusCode, body, err := s.TriggerBuild(buildTypeID, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
 		return 0, "", fmt.Errorf("error creating build request: %w", err)
@@ -43,7 +43,7 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 	bodyAdditionalProperties := ""
 
 	if buildProperties != "" {
-		common.Log.Debugf("adding additional properties:")
+		clog.Log.Debugf("adding additional properties:")
 
 		for _, p := range strings.Split(buildProperties, ";") {
 			parts := strings.Split(p, "=")
@@ -51,7 +51,7 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 				return 0, "", fmt.Errorf("unable to parse build property '%s': missing =", p)
 			}
 
-			common.Log.Debugf("  property:%s=%s", parts[0], parts[1])
+			clog.Log.Debugf("  property:%s=%s", parts[0], parts[1])
 			bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
 		}
 	}

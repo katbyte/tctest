@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -50,7 +51,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
-	branch := &cobra.Command{
+	root.AddCommand(&cobra.Command{
 		Use:           "branch [branchName] [test regex]",
 		Short:         "triggers acceptance tests matching regex for a branch name",
 		Long:          `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
@@ -72,10 +73,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return f.BuildCmd(f.TC.Build.TypeID, branch, testRegEx, "")
 		},
-	}
-	root.AddCommand(branch)
+	})
 
-	pr := &cobra.Command{
+	root.AddCommand(&cobra.Command{
 		Use:           "pr # [test_regex]",
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
@@ -98,7 +98,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			for _, pr := range strings.Split(prs, ",") {
 				pri, err := strconv.Atoi(pr)
 				if err != nil {
-					c.Printf("<red>ERROR:</> parsing PRs: unable to convert '%s' into an integer: %w\n", pr, err)
+					c.Printf("<red>ERROR:</> parsing PRs: unable to convert '%s' into an integer: %v\n", pr, err)
 					continue
 				}
 
@@ -107,10 +107,64 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
 		},
-	}
-	root.AddCommand(pr)
+	})
 
-	list := &cobra.Command{
+	root.AddCommand(&cobra.Command{
+		Use:           "prs [test_regex] [-a author1,katbyte] [-l with-this-label,-not-this-label]",
+		Short:         "triggers acceptance tests for each open PR matching specified filters",
+		Long:          `TODO.`,
+		Args:          cobra.RangeArgs(0, 1),
+		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splitteston"}),
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			testRegExParam := ""
+			if len(args) == 1 {
+				testRegExParam = args[0]
+			}
+
+			// At this point command validation has been done so any more errors don't require help to be printed
+			cmd.SilenceUsage = true
+			f := GetFlags()
+			r := f.NewRepo()
+
+			// get all pull requests
+			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
+			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
+			if err != nil {
+				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
+				return nil
+			}
+			c.Printf(" found <yellow>%d</>. Filters:\n", len(*prs))
+
+			var numbers []int
+			fmt.Println("Filtering:")
+			for _, pr := range *prs {
+				c.Printf("  #<cyan>%d</> <gray>(%s></>\n", pr.GetNumber(), pr.GetHTMLURL())
+
+				passed := true
+				for _, f := range f.GetFilters() {
+					ok, err := f.PR(pr)
+					if err != nil {
+						return fmt.Errorf("ERROR: running filter %s: %w", f.Name, err)
+					}
+					passed = passed && ok
+				}
+
+				if passed {
+					numbers = append(numbers, pr.GetNumber())
+				}
+
+				fmt.Println()
+			}
+
+			sort.Ints(numbers)
+			c.Printf("testing <yellow>%d</> prs\n\n", len(numbers))
+
+			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
+		},
+	})
+
+	root.AddCommand(&cobra.Command{
 		Use:           "list #",
 		Short:         "attempts to discover what acceptance tests to run for a PR",
 		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
@@ -129,10 +183,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return err
 		},
-	}
-	root.AddCommand(list)
+	})
 
-	results := &cobra.Command{
+	root.AddCommand(&cobra.Command{
 		Use:           "results #",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
@@ -149,10 +202,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return GetFlags().BuildResultsCmd(buildID)
 		},
-	}
-	root.AddCommand(results)
+	})
 
-	resultsByPR := &cobra.Command{
+	root.AddCommand(&cobra.Command{
 		Use:           "pr #",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
@@ -169,8 +221,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return GetFlags().BuildResultsForPRCmd(pr)
 		},
-	}
-	results.AddCommand(resultsByPR)
+	})
 
 	if err := configureFlags(root); err != nil {
 		return nil, fmt.Errorf("unable to configure flags: %w", err)
