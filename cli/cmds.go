@@ -136,16 +136,13 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 			c.Printf(" found <yellow>%d</>. Filters:\n", len(*prs))
 
-			// get filters
-			filters := f.GetFilters()
-
 			var numbers []int
 			fmt.Println("Filtering:")
 			for _, pr := range *prs {
 				c.Printf("  #<cyan>%d</> <gray>(%s></>\n", pr.GetNumber(), pr.GetHTMLURL())
 
 				passed := true
-				for _, f := range filters {
+				for _, f := range f.GetFilters() {
 					ok, err := f.PR(pr)
 					if err != nil {
 						return fmt.Errorf("ERROR: running filter %s: %w", f.Name, err)

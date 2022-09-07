@@ -1,4 +1,3 @@
-//go:build windows
 // +build windows
 
 // Display color on windows

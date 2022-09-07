@@ -16,9 +16,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
-	"io"
-
 	"golang.org/x/crypto/openpgp/errors"
+	"io"
 )
 
 // A Block represents an OpenPGP armored structure.
