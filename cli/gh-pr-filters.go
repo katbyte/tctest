@@ -213,7 +213,7 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 					c.Printf(" <green>%s</>", filterLabel)
 				} else if found && negate {
 					andFail = true
-					c.Printf(" <red>%s</>", filterLabel)
+					c.Printf(" <red>-%s</>", filterLabel)
 				} else if negate {
 					orPass = true
 					c.Printf(" <green>-%s</>", filterLabel)
