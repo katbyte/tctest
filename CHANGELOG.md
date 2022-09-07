@@ -1,3 +1,7 @@
+## v0.6.0 (Unreleased)
+
+- add the `prs` sub-command ([#57](https://github.com/katbyte/tctest/issues/57))
+
 ## v0.5.0 (2022-08-09)
 
 - support detecting azurerm `services`
