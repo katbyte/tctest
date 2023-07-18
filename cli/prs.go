@@ -54,7 +54,7 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 
 			branch := fmt.Sprintf("refs/pull/%d/merge", pri)
 
-			if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
+			if err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
 				c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 			}
 			fmt.Println()
