@@ -52,7 +52,9 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 				buildTypeID += "_" + strings.ToUpper(s)
 			}
 
-			branch := fmt.Sprintf("refs/pull/%d/merge", pri)
+			// todo doesn't work with new cloud VCS settings?
+			// branch := fmt.Sprintf("refs/pull/%d/merge", pri)
+			branch := fmt.Sprintf("%d", pri)
 
 			if err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
 				c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
