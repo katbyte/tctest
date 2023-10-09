@@ -60,44 +60,49 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	}
 
 	clog.Log.Tracef("listing files...")
-	files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// filter out uninteresting files and convert non test files to test files and only retain unique
 	filesFiltered := map[string]bool{}
-	clog.Log.Debugf("  filtering files (%s)", filterRegExStr)
-	for _, f := range files {
-		if f.Filename == nil {
-			continue
+	for i := 0; ; i++ {
+		files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, &github.ListOptions{PerPage: 100, Page: i})
+		if len(files) == 0 {
+			break
+		}
+		if err != nil {
+			return nil, err
 		}
 
-		name := *f.Filename
-		clog.Log.Debugf("    %v", *f.Filename)
-
-		// if in service package mode skip some files
-		if strings.Contains(name, "/services/") {
-			if strings.Contains(name, "/client/") || strings.Contains(name, "/parse/") || strings.Contains(name, "/validate/") {
+		// filter out uninteresting files and convert non test files to test files and only retain unique
+		clog.Log.Debugf("  filtering files (%s)", filterRegExStr)
+		for _, f := range files {
+			if f.Filename == nil {
 				continue
 			}
 
-			if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
+			name := *f.Filename
+			clog.Log.Debugf("    %v", *f.Filename)
+
+			// if in service package mode skip some files
+			if strings.Contains(name, "/services/") {
+				if strings.Contains(name, "/client/") || strings.Contains(name, "/parse/") || strings.Contains(name, "/validate/") {
+					continue
+				}
+
+				if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
+					continue
+				}
+			}
+
+			if strings.HasSuffix(name, "_test.go") {
+				filesFiltered[name] = true
 				continue
 			}
-		}
 
-		if strings.HasSuffix(name, "_test.go") {
-			filesFiltered[name] = true
-			continue
-		}
+			if !fileRegEx.MatchString(name) {
+				continue
+			}
 
-		if !fileRegEx.MatchString(name) {
-			continue
+			f := strings.Replace(name, ".go", "_test.go", 1)
+			filesFiltered[f] = true
 		}
-
-		f := strings.Replace(name, ".go", "_test.go", 1)
-		filesFiltered[f] = true
 	}
 	clog.Log.Debugf("  FOUND %d", len(filesFiltered))
 
