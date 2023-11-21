@@ -18,12 +18,12 @@ func NewHTTPClient(name string) *http.Client {
 	}
 }
 
-type transport struct {
+type Transport struct {
 	name      string
 	transport http.RoundTripper
 }
 
-func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	reqData, err := httputil.DumpRequestOut(req, true)
 
 	if err == nil {
@@ -47,8 +47,8 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func NewTransport(name string, t http.RoundTripper) *transport {
-	return &transport{name, t}
+func NewTransport(name string, t http.RoundTripper) *Transport {
+	return &Transport{name, t}
 }
 
 // prettyPrintJSON iterates through a []byte line-by-line,
@@ -58,7 +58,7 @@ func prettyPrintJSON(b []byte) string {
 	for i, p := range parts {
 		if b := []byte(p); json.Valid(b) {
 			var out bytes.Buffer
-			// nolint:errcheck
+			//nolint:errcheck
 			json.Indent(&out, b, "", " ")
 			parts[i] = out.String()
 		}
