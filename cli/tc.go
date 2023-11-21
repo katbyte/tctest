@@ -5,10 +5,10 @@ import (
 )
 
 // wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
-type tcServer struct {
+type TcServer struct {
 	tc.Server
 }
 
-func (f FlagData) NewServer() tcServer {
-	return tcServer{tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)}
+func (f FlagData) NewServer() TcServer {
+	return TcServer{tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)}
 }

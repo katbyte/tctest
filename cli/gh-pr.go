@@ -43,7 +43,7 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
+func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
 	client, ctx := gr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
@@ -94,7 +94,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		}
 
 		// todo thread ctx
-		// nolint: noctx
+		//nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
@@ -151,7 +151,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	return &serviceTests, nil
 }
 
-func (gr githubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
+func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
 	client, ctx := gr.NewClient()
 
 	opts := &github.ListOptions{
@@ -179,7 +179,7 @@ func (gr githubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFi
 	return nil
 }
 
-func (gr githubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*map[string]struct{}, error) {
+func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*map[string]struct{}, error) {
 	result := make(map[string]struct{})
 	filterRegEx := regexp.MustCompile(filterRegExStr)
 
@@ -218,7 +218,6 @@ func (gr githubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
 	}
