@@ -187,7 +187,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	resultsCommand := &cobra.Command{
 		Use:           "results #",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
@@ -204,9 +204,11 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return GetFlags().BuildResultsCmd(buildID)
 		},
-	})
+	}
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(resultsCommand)
+
+	resultsCommand.AddCommand(&cobra.Command{
 		Use:           "pr #",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
