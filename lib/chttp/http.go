@@ -47,6 +47,7 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
+//nolint:revive
 func NewTransport(name string, t http.RoundTripper) *transport {
 	return &transport{name, t}
 }

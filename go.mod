@@ -1,6 +1,6 @@
 module github.com/katbyte/tctest
 
-go 1.17
+go 1.22
 
 require (
 	github.com/google/go-github/v45 v45.2.0

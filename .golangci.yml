@@ -1,7 +1,7 @@
 run:
   deadline: 10m10s
   modules-download-mode: vendor
-  go: 1.17 # 1.18 disabled some linters as they don't support generics yet, as such lock to 1.17 until they do
+  go: 1.22 # 1.18 disabled some linters as they don't support generics yet, as such lock to 1.17 until they do
 
 issues:
   max-per-linter: 0
@@ -15,7 +15,6 @@ linters:
     - bidichk
     - containedctx
     - contextcheck
-    - deadcode
     - decorder
     - durationcheck
     - errchkjson
@@ -23,7 +22,7 @@ linters:
     - errcheck
     - errorlint
     - exhaustive
-    - exportloopref
+    - copyloopvar
     - gocritic
     - gofmt
     - gofumpt
@@ -32,7 +31,6 @@ linters:
     - govet
     - gosec
     - ineffassign
-    - ifshort
     - nakedret
     - nilerr
     - nilnil
@@ -45,23 +43,20 @@ linters:
     - prealloc
     - predeclared
     - staticcheck
-    - structcheck
     - stylecheck
     - revive
     - typecheck
     - unused
     - unconvert
     - unparam
-    - varcheck
-    - vet
-    - vetshadow
+    - govet
     - wastedassign
     - whitespace
     # - wsl #linter configuration is still quite not flexible enough for my liking, leaving disabled for now
 
 linters-settings:
   errcheck:
-    ignore: io:Close
+    exclude-functions: io:Close
   misspell:
     locale: uk
   nlreturn:
