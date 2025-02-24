@@ -75,7 +75,7 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 }
 
 func (s Server) BuildLog(buildID int) (int, string, error) {
-	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildId=%d", buildID))
+	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildID=%d", buildID))
 }
 
 func (s Server) BuildQueue(buildID int) (int, string, error) {
