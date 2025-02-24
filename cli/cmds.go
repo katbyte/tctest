@@ -15,10 +15,10 @@ import (
 )
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
-	return func(_ *cobra.Command, _ []string) error {
+	return func(cmd *cobra.Command, args []string) error {
 		for _, p := range params {
 			if viper.GetString(p) == "" {
-				return fmt.Errorf("'%s' parameter can't be empty", p)
+				return fmt.Errorf(p + " parameter can't be empty")
 			}
 		}
 
@@ -34,7 +34,7 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
 			return nil
 		},
@@ -46,7 +46,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Long:          `Print the version number of tctest`,
 		Args:          cobra.NoArgs,
 		SilenceErrors: true,
-		Run: func(_ *cobra.Command, _ []string) {
+		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
 		},
 	})
@@ -187,7 +187,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	resultsCommand := &cobra.Command{
 		Use:           "results #",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
@@ -204,9 +204,11 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			return GetFlags().BuildResultsCmd(buildID)
 		},
-	})
+	}
 
-	root.AddCommand(&cobra.Command{
+	root.AddCommand(resultsCommand)
+
+	resultsCommand.AddCommand(&cobra.Command{
 		Use:           "pr #",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",

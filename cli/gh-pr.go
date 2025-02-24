@@ -136,7 +136,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		}
 
 		// todo thread ctx
-		//nolint: noctx
+		// nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)

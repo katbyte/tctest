@@ -11,13 +11,13 @@ import (
 func main() {
 	cmd, err := cli.Make()
 	if err != nil {
-		clog.Log.Errorf("%s", c.Sprintf("<red>tctest: building cmd</> %v", err))
+		clog.Log.Errorf(c.Sprintf("<red>tctest: building cmd</> %v", err))
 
 		os.Exit(1)
 	}
 
 	if err := cmd.Execute(); err != nil {
-		clog.Log.Errorf("%s", c.Sprintf("<red>tctest:</> %v", err))
+		clog.Log.Errorf(c.Sprintf("<red>tctest:</> %v", err))
 
 		os.Exit(1)
 	}

@@ -89,16 +89,17 @@ func GetFilterForMilestone(milestoneRaw string) *Filter {
 		PR: func(pr github.PullRequest) (bool, error) {
 			milestone := pr.GetMilestone().GetTitle()
 
+			// nolint:gocritic
 			if strings.EqualFold(filterMilestone, milestone) && !negate {
 				c.Printf("    milestone: <green>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
 			} else if negate {
 				c.Printf("    milestone: <green>-%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
+			} else {
+				c.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+				return false, nil
 			}
-			c.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
-
-			return false, nil
 		},
 	}
 }
@@ -206,7 +207,7 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 			for filterLabel, negate := range filterLabelMap {
 				_, found := labelMap[filterLabel]
 
-				//nolint:gocritic
+				// nolint:gocritic
 				if found && !negate {
 					orPass = true
 					c.Printf(" <green>%s</>", filterLabel)

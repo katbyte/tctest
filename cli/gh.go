@@ -12,7 +12,6 @@ type githubRepo struct {
 	gh.Repo
 }
 
-//nolint:revive
 func (f FlagData) NewRepo() githubRepo {
 	ownerrepo := f.GH.Repo
 
