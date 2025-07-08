@@ -89,7 +89,6 @@ func GetFilterForMilestone(milestoneRaw string) *Filter {
 		PR: func(pr github.PullRequest) (bool, error) {
 			milestone := pr.GetMilestone().GetTitle()
 
-			//nolint:gocritic
 			if strings.EqualFold(filterMilestone, milestone) && !negate {
 				c.Printf("    milestone: <green>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
