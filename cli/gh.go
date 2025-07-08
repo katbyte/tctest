@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"strings"
 
+	"github.com/google/go-github/v45/github"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/gh"
 )
@@ -25,4 +27,17 @@ func (f FlagData) NewRepo() githubRepo {
 	clog.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 
 	return githubRepo{gh.NewRepo(owner, repo, token)}
+}
+
+// Forwarding methods to help older golangci-lint with embedded type method promotion
+func (gr githubRepo) PrURL(pr int) string {
+	return gr.Repo.PrURL(pr)
+}
+
+func (gr githubRepo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
+	return gr.Repo.GetAllPullRequests(state)
+}
+
+func (gr githubRepo) NewClient() (*github.Client, context.Context) {
+	return gr.Repo.NewClient()
 }
