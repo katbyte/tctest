@@ -6,12 +6,11 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/spf13/viper"
-
 	//nolint:misspell
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/pkg/browser"
+	"github.com/spf13/viper"
 )
 
 func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error {
