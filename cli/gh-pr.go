@@ -43,7 +43,7 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
+func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
 	client, ctx := gr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 	fileRegEx := regexp.MustCompile(filterRegExStr)
@@ -136,7 +136,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		}
 
 		// todo thread ctx
-		// nolint: noctx
+		//nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)

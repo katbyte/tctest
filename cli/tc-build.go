@@ -2,10 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/viper"
 
 	//nolint:misspell
 	c "github.com/gookit/color"
@@ -99,9 +100,12 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 func (f FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewServer()
 
-	foo, err := f.GetPrTests(pr)
+	prTests, err := f.GetPrTests(pr)
+	if err != nil {
+		return fmt.Errorf("error looking for tests for PR #%d: %w", pr, err)
+	}
 	var buildTypeID string
-	for s, _ := range *foo {
+	for s := range *prTests {
 		buildTypeID = viper.GetString("buildtypeid")
 		if s != "" {
 			buildTypeID += "_" + strings.ToUpper(s)

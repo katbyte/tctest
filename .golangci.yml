@@ -10,40 +10,52 @@ issues:
 linters:
   disable-all: true
   enable:
-    # Core linters that work well with older golangci-lint
+    - asasalint
+    - asciicheck
+    - bidichk
+    - containedctx
+    - contextcheck
+    - decorder
+    - durationcheck
     - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - gocritic
+    - gofmt
+    - gofumpt
+    - goimports
+    - gosec
     - gosimple
     - govet
+    - govet
     - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-    - gofmt
-    - goimports
-    
-    # Style linters
+    - makezero
     - misspell
-    - unconvert
-    - wastedassign
-    
-    # Additional safe linters
-    - asciicheck
-    - durationcheck
-    - errname
     - nakedret
     - nilerr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - prealloc
     - predeclared
     - revive
-    
-    # Disabled due to incompatibility with older golangci-lint and newer dependencies:
-    # - gocritic, asasalint, bidichk, containedctx, contextcheck, decorder
-    # - errchkjson, errorlint, exhaustive, exportloopref, gofumpt, gosec
-    # - nilnil, nlreturn, nolintlint, noctx, makezero, prealloc, stylecheck
-    # - unparam, vet, vetshadow, whitespace
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - wastedassign
+    - whitespace
+    #- paralleltest
+    # - wsl #linter configuration is still quite not flexible enough for my liking, leaving disabled for now
 
 linters-settings:
   errcheck:
-    ignore: io:Close
+    exclude-functions: io:Close
   misspell:
     locale: uk
   nlreturn:

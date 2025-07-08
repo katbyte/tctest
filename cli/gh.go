@@ -10,11 +10,11 @@ import (
 )
 
 // wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
-type githubRepo struct {
+type GithubRepo struct {
 	gh.Repo
 }
 
-func (f FlagData) NewRepo() githubRepo {
+func (f FlagData) NewRepo() GithubRepo {
 	ownerrepo := f.GH.Repo
 
 	parts := strings.Split(ownerrepo, "/")
@@ -26,18 +26,18 @@ func (f FlagData) NewRepo() githubRepo {
 	token := f.GH.Token
 	clog.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 
-	return githubRepo{gh.NewRepo(owner, repo, token)}
+	return GithubRepo{gh.NewRepo(owner, repo, token)}
 }
 
 // Forwarding methods to help older golangci-lint with embedded type method promotion
-func (gr githubRepo) PrURL(pr int) string {
+func (gr GithubRepo) PrURL(pr int) string {
 	return gr.Repo.PrURL(pr)
 }
 
-func (gr githubRepo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
+func (gr GithubRepo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
 	return gr.Repo.GetAllPullRequests(state)
 }
 
-func (gr githubRepo) NewClient() (*github.Client, context.Context) {
+func (gr GithubRepo) NewClient() (*github.Client, context.Context) {
 	return gr.Repo.NewClient()
 }
