@@ -8,11 +8,11 @@ import (
 )
 
 // wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
-type githubRepo struct {
+type GithubRepo struct {
 	gh.Repo
 }
 
-func (f FlagData) NewRepo() githubRepo {
+func (f FlagData) NewRepo() GithubRepo {
 	ownerrepo := f.GH.Repo
 
 	parts := strings.Split(ownerrepo, "/")
@@ -24,5 +24,5 @@ func (f FlagData) NewRepo() githubRepo {
 	token := f.GH.Token
 	clog.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 
-	return githubRepo{gh.NewRepo(owner, repo, token)}
+	return GithubRepo{gh.NewRepo(owner, repo, token)}
 }

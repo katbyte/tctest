@@ -43,10 +43,9 @@ func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
+func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
 	client, ctx := gr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
-	fileRegEx := regexp.MustCompile(filterRegExStr)
 
 	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
 	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
@@ -60,56 +59,15 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	}
 
 	clog.Log.Tracef("listing files...")
-	files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, nil)
+	filesFiltered, err := gr.GetAllPullRequestFiles(pri, filterRegExStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
 	}
-
-	// filter out uninteresting files and convert non test files to test files and only retain unique
-	filesFiltered := map[string]bool{}
-	clog.Log.Debugf("  filtering files (%s)", filterRegExStr)
-	for _, f := range files {
-		if f.Filename == nil {
-			continue
-		}
-
-		name := *f.Filename
-		clog.Log.Debugf("    %v", *f.Filename)
-
-		// if in service package mode skip some files
-		if strings.Contains(name, "/services/") {
-			if strings.Contains(name, "/client/") || strings.Contains(name, "/parse/") || strings.Contains(name, "/validate/") {
-				continue
-			}
-
-			if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
-				continue
-			}
-		}
-
-		if strings.HasSuffix(name, "_test.go") {
-			filesFiltered[name] = true
-			continue
-		}
-
-		if !fileRegEx.MatchString(name) {
-			continue
-		}
-
-		f := strings.Replace(name, ".go", "_test.go", 1)
-		filesFiltered[f] = true
-	}
-	clog.Log.Debugf("  FOUND %d", len(filesFiltered))
-
-	if len(filesFiltered) == 0 {
-		return nil, fmt.Errorf("found no files matching: %s", filterRegExStr)
-	}
-	// log.Println(files) TODO debug message here
 
 	// for each file get content and parse out test files & services
 	serviceTestMap := map[string]map[string]bool{}
 	clog.Log.Debugf("  parsing content:")
-	for f := range filesFiltered {
+	for f := range *filesFiltered {
 		testRegEx := regexp.MustCompile("func Test")
 
 		clog.Log.Debugf("    download %s", f)
@@ -136,7 +94,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		}
 
 		// todo thread ctx
-		// nolint: noctx
+		//nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
@@ -191,4 +149,83 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	}
 
 	return &serviceTests, nil
+}
+
+func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
+	client, ctx := gr.NewClient()
+
+	opts := &github.ListOptions{
+		Page:    1,
+		PerPage: 100,
+	}
+
+	for {
+		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", gr.Owner, gr.Name, pri, opts.Page)
+		files, resp, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, opts)
+		if err != nil {
+			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", gr.Owner, gr.Name, pri, opts.Page, err)
+		}
+
+		if err = cb(files, resp); err != nil {
+			return fmt.Errorf("callback failed for %s/%s/pull/%d (Page %d): %w", gr.Owner, gr.Name, pri, opts.Page, err)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return nil
+}
+
+func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*map[string]struct{}, error) {
+	result := make(map[string]struct{})
+	filterRegEx := regexp.MustCompile(filterRegExStr)
+
+	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, resp *github.Response) error {
+		for _, f := range files {
+			if f.Filename == nil {
+				continue
+			}
+
+			name := *f.Filename
+			clog.Log.Debugf("    %v", *f.Filename)
+
+			// if in service package mode skip some files
+			if strings.Contains(name, "/services/") {
+				if strings.Contains(name, "/client/") || strings.Contains(name, "/parse/") || strings.Contains(name, "/validate/") {
+					continue
+				}
+
+				if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
+					continue
+				}
+			}
+
+			if strings.HasSuffix(name, "_test.go") {
+				result[name] = struct{}{}
+				continue
+			}
+
+			if !filterRegEx.MatchString(name) {
+				continue
+			}
+
+			f := strings.Replace(name, ".go", "_test.go", 1)
+			result[f] = struct{}{}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
+	}
+
+	clog.Log.Debugf("  FOUND %d", len(result))
+	for f := range result {
+		clog.Log.Debugf("     %s", f)
+	}
+
+	return &result, nil
 }
