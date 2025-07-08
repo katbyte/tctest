@@ -97,7 +97,8 @@ func GetFilterForMilestone(milestoneRaw string) *Filter {
 				c.Printf("    milestone: <green>-%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
 			}
-			//revive:disable:indent-error-flowc.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+			//revive:disable:indent-error-flow
+			c.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 
 			return false, nil
 		},
