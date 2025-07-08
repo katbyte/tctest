@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/spf13/viper"
 	"net/http"
 	"regexp"
 	"strings"
@@ -23,6 +24,16 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 	}
 
 	c.Printf("  build <green>%d</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildID, buildURL, testRegex)
+
+	// Apply labels if specified
+	if len(f.TC.Build.Labels) > 0 {
+		c.Printf("  adding labels: <yellow>%v</>...\n", f.TC.Build.Labels)
+		if err := tc.AddLabels(buildID, f.TC.Build.Labels); err != nil {
+			c.Printf("  <yellow>WARNING:</> failed to add labels to build %d: %v\n", buildID, err)
+		} else {
+			c.Printf("  labels added successfully\n")
+		}
+	}
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(buildURL); err != nil {
@@ -88,7 +99,15 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 func (f FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewServer()
 
-	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)
+	foo, err := f.GetPrTests(pr)
+	var buildTypeID string
+	for s, _ := range *foo {
+		buildTypeID = viper.GetString("buildtypeid")
+		if s != "" {
+			buildTypeID += "_" + strings.ToUpper(s)
+		}
+	}
+	builds, err := tc.GetBuildsForPR(buildTypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)
 	if err != nil {
 		return fmt.Errorf("error looking for builds for PR %d state: %w", pr, err)
 	}

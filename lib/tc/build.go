@@ -147,3 +147,32 @@ func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
 
 	return nil
 }
+
+// AddLabels adds labels to a TeamCity build using the REST API
+func (s Server) AddLabels(buildID int, labels []string) error {
+	if len(labels) == 0 {
+		return nil // Nothing to do
+	}
+
+	clog.Log.Debugf("adding labels %v to build %d", labels, buildID)
+
+	for _, label := range labels {
+		if label == "" {
+			continue // Skip empty labels
+		}
+
+		// TeamCity REST API expects a simple text body for adding labels
+		statusCode, _, err := s.makePostRequestWithContentType(fmt.Sprintf("/app/rest/2018.1/builds/id:%d/tags", buildID), label, "text/plain")
+		if err != nil {
+			return fmt.Errorf("error adding label '%s' to build %d: %w", label, buildID, err)
+		}
+
+		if statusCode != http.StatusOK {
+			return fmt.Errorf("HTTP status NOT OK when adding label '%s' to build %d: %d", label, buildID, statusCode)
+		}
+
+		clog.Log.Debugf("successfully added label '%s' to build %d", label, buildID)
+	}
+
+	return nil
+}
