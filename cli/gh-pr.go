@@ -48,8 +48,8 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	httpClient := chttp.NewHTTPClient("HTTP")
 	fileRegEx := regexp.MustCompile(filterRegExStr)
 
-	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
-	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
+	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Repo.Owner, gr.Repo.Name, pri)
+	pr, _, err := client.PullRequests.Get(ctx, gr.Repo.Owner, gr.Repo.Name, pri)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 	}
 
 	clog.Log.Tracef("listing files...")
-	files, _, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, nil)
+	files, _, err := client.PullRequests.ListFiles(ctx, gr.Repo.Owner, gr.Repo.Name, pri, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (gr githubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 
 		// DownloadContents always performs a directory listing for the file,
 		// which has a 1000 file limit.
-		fileContents, _, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
+		fileContents, _, _, err := client.Repositories.GetContents(ctx, gr.Repo.Owner, gr.Repo.Name, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
 			c.Printf("    <darkGray>FAILED to download %s</>\n", f)
 			continue

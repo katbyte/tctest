@@ -128,7 +128,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			r := f.NewRepo()
 
 			// get all pull requests
-			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
+			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Repo.Owner, r.Repo.Name)
 			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
 			if err != nil {
 				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
