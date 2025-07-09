@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"strings"
 
 	"github.com/katbyte/tctest/lib/clog"
@@ -25,4 +26,8 @@ func (f FlagData) NewRepo() GithubRepo {
 	clog.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
 
 	return GithubRepo{gh.NewRepo(owner, repo, token)}
+}
+
+func (gr GithubRepo) NewClientWithInterfaces() (gh.GitHubClientInterface, gh.HTTPClientInterface, context.Context) {
+	return gr.Token.NewClientWithInterfaces()
 }

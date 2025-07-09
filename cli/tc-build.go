@@ -25,12 +25,12 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 	c.Printf("  build <green>%d</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildID, buildURL, testRegex)
 
 	// Apply labels if specified
-	if len(f.TC.Build.Labels) > 0 {
-		c.Printf("  adding labels: <yellow>%v</>...\n", f.TC.Build.Labels)
-		if err := tc.AddLabels(buildID, f.TC.Build.Labels); err != nil {
-			c.Printf("  <yellow>WARNING:</> failed to add labels to build %d: %v\n", buildID, err)
+	if len(f.TC.Build.Tags) > 0 {
+		c.Printf("  adding labels: <yellow>%v</>...\n", f.TC.Build.Tags)
+		if err := tc.AddTags(buildID, f.TC.Build.Tags); err != nil {
+			c.Printf("  <yellow>WARNING:</> failed to add tags to build %d: %v\n", buildID, err)
 		} else {
-			c.Printf("  labels added successfully\n")
+			c.Printf("  tags added successfully\n")
 		}
 	}
 

@@ -2,6 +2,7 @@ package gh
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/google/go-github/v45/github"
 	common "github.com/katbyte/tctest/lib/chttp"
@@ -34,6 +35,44 @@ func NewRepo(owner, repo, token string) Repo {
 	return r
 }
 
+// GitHubClientInterface defines the subset of GitHub client methods we need
+type GitHubClientInterface interface {
+	GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, *github.Response, error)
+	ListPullRequestFiles(ctx context.Context, owner, repo string, number int, opts *github.ListOptions) ([]*github.CommitFile, *github.Response, error)
+	GetContents(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentGetOptions) (*github.RepositoryContent, []*github.RepositoryContent, *github.Response, error)
+}
+
+// HTTPClientInterface defines the subset of HTTP client methods we need
+type HTTPClientInterface interface {
+	Get(url string) (*http.Response, error)
+}
+
+// GitHubClientAdapter adapts the real GitHub client to our interface
+type GitHubClientAdapter struct {
+	client *github.Client
+}
+
+func (g *GitHubClientAdapter) GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, *github.Response, error) {
+	return g.client.PullRequests.Get(ctx, owner, repo, number)
+}
+
+func (g *GitHubClientAdapter) ListPullRequestFiles(ctx context.Context, owner, repo string, number int, opts *github.ListOptions) ([]*github.CommitFile, *github.Response, error) {
+	return g.client.PullRequests.ListFiles(ctx, owner, repo, number, opts)
+}
+
+func (g *GitHubClientAdapter) GetContents(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentGetOptions) (*github.RepositoryContent, []*github.RepositoryContent, *github.Response, error) {
+	return g.client.Repositories.GetContents(ctx, owner, repo, path, opts)
+}
+
+// HTTPClientAdapter adapts the real HTTP client to our interface
+type HTTPClientAdapter struct {
+	client *http.Client
+}
+
+func (h *HTTPClientAdapter) Get(url string) (*http.Response, error) {
+	return h.client.Get(url)
+}
+
 func (t Token) NewClient() (*github.Client, context.Context) {
 	ctx := context.Background()
 	httpClient := common.NewHTTPClient("GitHub")
@@ -48,4 +87,11 @@ func (t Token) NewClient() (*github.Client, context.Context) {
 	httpClient.Transport = common.NewTransport("GitHub", httpClient.Transport)
 
 	return github.NewClient(httpClient), ctx
+}
+
+// NewClientWithInterfaces returns the interfaces for dependency injection
+func (t Token) NewClientWithInterfaces() (GitHubClientInterface, HTTPClientInterface, context.Context) {
+	client, ctx := t.NewClient()
+	httpClient := common.NewHTTPClient("HTTP")
+	return &GitHubClientAdapter{client: client}, &HTTPClientAdapter{client: httpClient}, ctx
 }

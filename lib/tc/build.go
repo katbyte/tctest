@@ -148,30 +148,30 @@ func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
 	return nil
 }
 
-// AddLabels adds labels to a TeamCity build using the REST API
-func (s Server) AddLabels(buildID int, labels []string) error {
-	if len(labels) == 0 {
+// AddTags adds Tags to a TeamCity build run using the REST API
+func (s Server) AddTags(buildID int, tags []string) error {
+	if len(tags) == 0 {
 		return nil // Nothing to do
 	}
 
-	clog.Log.Debugf("adding labels %v to build %d", labels, buildID)
+	clog.Log.Debugf("adding tags %v to build %d", tags, buildID)
 
-	for _, label := range labels {
-		if label == "" {
-			continue // Skip empty labels
+	for _, tag := range tags {
+		if tag == "" {
+			return fmt.Errorf("received an empty string to add as tag to build %d", buildID)
 		}
 
-		// TeamCity REST API expects a simple text body for adding labels
-		statusCode, _, err := s.makePostRequestWithContentType(fmt.Sprintf("/app/rest/2018.1/builds/id:%d/tags", buildID), label, "text/plain")
+		// TeamCity REST API expects a simple text body for adding tags
+		statusCode, _, err := s.makePostRequestWithContentType(fmt.Sprintf("/app/rest/2018.1/builds/id:%d/tags", buildID), tag, "text/plain")
 		if err != nil {
-			return fmt.Errorf("error adding label '%s' to build %d: %w", label, buildID, err)
+			return fmt.Errorf("error adding tag '%s' to build %d: %w", tag, buildID, err)
 		}
 
 		if statusCode != http.StatusOK {
-			return fmt.Errorf("HTTP status NOT OK when adding label '%s' to build %d: %d", label, buildID, statusCode)
+			return fmt.Errorf("HTTP status NOT OK when adding tag '%s' to build %d: %d", tag, buildID, statusCode)
 		}
 
-		clog.Log.Debugf("added label '%s' to build %d", label, buildID)
+		clog.Log.Debugf("added tag '%s' to build %d", tag, buildID)
 	}
 
 	return nil

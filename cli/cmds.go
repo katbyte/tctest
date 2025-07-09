@@ -76,7 +76,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "pr # [test_regex]",
+		Use:           "pr <pr_number>[,<pr_number>...] [test_regex]",
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:          cobra.RangeArgs(1, 2),
@@ -167,7 +167,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "list #",
+		Use:           "list <pr_number>",
 		Short:         "attempts to discover what acceptance tests to run for a PR",
 		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
 		Args:          cobra.RangeArgs(1, 1),
@@ -188,7 +188,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "results #",
+		Use:           "results <tc_build_id>",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
@@ -207,7 +207,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "pr #",
+		Use:           "pr <pr_number>",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
