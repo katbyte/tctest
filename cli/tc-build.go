@@ -10,7 +10,6 @@ import (
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/pkg/browser"
-	"github.com/spf13/viper"
 )
 
 func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error {
@@ -99,20 +98,7 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 func (f FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewServer()
 
-	prTests, err := f.GetPrTests(pr)
-	if err != nil {
-		return fmt.Errorf("error looking for tests for PR #%d: %w", pr, err)
-	}
-	
-	var buildTypeID string
-	for s := range *prTests {
-		buildTypeID = viper.GetString("buildtypeid")
-		if s != "" {
-			buildTypeID += "_" + strings.ToUpper(s)
-		}
-	}
-	
-	builds, err := tc.GetBuildsForPR(buildTypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)
+	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)
 	if err != nil {
 		return fmt.Errorf("error looking for builds for PR %d state: %w", pr, err)
 	}

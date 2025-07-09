@@ -71,7 +71,7 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 </build>
 `, buildTypeID, branch, testPattern, bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
-	return s.makePostRequest("/app/rest/2018.1/buildQueue", body)
+	return s.makePostRequestWithXMLContentType("/app/rest/2018.1/buildQueue", body)
 }
 
 func (s Server) BuildLog(buildID int) (int, string, error) {
