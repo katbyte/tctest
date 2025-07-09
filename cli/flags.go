@@ -110,7 +110,7 @@ func configureFlags(root *cobra.Command) error {
 		"latest":         "TCTEST_LATESTBUILD",
 		"skip-queue":     "TCTEST_SKIP_QUEUE",
 		"open":           "TCTEST_OPEN_BROWSER",
-		"label":          "",
+		"label":          "TCTEST_BUILD_LABELS",
 	}
 
 	for name, env := range m {

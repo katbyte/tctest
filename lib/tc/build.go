@@ -171,7 +171,7 @@ func (s Server) AddLabels(buildID int, labels []string) error {
 			return fmt.Errorf("HTTP status NOT OK when adding label '%s' to build %d: %d", label, buildID, statusCode)
 		}
 
-		clog.Log.Debugf("successfully added label '%s' to build %d", label, buildID)
+		clog.Log.Debugf("added label '%s' to build %d", label, buildID)
 	}
 
 	return nil

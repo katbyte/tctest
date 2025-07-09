@@ -21,7 +21,7 @@ func (s Server) makeGetRequest(endpoint string) (int, string, error) {
 	return s.performRequest(req)
 }
 
-func (s Server) makePostRequest(endpoint, body string) (int, string, error) {
+func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (int, string, error) {
 	return s.makePostRequestWithContentType(endpoint, body, "application/xml")
 }
 

@@ -103,6 +103,7 @@ func (f FlagData) BuildResultsForPRCmd(pr int) error {
 	if err != nil {
 		return fmt.Errorf("error looking for tests for PR #%d: %w", pr, err)
 	}
+	
 	var buildTypeID string
 	for s := range *prTests {
 		buildTypeID = viper.GetString("buildtypeid")
@@ -110,6 +111,7 @@ func (f FlagData) BuildResultsForPRCmd(pr int) error {
 			buildTypeID += "_" + strings.ToUpper(s)
 		}
 	}
+	
 	builds, err := tc.GetBuildsForPR(buildTypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)
 	if err != nil {
 		return fmt.Errorf("error looking for builds for PR %d state: %w", pr, err)
