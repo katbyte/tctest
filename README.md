@@ -91,3 +91,52 @@ To wait for a running or queued build to complete and then show the results:
 ```bash
 tctest results pr 12345 --wait
 ```
+
+# Allow User to add Tags to TC Build Runs
+
+## Usage Examples
+
+1. **Single tag:**
+   ```bash
+   ./tctest pr 123 --tag='5.0 Mode'
+   ```
+   ![Screenshot showing a TC build run with a Tag](tag-screenhot.png)
+
+2. **Multiple tags:**
+   ```bash
+   ./tctest pr 123 --tag=urgent,regression
+   ```
+
+3. **Multiple tags (alternative syntax):**
+   ```bash
+   ./tctest pr 123 --tag=urgent --tag=regression
+   ```
+
+4. **With branch command:**
+   ```bash
+   ./tctest branch main "TestAcc" --tag=nightly,main-branch
+   ```
+
+5. **Via environment:**
+   ```bash
+   TCTEST_BUILD_TAGS=nightly,main-branch ./tctest pr 123
+   ```
+
+## How it works
+
+1. The PR command triggers the build as usual
+2. After the build is queued, it calls the TeamCity REST API to add tags
+3. Each tag is sent as a separate POST request to `/app/rest/2018.1/builds/id:{buildID}/tags`
+4. The request body contains just the tag text with `Content-Type: text/plain`
+
+## API Details
+
+- Endpoint: `POST /app/rest/2018.1/builds/id:{buildID}/tags`
+- Content-Type: `text/plain`
+- Body: The tag text (one tag per request)
+
+## Error Handling
+
+- If tagging fails, it shows a warning but doesn't fail the entire operation
+- Empty tags are skipped
+- Each tag is processed individually, so one failure doesn't affect others
