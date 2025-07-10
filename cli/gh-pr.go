@@ -62,8 +62,6 @@ func (gr GithubRepo) PrTestsWithDependencies(ctx context.Context, pri int, opts 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
 	}
-
-	// Parse test files and extract services
 	serviceTests, err := gr.parseTestsFromFiles(ctx, *filesFiltered, pr, opts.SplitTestsAt, githubClient, httpClient)
 	if err != nil {
 		return nil, err
@@ -236,7 +234,10 @@ func (gr GithubRepo) parseTestsFromFiles(ctx context.Context, filesFiltered map[
 		// Get file contents
 		fileContents, _, _, err := githubClient.GetContents(ctx, gr.Owner, gr.Name, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
-			c.Printf("    <darkGray>FAILED to download %s</>\n", f)
+			fileContents, _, _, err = githubClient.GetContents(ctx, gr.Owner, gr.Name, f, &github.RepositoryContentGetOptions{Ref: "main"})
+			if err != nil {
+				c.Printf("    <darkGray>FAILED to download %s</>\n", f)
+			}
 		}
 
 		if fileContents == nil {
