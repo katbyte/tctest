@@ -119,24 +119,16 @@ func (gr GithubRepo) getAllPullRequestFilesWithClient(ctx context.Context, pri i
 	result := make(map[string]struct{})
 	filterRegEx := regexp.MustCompile(filterRegExStr)
 
-	err := gr.listAllPullRequestFilesWithClient(ctx, pri, githubClient, func(files []*github.CommitFile, _ *github.Response) error {
-		filesInMergeCommit := make(map[string]struct{}, 0)
-		pr, _, err := githubClient.GetPullRequest(ctx, gr.Owner, gr.Name, pri)
-		if err != nil {
-			return fmt.Errorf("failed to get PR: %w", err)
-		}
-		if pr.MergeCommitSHA == nil {
-			return fmt.Errorf("merge commit SHA is nil")
-		}
-		commit, _, err := githubClient.GetCommit(ctx, gr.Owner, gr.Name, *pr.MergeCommitSHA)
-		if err != nil {
-			return fmt.Errorf("failed to get commit %s for %s/%s: %w", *pr.MergeCommitSHA, gr.Owner, gr.Name, err)
-		}
-		for _, f := range commit.Files {
-			if f.Filename != nil {
-				filesInMergeCommit[*f.Filename] = struct{}{}
-			}
-		}
+	// Get PR info for merge commit SHA
+	pr, _, err := githubClient.GetPullRequest(ctx, gr.Owner, gr.Name, pri)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PR: %w", err)
+	}
+	if pr.MergeCommitSHA == nil {
+		return nil, fmt.Errorf("merge commit SHA is nil")
+	}
+
+	err = gr.listAllPullRequestFilesWithClient(ctx, pri, githubClient, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
@@ -166,14 +158,20 @@ func (gr GithubRepo) getAllPullRequestFilesWithClient(ctx context.Context, pri i
 			}
 
 			inferredTestFile := strings.Replace(name, ".go", "_test.go", 1)
-			if _, ok := filesInMergeCommit[inferredTestFile]; ok {
+			_, _, _, err := githubClient.GetContents(ctx, gr.Owner, gr.Name, inferredTestFile, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
+			if err == nil {
 				result[inferredTestFile] = struct{}{}
 				continue
 			}
-			c.Printf("No standard-named test file found for '%s' -- Falling back to running all tests in package\n", *f.Filename)
-			testFiles, err := getTestFilesInSamePackage(*f.Filename, *pr.MergeCommitSHA, githubClient, ctx, gr.Owner, gr.Name)
+			_, _, _, err = githubClient.GetContents(ctx, gr.Owner, gr.Name, inferredTestFile, &github.RepositoryContentGetOptions{Ref: "main"})
+			if err == nil {
+				result[inferredTestFile] = struct{}{}
+				continue
+			}
+			c.Printf("Production code file '%s' does not have a standard named test file '%s' -- Falling back to running all tests in package\n", name, inferredTestFile)
+			testFiles, err := getTestFilesInSamePackage(name, *pr.MergeCommitSHA, githubClient, ctx, gr.Owner, gr.Name)
 			if err != nil {
-				clog.Log.Debugf("Failed to get test files in same package for %s: %v", *f.Filename, err)
+				clog.Log.Debugf("Failed to get test files in same package for %s: %v", name, err)
 			} else {
 				for _, testFile := range testFiles {
 					result[testFile] = struct{}{}
