@@ -13,12 +13,15 @@ import (
 )
 
 type MockGitHubClient struct {
-	PRs              map[int]*github.PullRequest
-	Files            map[int][]*github.CommitFile
-	Contents         map[string]*github.RepositoryContent
-	GetPRError       error
-	ListFilesError   error
-	GetContentsError error
+	PRs               map[int]*github.PullRequest
+	Files             map[int][]*github.CommitFile
+	Contents          map[string]*github.RepositoryContent
+	Commits           map[string]*github.RepositoryCommit
+	DirectoryContents map[string][]*github.RepositoryContent
+	GetPRError        error
+	ListFilesError    error
+	GetContentsError  error
+	GetCommitError    error
 }
 
 func (m *MockGitHubClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, *github.Response, error) {
@@ -47,6 +50,9 @@ func (m *MockGitHubClient) GetContents(ctx context.Context, owner, repo, path st
 	if m.GetContentsError != nil {
 		return nil, nil, nil, m.GetContentsError
 	}
+	if dirContents, exists := m.DirectoryContents[path]; exists {
+		return nil, dirContents, &github.Response{}, nil
+	}
 	content, exists := m.Contents[path]
 	if !exists {
 		return nil, nil, nil, errors.New("content not found")
@@ -54,7 +60,17 @@ func (m *MockGitHubClient) GetContents(ctx context.Context, owner, repo, path st
 	return content, nil, &github.Response{}, nil
 }
 
-// MockHTTPClient implements HTTPClientInterface for testing
+func (m *MockGitHubClient) GetCommit(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, *github.Response, error) {
+	if m.GetCommitError != nil {
+		return nil, nil, m.GetCommitError
+	}
+	commit, exists := m.Commits[sha]
+	if !exists {
+		return nil, nil, errors.New("commit not found")
+	}
+	return commit, &github.Response{}, nil
+}
+
 type MockHTTPClient struct {
 	Responses map[string]*http.Response
 	GetError  error
@@ -108,6 +124,15 @@ func TestPrTestsWithDependencies(t *testing.T) {
 			123: {
 				{
 					Filename: github.String("internal/services/compute/test_file_test.go"),
+				},
+			},
+		},
+		Commits: map[string]*github.RepositoryCommit{
+			sha: {
+				Files: []*github.CommitFile{
+					{
+						Filename: github.String("internal/services/compute/test_file_test.go"),
+					},
 				},
 			},
 		},
@@ -249,6 +274,149 @@ func TestPrTestsWithDependencies_GitHubError(t *testing.T) {
 	// Test
 	ctx := context.Background()
 	_, err := gr.PrTestsWithDependencies(ctx, 123, opts, mockGitHubClient, mockHTTPClient)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected GitHub API error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "GitHub API error") {
+		t.Errorf("Expected GitHub API error message, got: %v", err)
+	}
+}
+
+func TestGetTestFilesInSamePackage(t *testing.T) {
+	ctx := context.Background()
+	sha := "commit_sha"
+	directory := "internal/services/loadbalancer"
+	downloadURL1 := "https://example.com/loadbalancer_rule_resource_test.go"
+	downloadURL2 := "https://example.com/other_test.go"
+
+	mockGitHubClient := &MockGitHubClient{
+		DirectoryContents: map[string][]*github.RepositoryContent{
+			directory: {
+				{Name: github.String("loadbalancer_rule_resource_test.go"), Type: github.String("file"), DownloadURL: &downloadURL1},
+				{Name: github.String("other_test.go"), Type: github.String("file"), DownloadURL: &downloadURL2},
+				{Name: github.String("lb_rule_resource.go"), Type: github.String("file")},
+			},
+		},
+	}
+
+	testFiles, err := getTestFilesInSamePackage("internal/services/loadbalancer/lb_rule_resource.go", sha, mockGitHubClient, ctx, "testowner", "testrepo")
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(testFiles) != 2 {
+		t.Fatalf("Expected 2 test files, got %d", len(testFiles))
+	}
+
+	expectedFiles := map[string]bool{
+		"internal/services/loadbalancer/loadbalancer_rule_resource_test.go": false,
+		"internal/services/loadbalancer/other_test.go":                      false,
+	}
+
+	for _, file := range testFiles {
+		if _, exists := expectedFiles[file]; exists {
+			expectedFiles[file] = true
+		}
+	}
+
+	for file, found := range expectedFiles {
+		if !found {
+			t.Errorf("Expected to find test file %s, but didn't", file)
+		}
+	}
+}
+
+func TestListAllPullRequestFilesWithClient(t *testing.T) {
+	// Setup
+	gr := GithubRepo{
+		Repo: gh.Repo{
+			Owner: "testowner",
+			Name:  "testrepo",
+		},
+	}
+
+	mockGitHubClient := &MockGitHubClient{
+		Files: map[int][]*github.CommitFile{
+			123: {
+				{
+					Filename: github.String("internal/services/compute/resource.go"),
+				},
+				{
+					Filename: github.String("internal/services/compute/resource_test.go"),
+				},
+				{
+					Filename: github.String("internal/services/storage/data_source.go"),
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	var collectedFiles []*github.CommitFile
+
+	// Create a callback function to collect files
+	callback := func(files []*github.CommitFile, resp *github.Response) error {
+		collectedFiles = append(collectedFiles, files...)
+		return nil
+	}
+
+	// Test
+	err := gr.listAllPullRequestFilesWithClient(ctx, 123, mockGitHubClient, callback)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(collectedFiles) != 3 {
+		t.Fatalf("Expected 3 files, got %d", len(collectedFiles))
+	}
+
+	expectedFiles := map[string]bool{
+		"internal/services/compute/resource.go":      false,
+		"internal/services/compute/resource_test.go": false,
+		"internal/services/storage/data_source.go":   false,
+	}
+
+	for _, file := range collectedFiles {
+		if file.Filename != nil {
+			if _, exists := expectedFiles[*file.Filename]; exists {
+				expectedFiles[*file.Filename] = true
+			}
+		}
+	}
+
+	for filename, found := range expectedFiles {
+		if !found {
+			t.Errorf("Expected to find file %s, but didn't", filename)
+		}
+	}
+}
+
+func TestListAllPullRequestFilesWithClient_Error(t *testing.T) {
+	// Setup
+	gr := GithubRepo{
+		Repo: gh.Repo{
+			Owner: "testowner",
+			Name:  "testrepo",
+		},
+	}
+
+	mockGitHubClient := &MockGitHubClient{
+		ListFilesError: errors.New("GitHub API error"),
+	}
+
+	ctx := context.Background()
+	callback := func(files []*github.CommitFile, resp *github.Response) error {
+		return nil
+	}
+
+	// Test
+	err := gr.listAllPullRequestFilesWithClient(ctx, 123, mockGitHubClient, callback)
 
 	// Assert
 	if err == nil {

@@ -40,6 +40,7 @@ type GitHubClientInterface interface {
 	GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, *github.Response, error)
 	ListPullRequestFiles(ctx context.Context, owner, repo string, number int, opts *github.ListOptions) ([]*github.CommitFile, *github.Response, error)
 	GetContents(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentGetOptions) (*github.RepositoryContent, []*github.RepositoryContent, *github.Response, error)
+	GetCommit(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, *github.Response, error)
 }
 
 // HTTPClientInterface defines the subset of HTTP client methods we need
@@ -62,6 +63,10 @@ func (g *GitHubClientAdapter) ListPullRequestFiles(ctx context.Context, owner, r
 
 func (g *GitHubClientAdapter) GetContents(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentGetOptions) (*github.RepositoryContent, []*github.RepositoryContent, *github.Response, error) {
 	return g.client.Repositories.GetContents(ctx, owner, repo, path, opts)
+}
+
+func (g *GitHubClientAdapter) GetCommit(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, *github.Response, error) {
+	return g.client.Repositories.GetCommit(ctx, owner, repo, sha, nil)
 }
 
 // HTTPClientAdapter adapts the real HTTP client to our interface
