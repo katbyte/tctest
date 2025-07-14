@@ -29,7 +29,7 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 				serviceInfo = "[<yellow>" + s + "</>]"
 			}
 
-			// genreatae test regex if we don't have it
+			// regenerate test regex if we don't have it
 			testRegEx := testRegExParam
 			if testRegEx == "" {
 				// if no testregex and no tests throw an error (-a is required for all)

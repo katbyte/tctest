@@ -47,7 +47,7 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 func (r Repo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
 	var allPRs []github.PullRequest
 
-	err := r.ListAllPullRequests(state, func(prs []*github.PullRequest, resp *github.Response) error {
+	err := r.ListAllPullRequests(state, func(prs []*github.PullRequest, _ *github.Response) error {
 		for i, p := range prs {
 			if p == nil {
 				clog.Log.Debugf("prs[%d] was nil, skipping", i)

@@ -15,7 +15,7 @@ import (
 )
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
+	return func(_ *cobra.Command, _ []string) error {
 		for _, p := range params {
 			if viper.GetString(p) == "" {
 				return fmt.Errorf(p + " parameter can't be empty")
@@ -34,7 +34,7 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
 			return nil
 		},
@@ -46,7 +46,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Long:          `Print the version number of tctest`,
 		Args:          cobra.NoArgs,
 		SilenceErrors: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
 		},
 	})
@@ -76,7 +76,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "pr # [test_regex]",
+		Use:           "pr <pr_number>[,<pr_number>...] [test_regex]",
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:          cobra.RangeArgs(1, 2),
@@ -128,7 +128,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			r := f.NewRepo()
 
 			// get all pull requests
-			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
+			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Repo.Owner, r.Repo.Name)
 			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
 			if err != nil {
 				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
@@ -167,7 +167,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "list #",
+		Use:           "list <pr_number>",
 		Short:         "attempts to discover what acceptance tests to run for a PR",
 		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
 		Args:          cobra.RangeArgs(1, 1),
@@ -188,7 +188,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "results #",
+		Use:           "results <tc_build_id>",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
@@ -207,7 +207,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "pr #",
+		Use:           "pr <pr_number>",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
