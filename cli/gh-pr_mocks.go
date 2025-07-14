@@ -3,10 +3,11 @@ package cli
 import (
 	"context"
 	"errors"
-	"github.com/google/go-github/v45/github"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/google/go-github/v45/github"
 )
 
 type MockGitHubClient struct {
@@ -21,7 +22,7 @@ type MockGitHubClient struct {
 	GetCommitError    error
 }
 
-func (m *MockGitHubClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, *github.Response, error) {
+func (m *MockGitHubClient) GetPullRequest(_ context.Context, _, _ string, number int) (*github.PullRequest, *github.Response, error) {
 	if m.GetPRError != nil {
 		return nil, nil, m.GetPRError
 	}
@@ -29,10 +30,11 @@ func (m *MockGitHubClient) GetPullRequest(ctx context.Context, owner, repo strin
 	if !exists {
 		return nil, nil, errors.New("PR not found")
 	}
+
 	return pr, &github.Response{}, nil
 }
 
-func (m *MockGitHubClient) ListPullRequestFiles(ctx context.Context, owner, repo string, number int, opts *github.ListOptions) ([]*github.CommitFile, *github.Response, error) {
+func (m *MockGitHubClient) ListPullRequestFiles(_ context.Context, _, _ string, number int, _ *github.ListOptions) ([]*github.CommitFile, *github.Response, error) {
 	if m.ListFilesError != nil {
 		return nil, nil, m.ListFilesError
 	}
@@ -40,10 +42,11 @@ func (m *MockGitHubClient) ListPullRequestFiles(ctx context.Context, owner, repo
 	if !exists {
 		return []*github.CommitFile{}, &github.Response{}, nil
 	}
+
 	return files, &github.Response{NextPage: 0}, nil
 }
 
-func (m *MockGitHubClient) GetContents(ctx context.Context, owner, repo, path string, opts *github.RepositoryContentGetOptions) (*github.RepositoryContent, []*github.RepositoryContent, *github.Response, error) {
+func (m *MockGitHubClient) GetContents(_ context.Context, _, _, path string, opts *github.RepositoryContentGetOptions) (*github.RepositoryContent, []*github.RepositoryContent, *github.Response, error) {
 	// Special handling for inferred test file lookups - return error to trigger fallback
 	if path == "internal/services/network/security_test.go" && opts.Ref != "main" {
 		return nil, nil, nil, errors.New("content not found")
@@ -59,10 +62,11 @@ func (m *MockGitHubClient) GetContents(ctx context.Context, owner, repo, path st
 	if !exists {
 		return nil, nil, nil, errors.New("content not found")
 	}
+
 	return content, nil, &github.Response{}, nil
 }
 
-func (m *MockGitHubClient) GetCommit(ctx context.Context, owner, repo, sha string) (*github.RepositoryCommit, *github.Response, error) {
+func (m *MockGitHubClient) GetCommit(_ context.Context, _, _ string, sha string) (*github.RepositoryCommit, *github.Response, error) {
 	if m.GetCommitError != nil {
 		return nil, nil, m.GetCommitError
 	}
@@ -70,6 +74,7 @@ func (m *MockGitHubClient) GetCommit(ctx context.Context, owner, repo, sha strin
 	if !exists {
 		return nil, nil, errors.New("commit not found")
 	}
+
 	return commit, &github.Response{}, nil
 }
 
@@ -86,6 +91,7 @@ func (m *MockHTTPClient) Get(url string) (*http.Response, error) {
 	if !exists {
 		return nil, errors.New("URL not found")
 	}
+
 	return resp, nil
 }
 

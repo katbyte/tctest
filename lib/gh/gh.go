@@ -75,7 +75,12 @@ type HTTPClientAdapter struct {
 }
 
 func (h *HTTPClientAdapter) Get(url string) (*http.Response, error) {
-	return h.client.Get(url)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.client.Do(req)
 }
 
 func (t Token) NewClient() (*github.Client, context.Context) {

@@ -3,11 +3,12 @@ package cli
 import (
 	"context"
 	"errors"
-	"github.com/google/go-github/v45/github"
-	"github.com/katbyte/tctest/lib/gh"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/google/go-github/v45/github"
+	"github.com/katbyte/tctest/lib/gh"
 )
 
 func TestPrTestsWithDependencies(t *testing.T) {
@@ -79,7 +80,6 @@ func TestAnotherThing(t *testing.T) {
 	// Test
 	ctx := context.Background()
 	result, err := gr.PrTestsWithDependencies(ctx, 123, opts, mockGitHubClient, mockHTTPClient)
-
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -212,8 +212,7 @@ func TestGetTestFilesInSamePackage(t *testing.T) {
 		},
 	}
 
-	testFiles, err := getTestFilesInSamePackage("internal/services/loadbalancer/lb_rule_resource.go", sha, mockGitHubClient, ctx, "testowner", "testrepo")
-
+	testFiles, err := getTestFilesInSamePackage(ctx, "internal/services/loadbalancer/lb_rule_resource.go", sha, mockGitHubClient, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -269,14 +268,13 @@ func TestListAllPullRequestFilesWithClient(t *testing.T) {
 	var collectedFiles []*github.CommitFile
 
 	// Create a callback function to collect files
-	callback := func(files []*github.CommitFile, resp *github.Response) error {
+	callback := func(files []*github.CommitFile, _ *github.Response) error {
 		collectedFiles = append(collectedFiles, files...)
 		return nil
 	}
 
 	// Test
 	err := gr.listAllPullRequestFilesWithClient(ctx, 123, mockGitHubClient, callback)
-
 	// Assert
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -321,7 +319,7 @@ func TestListAllPullRequestFilesWithClient_Error(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	callback := func(files []*github.CommitFile, resp *github.Response) error {
+	callback := func(_ []*github.CommitFile, _ *github.Response) error {
 		return nil
 	}
 

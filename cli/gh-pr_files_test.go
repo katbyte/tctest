@@ -78,7 +78,6 @@ func TestBlob_Complex(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := gr.parseTestsFromFiles(ctx, filesFiltered, pr, "_", mockGitHubClient, mockHTTPClient)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -290,7 +289,6 @@ func TestGetAllPullRequestFilesWithClient(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := gr.getAllPullRequestFilesWithClient(ctx, 123, ".*", mockGitHubClient)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -446,7 +444,6 @@ func TestGetAllPullRequestFilesWithClient_FallbackToPackageTests(t *testing.T) {
 
 	ctx := context.Background()
 	result, err := gr.getAllPullRequestFilesWithClient(ctx, 123, ".*", mockGitHubClient)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -488,5 +485,6 @@ func containsSubstring(s, substr string) bool {
 			return true
 		}
 	}
+
 	return false
 }

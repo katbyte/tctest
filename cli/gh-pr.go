@@ -76,6 +76,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		FilterRegExStr: filterRegExStr,
 		SplitTestsAt:   splitTestsAt,
 	}
+
 	return gr.PrTestsWithDependencies(ctx, pri, opts, githubClient, httpClient)
 }
 
@@ -84,6 +85,7 @@ func (gr GithubRepo) getPullRequest(ctx context.Context, pri int, githubClient g
 	if err != nil {
 		return nil, err
 	}
+
 	return pr, nil
 }
 
@@ -92,21 +94,20 @@ func (gr GithubRepo) validatePRState(pr *github.PullRequest) error {
 	if pr.State != nil && *pr.State == "closed" {
 		return fmt.Errorf("cannot start build for a closed pr")
 	}
+
 	return nil
 }
 
-func getTestFilesInSamePackage(filename, commitSHA string, githubClient gh.GitHubClientInterface, ctx context.Context, owner string, repo string) ([]string, error) {
+func getTestFilesInSamePackage(ctx context.Context, filename, commitSHA string, githubClient gh.GitHubClientInterface, owner string, repo string) ([]string, error) {
 	result := []string{}
 	directory := filepath.Dir(filename)
 	_, contents, _, err := githubClient.GetContents(ctx, owner, repo, directory, &github.RepositoryContentGetOptions{Ref: commitSHA})
 	if err != nil {
 		return nil, err
 	}
-	if contents != nil {
-		for _, file := range contents {
-			if file.Type != nil && *file.Type == "file" && file.Name != nil && strings.HasSuffix(*file.Name, "_test.go") {
-				result = append(result, filepath.Join(directory, *file.Name))
-			}
+	for _, file := range contents {
+		if file.Type != nil && *file.Type == "file" && file.Name != nil && strings.HasSuffix(*file.Name, "_test.go") {
+			result = append(result, filepath.Join(directory, *file.Name))
 		}
 	}
 
@@ -167,7 +168,7 @@ func (gr GithubRepo) getAllPullRequestFilesWithClient(ctx context.Context, pri i
 				continue
 			}
 			c.Printf("Production code file '%s' does not have a standard named test file '%s' -- Falling back to running all tests in package\n", name, inferredTestFile)
-			testFiles, err := getTestFilesInSamePackage(name, *pr.MergeCommitSHA, githubClient, ctx, gr.Owner, gr.Name)
+			testFiles, err := getTestFilesInSamePackage(ctx, name, *pr.MergeCommitSHA, githubClient, gr.Owner, gr.Name)
 			if err != nil {
 				clog.Log.Debugf("Failed to get test files in same package for %s: %v", name, err)
 			} else {
@@ -300,6 +301,7 @@ func (gr GithubRepo) extractServiceFromPath(filePath string) string {
 	if len(parts) == 2 {
 		service = strings.Split(parts[1], "/")[0]
 	}
+
 	return service
 }
 
