@@ -17,47 +17,45 @@ linters:
     - contextcheck
     - decorder
     - durationcheck
+    - errcheck
     - errchkjson
     - errname
-    - errcheck
     - errorlint
     - exhaustive
-    - exportloopref
     - gocritic
     - gofmt
     - gofumpt
     - goimports
+    - gosec
     - gosimple
     - govet
-    - gosec
+    - govet
     - ineffassign
+    - makezero
+    - misspell
     - nakedret
     - nilerr
     - nilnil
     - nlreturn
-    - nolintlint
     - noctx
-    - makezero
-    - misspell
-    #- paralleltest
+    - nolintlint
     - prealloc
     - predeclared
+    - revive
     - staticcheck
     - stylecheck
-    - revive
     - typecheck
-    - unused
     - unconvert
     - unparam
-    - vet
-    - vetshadow
+    - unused
     - wastedassign
     - whitespace
+    #- paralleltest
     # - wsl #linter configuration is still quite not flexible enough for my liking, leaving disabled for now
 
 linters-settings:
   errcheck:
-    ignore: io:Close
+    exclude-functions: io:Close
   misspell:
     locale: uk
   nlreturn:
@@ -70,4 +68,3 @@ linters-settings:
     allow-multiline-assign: true
     force-case-trailing-whitespace: 1
     enforce-err-cuddling: true
-

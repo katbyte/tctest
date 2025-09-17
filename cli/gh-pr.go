@@ -183,7 +183,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	result := make(map[string]struct{})
 	filterRegEx := regexp.MustCompile(filterRegExStr)
 
-	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, resp *github.Response) error {
+	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue

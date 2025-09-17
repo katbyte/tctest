@@ -15,7 +15,7 @@ import (
 )
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
-	return func(cmd *cobra.Command, args []string) error {
+	return func(_ *cobra.Command, _ []string) error {
 		for _, p := range params {
 			if viper.GetString(p) == "" {
 				return fmt.Errorf(p + " parameter can't be empty")
@@ -34,7 +34,7 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
 			return nil
 		},
@@ -46,7 +46,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Long:          `Print the version number of tctest`,
 		Args:          cobra.NoArgs,
 		SilenceErrors: true,
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
 		},
 	})
