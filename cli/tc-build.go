@@ -24,6 +24,15 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 
 	c.Printf("  build <green>%d</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildID, buildURL, testRegex)
 
+	if len(f.TC.Build.Tags) > 0 {
+		c.Printf("  adding labels: <yellow>%v</>...\n", f.TC.Build.Tags)
+		if err := tc.AddTags(buildID, f.TC.Build.Tags); err != nil {
+			c.Printf("  <yellow>WARNING:</> failed to add tags to build %d: %v\n", buildID, err)
+		} else {
+			c.Printf("  tags added successfully\n")
+		}
+	}
+
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(buildURL); err != nil {
 			c.Printf("failed to open build %d in browser", buildID)

@@ -49,6 +49,7 @@ type FlagsTeamCityBuild struct {
 	Latest       bool
 	QueueTimeout int
 	RunTimeout   int
+	Tags         []string
 }
 
 func configureFlags(root *cobra.Command) error {
@@ -82,6 +83,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVarP(&flags.TC.Build.Latest, "latest", "", false, "gets the latest build in TeamCity")
 	pflags.IntVarP(&flags.TC.Build.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.TC.Build.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
+	pflags.StringSliceVarP(&flags.TC.Build.Tags, "tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
@@ -108,6 +110,7 @@ func configureFlags(root *cobra.Command) error {
 		"latest":         "TCTEST_LATESTBUILD",
 		"skip-queue":     "TCTEST_SKIP_QUEUE",
 		"open":           "TCTEST_OPEN_BROWSER",
+		"tag":            "TCTEST_BUILD_TAGS",
 	}
 
 	for name, env := range m {
@@ -168,6 +171,7 @@ func GetFlags() FlagData {
 				Latest:       viper.GetBool("wait"),
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
+				Tags:         viper.GetStringSlice("tag"),
 			},
 		},
 	}
