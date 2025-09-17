@@ -71,11 +71,11 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 </build>
 `, buildTypeID, branch, testPattern, bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
-	return s.makePostRequest("/app/rest/2018.1/buildQueue", body)
+	return s.makePostRequestWithXMLContentType("/app/rest/2018.1/buildQueue", body)
 }
 
 func (s Server) BuildLog(buildID int) (int, string, error) {
-	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildID=%d", buildID))
+	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildId=%d", buildID))
 }
 
 func (s Server) BuildQueue(buildID int) (int, string, error) {
@@ -143,6 +143,35 @@ func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
 	}
 	if statusCode != http.StatusOK {
 		return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+	}
+
+	return nil
+}
+
+// AddTags adds Tags to a TeamCity build run using the REST API
+func (s Server) AddTags(buildID int, tags []string) error {
+	if len(tags) == 0 {
+		return nil // Nothing to do
+	}
+
+	clog.Log.Debugf("adding tags %v to build %d", tags, buildID)
+
+	for _, tag := range tags {
+		if tag == "" {
+			return fmt.Errorf("received an empty string to add as tag to build %d", buildID)
+		}
+
+		// TeamCity REST API expects a simple text body for adding tags
+		statusCode, _, err := s.makePostRequestWithContentType(fmt.Sprintf("/app/rest/2018.1/builds/id:%d/tags", buildID), tag, "text/plain")
+		if err != nil {
+			return fmt.Errorf("error adding tag '%s' to build %d: %w", tag, buildID, err)
+		}
+
+		if statusCode != http.StatusOK {
+			return fmt.Errorf("HTTP status NOT OK when adding tag '%s' to build %d: %d", tag, buildID, statusCode)
+		}
+
+		clog.Log.Debugf("added tag '%s' to build %d", tag, buildID)
 	}
 
 	return nil
