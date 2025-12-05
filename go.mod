@@ -6,7 +6,7 @@ require (
 	github.com/google/go-github/v45 v45.2.0
 	github.com/gookit/color v1.5.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.1
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
