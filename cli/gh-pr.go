@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -55,7 +56,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 
 	clog.Log.Debugf("  checking pr state: %v", *pr.State)
 	if pr.State != nil && *pr.State == "closed" {
-		return nil, fmt.Errorf("cannot start build for a closed pr")
+		return nil, errors.New("cannot start build for a closed pr")
 	}
 
 	clog.Log.Tracef("listing files...")
@@ -73,7 +74,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		clog.Log.Debugf("    download %s", f)
 
 		if pr.MergeCommitSHA == nil {
-			return nil, fmt.Errorf("merge commit SHA is nil, is there a merge conflict?")
+			return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
 		}
 
 		// DownloadContents always performs a directory listing for the file,
@@ -100,7 +101,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
 		}
 
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var tests []string
 		s := bufio.NewScanner(resp.Body)
@@ -141,7 +142,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		for test := range serviceTestMap[service] {
 			serviceInfo := ""
 			if service != "" {
-				serviceInfo = fmt.Sprintf("%s: ", service)
+				serviceInfo = service + ": "
 			}
 			clog.Log.Debugf("%s%s", serviceInfo, test)
 			serviceTests[service] = append(serviceTests[service], test)

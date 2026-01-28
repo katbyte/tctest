@@ -2,13 +2,11 @@ package tc
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 )
-
-// TODO TODO TODO
-// build id needs to become int everywhere
 
 type buildsResp struct {
 	XMLName xml.Name          `xml:"builds"`
@@ -38,7 +36,7 @@ func (s Server) GetBuildsForPR(buildTypeID string, pr int, latest, wait bool, qu
 		queryArgs += ",count:1"
 	}
 
-	statusCode, body, err := s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds?locator=%s", queryArgs))
+	statusCode, body, err := s.makeGetRequest("/app/rest/2018.1/builds?locator=" + queryArgs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to list builds (%s): %w", queryArgs, err)
 	}
@@ -59,7 +57,7 @@ func (s Server) GetBuildsForPR(buildTypeID string, pr int, latest, wait bool, qu
 		return nil, err
 	}
 	if len(tcb.Builds) == 0 {
-		return nil, fmt.Errorf("no builds parsed from XML response")
+		return nil, errors.New("no builds parsed from XML response")
 	}
 
 	builds := []Build{}

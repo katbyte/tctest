@@ -41,7 +41,7 @@ func (s Server) performRequest(req *http.Request) (int, string, error) {
 
 func (s Server) performRequestWithContentType(req *http.Request, contentType string) (int, string, error) {
 	if s.token != nil {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", *s.token))
+		req.Header.Set("Authorization", "Bearer "+*s.token)
 	} else {
 		req.SetBasicAuth(*s.User, *s.Pass)
 	}

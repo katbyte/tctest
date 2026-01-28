@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -18,7 +19,7 @@ func ValidateParams(params []string) func(cmd *cobra.Command, args []string) err
 	return func(_ *cobra.Command, _ []string) error {
 		for _, p := range params {
 			if viper.GetString(p) == "" {
-				return fmt.Errorf(p + " parameter can't be empty")
+				return errors.New(p + " parameter can't be empty")
 			}
 		}
 
