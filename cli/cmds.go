@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -95,7 +94,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			cmd.SilenceUsage = true
 
 			// parse list of prs
-			numbers := []int{}
+			prTitles := make(map[int]string)
 			for _, pr := range strings.Split(prs, ",") {
 				pri, err := strconv.Atoi(pr)
 				if err != nil {
@@ -103,10 +102,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					continue
 				}
 
-				numbers = append(numbers, pri)
+				prTitles[pri] = "" // title unknown when passed via command line
 			}
 
-			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
+			return GetFlags().GetAndRunPrsTests(prTitles, testRegExParam)
 		},
 	})
 
@@ -128,6 +127,12 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			f := GetFlags()
 			r := f.NewRepo()
 
+			c.Printf("Filters:\n")
+			filters, err := f.GetFilters()
+			if err != nil {
+				return fmt.Errorf("error creating filters: %w", err)
+			}
+
 			// get all pull requests
 			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
 			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
@@ -135,11 +140,9 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
 				return nil
 			}
-			c.Printf(" found <yellow>%d</>. Filters:\n", len(*prs))
+			c.Printf(" found <yellow>%d</>\n", len(*prs))
 
-			filters := f.GetFilters()
-
-			var numbers []int
+			prTitles := make(map[int]string)
 			fmt.Println("Filtering:")
 			for _, pr := range *prs {
 				c.Printf("  #<cyan>%d</> <gray>(%s></>\n", pr.GetNumber(), pr.GetHTMLURL())
@@ -154,16 +157,15 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				}
 
 				if passed {
-					numbers = append(numbers, pr.GetNumber())
+					prTitles[pr.GetNumber()] = pr.GetTitle()
 				}
 
 				fmt.Println()
 			}
 
-			sort.Ints(numbers)
-			c.Printf("testing <yellow>%d</> prs\n\n", len(numbers))
+			c.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
 
-			return GetFlags().GetAndRunPrsTests(numbers, testRegExParam)
+			return GetFlags().GetAndRunPrsTests(prTitles, testRegExParam)
 		},
 	})
 
@@ -182,7 +184,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cmd.SilenceUsage = true
 
-			_, err = GetFlags().GetPrTests(pr)
+			_, err = GetFlags().GetPrTests(pr, "")
 
 			return err
 		},

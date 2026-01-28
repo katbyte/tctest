@@ -71,7 +71,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.GH.FilterPRs.Milestone, "f-milestone", "m", "", "filter out PRs that have or do no have a milestone, ie 'this-milstone' or '-not-this-milestone'")
 	pflags.DurationVarP(&flags.GH.FilterPRs.CreationTime, "f-created-time", "", time.Nanosecond, "filter out PRs that where not created within this duration")
 	pflags.DurationVarP(&flags.GH.FilterPRs.UpdatedTime, "f-updated-time", "", time.Nanosecond, "filter out PRs that where not created within this duration")
-	pflags.StringVarP(&flags.GH.FilterPRs.TitleRegex, "f-title-regex", "", "", "filter PRs by title using case-insensitive regex (e.g. 'test.*fix')")
+	pflags.StringVarP(&flags.GH.FilterPRs.TitleRegex, "f-title-regex", "", "", "filter PRs by title using case-insensitive regex (e.g. 'test' matches titles containing 'test', 'fix.*bug' matches 'fix' followed by 'bug')")
 	pflags.BoolVarP(&flags.GH.FilterPRs.Drafts, "f-drafts", "d", false, "filter out any PRs that are in draft more")
 
 	pflags.StringVarP(&flags.TC.ServerURL, "server", "s", "", "the TeamCity server's url")

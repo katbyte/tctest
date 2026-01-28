@@ -16,12 +16,13 @@ import (
 
 // TODO reorg this file
 
-func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
+func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
 	gr := f.NewRepo()
 
-	prURL := gr.PrURL(pr)
-	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prURL)
-	serviceTests, err := gr.PrTests(pr, f.GH.FileRegEx, f.GH.SplitTestsOn)
+	prURL := gr.PrURL(number)
+	c.Printf("Discovering tests for pr <cyan>#%d</> %s\n", number, title)
+	c.Printf("  <darkGray>%s</>\n", prURL)
+	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn)
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
