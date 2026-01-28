@@ -52,7 +52,7 @@ func (s Server) performRequestWithContentType(req *http.Request, contentType str
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// The calling function will figure out what to do with these
 	// because e.g. sometimes a 404 is an error, but sometimes it just means something might be queued

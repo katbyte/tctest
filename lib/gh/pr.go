@@ -25,14 +25,14 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 	}
 
 	for {
-		clog.Log.Debugf("Listing all PRs for %s/%s (Page %d)...", r.Owner, r.Name, opts.ListOptions.Page)
+		clog.Log.Debugf("Listing all PRs for %s/%s (Page %d)...", r.Owner, r.Name, opts.Page)
 		prs, resp, err := client.PullRequests.List(ctx, r.Owner, r.Name, opts)
 		if err != nil {
-			return fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.ListOptions.Page, err)
+			return fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.Page, err)
 		}
 
 		if err = cb(prs, resp); err != nil {
-			return fmt.Errorf("callback failed for %s/%s (Page %d): %w", r.Owner, r.Name, opts.ListOptions.Page, err)
+			return fmt.Errorf("callback failed for %s/%s (Page %d): %w", r.Owner, r.Name, opts.Page, err)
 		}
 
 		if resp.NextPage == 0 {

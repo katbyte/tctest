@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -39,6 +40,10 @@ func (f FlagData) GetFilters() []Filter {
 	}
 
 	if f := GetFilterForUpdatedTime(f.GH.FilterPRs.UpdatedTime); f != nil {
+		filters = append(filters, *f)
+	}
+
+	if f := GetFilterForTitleRegex(f.GH.FilterPRs.TitleRegex); f != nil {
 		filters = append(filters, *f)
 	}
 
@@ -230,6 +235,37 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 			}
 
 			return orPass, nil
+		},
+	}
+}
+
+func GetFilterForTitleRegex(pattern string) *Filter {
+	if pattern == "" {
+		return nil
+	}
+
+	// Make the pattern case-insensitive by adding (?i) prefix
+	caseInsensitivePattern := "(?i)" + pattern
+	re, err := regexp.Compile(caseInsensitivePattern)
+	if err != nil {
+		c.Printf("  title regex: <red>invalid pattern '%s': %v</red>\n", pattern, err)
+		return nil
+	}
+
+	c.Printf("  title regex: <magenta>%s</magenta> (case-insensitive)\n", pattern)
+
+	return &Filter{
+		Name: "title-regex",
+		PR: func(pr github.PullRequest) (bool, error) {
+			title := pr.GetTitle()
+
+			if re.MatchString(title) {
+				c.Printf("    title: <green>%s</green>\n", title)
+				return true, nil
+			}
+
+			c.Printf("    title: <red>%s</red>\n", title)
+			return false, nil
 		},
 	}
 }

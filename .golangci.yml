@@ -1,70 +1,67 @@
+version: "2"
+
 run:
-  deadline: 10m10s
+  timeout: 60m
+  go: "1.24"
   modules-download-mode: vendor
-  go: 1.17 # 1.18 disabled some linters as they don't support generics yet, as such lock to 1.17 until they do
 
 issues:
-  max-per-linter: 0
+  max-issues-per-linter: 0
   max-same-issues: 0
 
 linters:
-  disable-all: true
   enable:
-    - asasalint
-    - asciicheck
-    - bidichk
-    - containedctx
-    - contextcheck
-    - decorder
-    - durationcheck
-    - errcheck
-    - errchkjson
-    - errname
-    - errorlint
-    - exhaustive
-    - gocritic
-    - gofmt
-    - gofumpt
-    - goimports
-    - gosec
-    - gosimple
-    - govet
-    - govet
-    - ineffassign
-    - makezero
-    - misspell
-    - nakedret
-    - nilerr
-    - nilnil
-    - nlreturn
-    - noctx
-    - nolintlint
-    - prealloc
-    - predeclared
-    - revive
-    - staticcheck
-    - stylecheck
-    - typecheck
-    - unconvert
-    - unparam
-    - unused
-    - wastedassign
-    - whitespace
-    #- paralleltest
-    # - wsl #linter configuration is still quite not flexible enough for my liking, leaving disabled for now
+    - asasalint # check for pass []any as any in variadic func(...any)
+    - asciicheck # ensure code does not contain non-ASCII identifiers
+    - bidichk # checks for dangerous unicode character sequences
+    - bodyclose # checks whether HTTP response bodies are closed
+    - copyloopvar #Detects range loop variables that are overwritten in the loop body
+    - decorder # check declaration order and count of types, constants, variables and functions.
+    - durationcheck # check for common mistakes when working with time.Duration
+    - dupword # check for duplicated words in comments
+    - errcheck # checking for unchecked errors
+    - errorlint #Errorlint is a linter for that can be used to find code that will cause problems with the error wrapping scheme used in the github.com/pkg/errors package.
+    - exhaustive # checks switch statements over enums for missing cases
+    - gocritic # linter for Go source code that specializes in simplifying code
+    - govet # reports suspicious constructs. It is roughly the same as 'go vet' (replaced vet and vetshadow)
+    - gosec # Gosec is a security linter for Go source code
+    - ineffassign # detects when assignments to existing variables are not used
+    - misspell # finds commonly misspelled English words.
+    - nilerr # Finds code that returns nil after it checks that the error is not nil.
+    - nakedret # Checks that functions with naked returns are not longer than a maximum size
+    - prealloc # finds slice declarations that could potentially be pre-allocated.
+    - predeclared # find code that shadows one of Go's predeclared identifiers.
+    - perfsprint # Checks that fmt.Sprintf can be replaced with a faster alternative.
+    - paralleltest # detects missing usage of t.Parallel() method in your Go test.
+    - reassign # checks that package variables are not reassigned.
+    - tagalign #  checks struct tags that do not align with the specified column in struct definitions.
+    - tparallel # Tparallel detects inappropriate usage of t.Parallel() method in your Go test codes.
+    - staticcheck # checks rules from staticcheck. It's not the same thing as the staticcheck binary.
+    - testableexamples #checks Go examples are testable
+    - unused # checks Go code for unused constants, variables, functions and types.
+    - unconvert # checks for unnecessary type conversions.
+    - unparam # reports unused function parameters.
+    - wastedassign # finds wasted assignment statements
+    - whitespace # checks for unnecessary newlines at the start and end of functions, if, for, etc. (
+  settings:
+    errcheck:
+      exclude-functions:
+        - io.Close
+    nakedret:
+      max-func-lines: 30
+    misspell:
+      locale: "UK"
+      ignore-rules:
+        - "color"
+        - "organization"
+        - "recognized"
+    tagalign:
+      sort: true
+    predeclared:
+      ignore: ["new","min","max"] # should we use newer, minimum, and maximum instead?
 
-linters-settings:
-  errcheck:
-    exclude-functions: io:Close
-  misspell:
-    locale: uk
-  nlreturn:
-    block-size: 4
-  wsl:
-    allow-assign-and-anything: true
-    allow-separated-leading-comment: true
-    allow-trailing-comment: true
-    allow-cuddle-declarations: true
-    allow-multiline-assign: true
-    force-case-trailing-whitespace: 1
-    enforce-err-cuddling: true
+formatters:
+  enable:
+    - gofmt # checks whether code was gofmt-ed
+    - gofumpt # checks whether code was gofumpt-ed, a stricter gofmt
+    - goimports # check import statements are formatted according to the 'goimport' command
