@@ -1,4 +1,4 @@
-## v0.6.0 (Unreleased)
+## v0.6.0 (2026-01-30)
 
 - add the `prs` sub-command ([#57](https://github.com/katbyte/tctest/issues/57))
 - add new filter: title regex ([#73](https://github.com/katbyte/tctest/issues/73))
