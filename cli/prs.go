@@ -2,16 +2,25 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	c "github.com/gookit/color" //nolint:misspell
 	"github.com/spf13/viper"
 )
 
-func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
+func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) error {
+	// Sort PR numbers to process them in increasing order
+	prNumbers := make([]int, 0, len(prs))
+	for number := range prs {
+		prNumbers = append(prNumbers, number)
+	}
+	sort.Ints(prNumbers)
+
 	ok := 0
-	for _, pri := range prs {
-		serviceTests, err := f.GetPrTests(pri)
+	for _, number := range prNumbers {
+		title := prs[number]
+		serviceTests, err := f.GetPrTests(number, title)
 		if err != nil {
 			c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
 			continue
@@ -52,7 +61,7 @@ func (f FlagData) GetAndRunPrsTests(prs []int, testRegExParam string) error {
 				buildTypeID += "_" + strings.ToUpper(s)
 			}
 
-			branch := fmt.Sprintf("refs/pull/%d/merge", pri)
+			branch := fmt.Sprintf("refs/pull/%d/merge", number)
 
 			if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
 				c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)

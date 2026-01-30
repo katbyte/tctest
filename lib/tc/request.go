@@ -41,7 +41,7 @@ func (s Server) performRequest(req *http.Request) (int, string, error) {
 
 func (s Server) performRequestWithContentType(req *http.Request, contentType string) (int, string, error) {
 	if s.token != nil {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", *s.token))
+		req.Header.Set("Authorization", "Bearer "+*s.token)
 	} else {
 		req.SetBasicAuth(*s.User, *s.Pass)
 	}
@@ -52,7 +52,7 @@ func (s Server) performRequestWithContentType(req *http.Request, contentType str
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// The calling function will figure out what to do with these
 	// because e.g. sometimes a 404 is an error, but sometimes it just means something might be queued

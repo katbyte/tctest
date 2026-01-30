@@ -58,7 +58,7 @@ func prettyPrintJSON(b []byte) string {
 	for i, p := range parts {
 		if b := []byte(p); json.Valid(b) {
 			var out bytes.Buffer
-			//nolint:errcheck
+			//nolint:errcheck,gosec // error is intentionally ignored for pretty printing
 			json.Indent(&out, b, "", " ")
 			parts[i] = out.String()
 		}

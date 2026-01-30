@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -15,12 +16,13 @@ import (
 
 // TODO reorg this file
 
-func (f FlagData) GetPrTests(pr int) (*map[string][]string, error) {
+func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
 	gr := f.NewRepo()
 
-	prURL := gr.PrURL(pr)
-	c.Printf("Discovering tests for pr <cyan>#%d</> <darkGray>(%s)...</>\n", pr, prURL)
-	serviceTests, err := gr.PrTests(pr, f.GH.FileRegEx, f.GH.SplitTestsOn)
+	prURL := gr.PrURL(number)
+	c.Printf("Discovering tests for pr <cyan>#%d</> %s\n", number, title)
+	c.Printf("  <darkGray>%s</>\n", prURL)
+	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn)
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
@@ -55,7 +57,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 
 	clog.Log.Debugf("  checking pr state: %v", *pr.State)
 	if pr.State != nil && *pr.State == "closed" {
-		return nil, fmt.Errorf("cannot start build for a closed pr")
+		return nil, errors.New("cannot start build for a closed pr")
 	}
 
 	clog.Log.Tracef("listing files...")
@@ -73,7 +75,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		clog.Log.Debugf("    download %s", f)
 
 		if pr.MergeCommitSHA == nil {
-			return nil, fmt.Errorf("merge commit SHA is nil, is there a merge conflict?")
+			return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
 		}
 
 		// DownloadContents always performs a directory listing for the file,
@@ -100,7 +102,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
 		}
 
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var tests []string
 		s := bufio.NewScanner(resp.Body)
@@ -141,7 +143,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		for test := range serviceTestMap[service] {
 			serviceInfo := ""
 			if service != "" {
-				serviceInfo = fmt.Sprintf("%s: ", service)
+				serviceInfo = service + ": "
 			}
 			clog.Log.Debugf("%s%s", serviceInfo, test)
 			serviceTests[service] = append(serviceTests[service], test)

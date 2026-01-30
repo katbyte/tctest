@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ type Filter struct {
 	PR   func(github.PullRequest) (bool, error) // todo shjould this return an error?
 }
 
-func (f FlagData) GetFilters() []Filter {
+func (f FlagData) GetFilters() ([]Filter, error) {
 	var filters []Filter
 
 	// should these return errors
@@ -42,9 +43,17 @@ func (f FlagData) GetFilters() []Filter {
 		filters = append(filters, *f)
 	}
 
+	titleFilter, err := GetFilterForTitleRegex(f.GH.FilterPRs.TitleRegex)
+	if err != nil {
+		return nil, err
+	}
+	if titleFilter != nil {
+		filters = append(filters, *titleFilter)
+	}
+
 	fmt.Println()
 
-	return filters
+	return filters, nil
 }
 
 func GetFilterForAuthors(authors []string) *Filter {
@@ -232,4 +241,34 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 			return orPass, nil
 		},
 	}
+}
+
+func GetFilterForTitleRegex(pattern string) (*Filter, error) {
+	if pattern == "" {
+		return nil, nil
+	}
+
+	// Make the pattern case-insensitive by adding (?i) prefix
+	caseInsensitivePattern := "(?i)" + pattern
+	re, err := regexp.Compile(caseInsensitivePattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid title regex pattern '%s': %w", pattern, err)
+	}
+
+	c.Printf("  title regex: <magenta>%s</> (case-insensitive)\n", pattern)
+
+	return &Filter{
+		Name: "title-regex",
+		PR: func(pr github.PullRequest) (bool, error) {
+			title := pr.GetTitle()
+
+			if re.MatchString(title) {
+				c.Printf("    title: <green>%s</>\n", title)
+				return true, nil
+			}
+
+			c.Printf("    title: <red>%s</>\n", title)
+			return false, nil
+		},
+	}, nil
 }

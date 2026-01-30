@@ -40,7 +40,7 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx 
 
 // todo is there any reason to not inline this into runbuild?
 func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
-	bodyAdditionalProperties := ""
+	var additionalProps strings.Builder
 
 	if buildProperties != "" {
 		clog.Log.Debugf("adding additional properties:")
@@ -52,9 +52,11 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 			}
 
 			clog.Log.Debugf("  property:%s=%s", parts[0], parts[1])
-			bodyAdditionalProperties += fmt.Sprintf("\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
+			fmt.Fprintf(&additionalProps, "\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
 		}
 	}
+
+	bodyAdditionalProperties := additionalProps.String()
 
 	// for now, we have two types of build - historical providers (BRANCH_NAME & TEST_PATTERN), new azurerm (teamcity.build.branch, TEST_PREFIX)
 	// should be safe to send both
