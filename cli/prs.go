@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	c "github.com/gookit/color" //nolint:misspell
@@ -9,8 +10,16 @@ import (
 )
 
 func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) error {
+	// Sort PR numbers to process them in increasing order
+	prNumbers := make([]int, 0, len(prs))
+	for number := range prs {
+		prNumbers = append(prNumbers, number)
+	}
+	sort.Ints(prNumbers)
+
 	ok := 0
-	for number, title := range prs {
+	for _, number := range prNumbers {
+		title := prs[number]
 		serviceTests, err := f.GetPrTests(number, title)
 		if err != nil {
 			c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
