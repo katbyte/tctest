@@ -38,7 +38,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 				serviceInfo = "[<yellow>" + s + "</>]"
 			}
 
-			// genreatae test regex if we don't have it
+			// generate test regex if we don't have it
 			testRegEx := testRegExParam
 			if testRegEx == "" {
 				// if no testregex and no tests throw an error (-a is required for all)
