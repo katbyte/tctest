@@ -208,6 +208,8 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	var changedFiles []string
 	var testFiles []string
 	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
+	derivedTestFiles := map[string]bool{} // tracks which test files were derived
+	testFileSeen := map[string]bool{}     // dedup test files
 
 	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
@@ -234,7 +236,10 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 
 			if strings.HasSuffix(name, "_test.go") {
 				changedFiles = append(changedFiles, name)
-				testFiles = append(testFiles, name)
+				if !testFileSeen[name] {
+					testFiles = append(testFiles, name)
+					testFileSeen[name] = true
+				}
 				changedTestFiles[name] = true
 				result[name] = struct{}{}
 				continue
@@ -249,7 +254,11 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 			// derive the primary test file
 			testFile := strings.Replace(name, ".go", "_test.go", 1)
 			result[testFile] = struct{}{}
-			testFiles = append(testFiles, testFile)
+			derivedTestFiles[testFile] = true
+			if !testFileSeen[testFile] {
+				testFiles = append(testFiles, testFile)
+				testFileSeen[testFile] = true
+			}
 
 			// for resource files, note the directory and prefix so we can
 			// discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
@@ -290,7 +299,11 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 						if _, exists := result[fullPath]; !exists {
 							clog.Log.Debugf("    discovered related test: %s", fullPath)
 							result[fullPath] = struct{}{}
-							testFiles = append(testFiles, fullPath)
+							derivedTestFiles[fullPath] = true
+							if !testFileSeen[fullPath] {
+								testFiles = append(testFiles, fullPath)
+								testFileSeen[fullPath] = true
+							}
 						}
 					}
 				}
@@ -298,13 +311,14 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 		}
 	}
 
-	// print changed files
+	// print file regex and changed files
+	c.Printf("  file regex: <darkGray>%s</>\n", filterRegExStr)
 	c.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
 		if strings.HasSuffix(f, "_test.go") {
-			c.Printf("    <darkGray>%s</><green>%s</>\n", dir, base)
+			c.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
 		} else {
 			c.Printf("    <darkGray>%s%s</>\n", dir, base)
 		}
@@ -315,11 +329,18 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	for _, f := range testFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
+
+		// build label based on whether file is changed, derived, or both
+		var labels []string
 		if changedTestFiles[f] {
-			c.Printf("    <darkGray>%s</><green>%s</> <darkGray>[CHANGED]</>\n", dir, base)
-		} else {
-			c.Printf("    <darkGray>%s</><green>%s</> <darkGray>[DERIVED]</>\n", dir, base)
+			labels = append(labels, "CHANGED")
 		}
+		if derivedTestFiles[f] {
+			labels = append(labels, "DERIVED")
+		}
+		label := strings.Join(labels, "/")
+
+		c.Printf("    <darkGray>%s</><fg=28>%s</> <darkGray>[%s]</>\n", dir, base, label)
 	}
 
 	clog.Log.Debugf("  FOUND %d", len(result))
