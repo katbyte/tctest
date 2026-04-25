@@ -23,8 +23,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	gr := f.NewRepo()
 
 	prURL := gr.PrURL(number)
-	c.Printf("Discovering tests for pr <cyan>#%d</> %s\n", number, title)
-	c.Printf("  <darkGray>%s</>\n", prURL)
+	c.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn)
 
 	if f.OpenInBrowser {
@@ -206,6 +205,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 
 	// track changed files and test files for output
 	var changedFiles []string
+	skippedFiles := map[string]bool{} // service files that didn't match the regex
 	var testFiles []string
 	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
 	derivedTestFiles := map[string]bool{} // tracks which test files were derived
@@ -246,6 +246,11 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 			}
 
 			if !filterRegEx.MatchString(name) {
+				// track service files that don't match the regex
+				if strings.Contains(name, "/services/") {
+					changedFiles = append(changedFiles, name)
+					skippedFiles[name] = true
+				}
 				continue
 			}
 
@@ -317,7 +322,9 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
-		if strings.HasSuffix(f, "_test.go") {
+		if skippedFiles[f] {
+			c.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
+		} else if strings.HasSuffix(f, "_test.go") {
 			c.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
 		} else {
 			c.Printf("    <darkGray>%s%s</>\n", dir, base)
