@@ -322,11 +322,12 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
-		if skippedFiles[f] {
+		switch {
+		case skippedFiles[f]:
 			c.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
-		} else if strings.HasSuffix(f, "_test.go") {
+		case strings.HasSuffix(f, "_test.go"):
 			c.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
-		} else {
+		default:
 			c.Printf("    <darkGray>%s%s</>\n", dir, base)
 		}
 	}
