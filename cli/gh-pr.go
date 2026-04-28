@@ -267,11 +267,21 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 
 			// for resource files, note the directory and prefix so we can
 			// discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
+			// also derive the corresponding data source test file
 			if strings.HasSuffix(name, "_resource.go") {
 				dir := name[:strings.LastIndex(name, "/")]
 				base := name[strings.LastIndex(name, "/")+1:]
 				prefix := strings.TrimSuffix(base, ".go") // e.g. "foo_resource"
 				resourceDirs[dir] = append(resourceDirs[dir], prefix)
+
+				// data sources depend on resources, so also run their tests
+				dsTestFile := strings.Replace(name, "_resource.go", "_data_source_test.go", 1)
+				result[dsTestFile] = struct{}{}
+				derivedTestFiles[dsTestFile] = true
+				if !testFileSeen[dsTestFile] {
+					testFiles = append(testFiles, dsTestFile)
+					testFileSeen[dsTestFile] = true
+				}
 			}
 		}
 
