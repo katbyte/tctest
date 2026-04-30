@@ -4,7 +4,7 @@ import (
 	"github.com/katbyte/tctest/lib/tc"
 )
 
-// wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
+// wrap the common tc lib shared with my other tools. splits common TC code from this CLI tool's specific tooling code
 type TcServer struct {
 	tc.Server
 }

@@ -172,7 +172,7 @@ func GetFlags() FlagData {
 				Parameters:   viper.GetString("properties"),
 				SkipQueue:    viper.GetBool("skip-queue"),
 				Wait:         viper.GetBool("wait"),
-				Latest:       viper.GetBool("wait"),
+				Latest:       viper.GetBool("latest"),
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
 				Tags:         viper.GetStringSlice("tag"),

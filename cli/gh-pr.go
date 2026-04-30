@@ -1,9 +1,12 @@
 package cli
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io"
 	"regexp"
 	"strings"
 
@@ -20,8 +23,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	gr := f.NewRepo()
 
 	prURL := gr.PrURL(number)
-	c.Printf("Discovering tests for pr <cyan>#%d</> %s\n", number, title)
-	c.Printf("  <darkGray>%s</>\n", prURL)
+	c.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn)
 
 	if f.OpenInBrowser {
@@ -66,23 +68,21 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
 	}
 
+	if pr.MergeCommitSHA == nil {
+		return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
+	}
+
 	// for each file get content and parse out test files & services
 	serviceTestMap := map[string]map[string]bool{}
 	clog.Log.Debugf("  parsing content:")
 	for f := range *filesFiltered {
-		testRegEx := regexp.MustCompile("func Test")
-
 		clog.Log.Debugf("    download %s", f)
-
-		if pr.MergeCommitSHA == nil {
-			return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
-		}
 
 		// DownloadContents always performs a directory listing for the file,
 		// which has a 1000 file limit.
 		fileContents, _, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
 		if err != nil {
-			c.Printf("    <darkGray>FAILED to download %s</>\n", f)
+			clog.Log.Debugf("    skipping %s (not found at merge commit)", f)
 			continue
 		}
 
@@ -102,21 +102,35 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
 		}
 
-		defer func() { _ = resp.Body.Close() }()
-
-		var tests []string
-		s := bufio.NewScanner(resp.Body)
-		for s.Scan() {
-			l := s.Text()
-
-			if testRegEx.MatchString(l) {
-				clog.Log.Tracef("found test line: %s", l)
-				tests = append(tests, strings.Split(l, " ")[1]) // should always be true because test pattern is "func Test"
-			}
+		content, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading file (%s): %w", f, err)
 		}
 
-		if err := s.Err(); err != nil {
-			fmt.Printf("pr file scanner error occurred: %s", err)
+		// use go/ast to extract test function names
+		var tests []string
+		fset := token.NewFileSet()
+		parsed, parseErr := parser.ParseFile(fset, f, content, 0)
+		if parseErr != nil {
+			clog.Log.Debugf("    failed to parse %s, falling back to regex: %v", f, parseErr)
+			// fallback: scan lines for "func TestAcc" if AST parsing fails
+			for _, line := range strings.Split(string(content), "\n") {
+				if strings.Contains(line, "func TestAcc") {
+					parts := strings.Fields(line)
+					if len(parts) >= 2 {
+						tests = append(tests, strings.Split(parts[1], "(")[0])
+					}
+				}
+			}
+		} else {
+			for _, decl := range parsed.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if ok && strings.HasPrefix(fn.Name.Name, "TestAcc") {
+					clog.Log.Tracef("found test function: %s", fn.Name.Name)
+					tests = append(tests, fn.Name.Name)
+				}
+			}
 		}
 
 		service := ""
@@ -185,6 +199,18 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	result := make(map[string]struct{})
 	filterRegEx := regexp.MustCompile(filterRegExStr)
 
+	// track resource files that need sibling test file discovery
+	// key: directory path, value: list of resource prefixes (e.g. "foo_resource")
+	resourceDirs := map[string][]string{}
+
+	// track changed files and test files for output
+	var changedFiles []string
+	skippedFiles := map[string]bool{} // service files that didn't match the regex
+	var testFiles []string
+	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
+	derivedTestFiles := map[string]bool{} // tracks which test files were derived
+	testFileSeen := map[string]bool{}     // dedup test files
+
 	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
@@ -192,36 +218,147 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 			}
 
 			name := *f.Filename
-			clog.Log.Debugf("    %v", *f.Filename)
+			clog.Log.Debugf("    %v (%s)", name, f.GetStatus())
+
+			// skip deleted files - they won't exist at the merge commit
+			if f.GetStatus() == "removed" {
+				clog.Log.Debugf("    skipping removed file: %s", name)
+				continue
+			}
 
 			// if in service package mode skip some files
 			if strings.Contains(name, "/services/") {
-				if strings.Contains(name, "/client/") || strings.Contains(name, "/parse/") || strings.Contains(name, "/validate/") {
-					continue
-				}
-
+				// skip files that don't have meaningful test counterparts
 				if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
 					continue
 				}
 			}
 
 			if strings.HasSuffix(name, "_test.go") {
+				changedFiles = append(changedFiles, name)
+				if !testFileSeen[name] {
+					testFiles = append(testFiles, name)
+					testFileSeen[name] = true
+				}
+				changedTestFiles[name] = true
 				result[name] = struct{}{}
 				continue
 			}
 
 			if !filterRegEx.MatchString(name) {
+				// track service files that don't match the regex
+				if strings.Contains(name, "/services/") {
+					changedFiles = append(changedFiles, name)
+					skippedFiles[name] = true
+				}
 				continue
 			}
 
-			f := strings.Replace(name, ".go", "_test.go", 1)
-			result[f] = struct{}{}
+			changedFiles = append(changedFiles, name)
+
+			// derive the primary test file
+			testFile := strings.Replace(name, ".go", "_test.go", 1)
+			result[testFile] = struct{}{}
+			derivedTestFiles[testFile] = true
+			if !testFileSeen[testFile] {
+				testFiles = append(testFiles, testFile)
+				testFileSeen[testFile] = true
+			}
+
+			// for resource files, note the directory and prefix so we can
+			// discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
+			// also derive the corresponding data source test file
+			if strings.HasSuffix(name, "_resource.go") {
+				dir := name[:strings.LastIndex(name, "/")]
+				base := name[strings.LastIndex(name, "/")+1:]
+				prefix := strings.TrimSuffix(base, ".go") // e.g. "foo_resource"
+				resourceDirs[dir] = append(resourceDirs[dir], prefix)
+
+				// data sources depend on resources, so also run their tests
+				dsTestFile := strings.Replace(name, "_resource.go", "_data_source_test.go", 1)
+				result[dsTestFile] = struct{}{}
+				derivedTestFiles[dsTestFile] = true
+				if !testFileSeen[dsTestFile] {
+					testFiles = append(testFiles, dsTestFile)
+					testFileSeen[dsTestFile] = true
+				}
+			}
 		}
 
 		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
+	}
+
+	// for each directory containing a modified resource file, list all files
+	// and find sibling test files matching the resource prefix
+	if len(resourceDirs) > 0 {
+		client, ctx := gr.NewClient()
+		for dir, prefixes := range resourceDirs {
+			clog.Log.Debugf("  listing directory %s for related test files...", dir)
+			_, dirContents, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, dir, nil)
+			if err != nil {
+				clog.Log.Debugf("  failed to list directory %s: %v", dir, err)
+				continue
+			}
+
+			for _, entry := range dirContents {
+				entryName := entry.GetName()
+				if !strings.HasSuffix(entryName, "_test.go") {
+					continue
+				}
+				for _, prefix := range prefixes {
+					if strings.HasPrefix(entryName, prefix) {
+						fullPath := dir + "/" + entryName
+						if _, exists := result[fullPath]; !exists {
+							clog.Log.Debugf("    discovered related test: %s", fullPath)
+							result[fullPath] = struct{}{}
+							derivedTestFiles[fullPath] = true
+							if !testFileSeen[fullPath] {
+								testFiles = append(testFiles, fullPath)
+								testFileSeen[fullPath] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// print file regex and changed files
+	c.Printf("  file regex: <darkGray>%s</>\n", filterRegExStr)
+	c.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
+	for _, f := range changedFiles {
+		dir := f[:strings.LastIndex(f, "/")+1]
+		base := f[strings.LastIndex(f, "/")+1:]
+		switch {
+		case skippedFiles[f]:
+			c.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
+		case strings.HasSuffix(f, "_test.go"):
+			c.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
+		default:
+			c.Printf("    <darkGray>%s%s</>\n", dir, base)
+		}
+	}
+
+	// print test files
+	c.Printf("  test files (<yellow>%d</>):\n", len(testFiles))
+	for _, f := range testFiles {
+		dir := f[:strings.LastIndex(f, "/")+1]
+		base := f[strings.LastIndex(f, "/")+1:]
+
+		// build label based on whether file is changed, derived, or both
+		var labels []string
+		if changedTestFiles[f] {
+			labels = append(labels, "CHANGED")
+		}
+		if derivedTestFiles[f] {
+			labels = append(labels, "DERIVED")
+		}
+		label := strings.Join(labels, "/")
+
+		c.Printf("    <darkGray>%s</><fg=28>%s</> <darkGray>[%s]</>\n", dir, base, label)
 	}
 
 	clog.Log.Debugf("  FOUND %d", len(result))
