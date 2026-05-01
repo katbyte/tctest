@@ -75,6 +75,7 @@ type FlagsTeamCity struct {
 
 type FlagsTeamCityBuild struct {
 	TypeID           string
+	LegacyTypeID     string // deprecated --buildtypeid, resolved in resolveBuildTypeID()
 	Parameters       string
 	SkipQueue        bool
 	Wait             bool
@@ -116,7 +117,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.StringVar(&flags.TC.User, "username", "", "the TeamCity user to use")
 	pflags.StringVar(&flags.TC.Pass, "password", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
-	pflags.StringVarP(&flags.TC.Build.TypeID, "buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
+	pflags.StringVarP(&flags.TC.Build.LegacyTypeID, "buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
 	pflags.StringVar(&flags.TC.Build.TypeID, "build-type-id", "", "the TeamCity BuildTypeId to trigger")
 	pflags.BoolVar(&flags.TC.Build.AddServiceSuffix, "build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behaviour from --buildtypeid)")
 	pflags.StringVarP(&flags.TC.Build.Parameters, "properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
