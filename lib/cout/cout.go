@@ -80,10 +80,10 @@ func Println(args ...interface{}) {
 	c.Println(args...)
 }
 
-// Quietf prints output in quiet mode with color support (suppressed in json and silent modes).
+// Quietf prints output only in quiet mode with color support.
 // Use this for the minimal machine-readable output.
 func Quietf(format string, args ...interface{}) {
-	if Level >= VerbosityJSON {
+	if Level != VerbosityQuiet {
 		return
 	}
 	c.Printf(format, args...)

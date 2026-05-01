@@ -1,3 +1,13 @@
+## v0.7.0 (2026-05-01)
+
+- colour-coded output for changed and derived files ([#74](https://github.com/katbyte/tctest/pull/74))
+- fix default `--fileregex` to allow numbers in file names ([#75](https://github.com/katbyte/tctest/pull/75))
+- add `--comment`/`-c` option to post GitHub comments on PRs with test results ([#76](https://github.com/katbyte/tctest/pull/76))
+- add `--service` flag to target specific services or all services ([#77](https://github.com/katbyte/tctest/pull/77))
+- add `--quiet`, `--json`, and `--silent` output modes for machine-readable output ([#77](https://github.com/katbyte/tctest/pull/77))
+- add `--build-link-force-old-ui` to force classic TeamCity UI links ([#77](https://github.com/katbyte/tctest/pull/77))
+- deprecate `--buildtypeid` in favour of `--build-type-id` with opt-in `--build-type-id-add-service-suffix` ([#77](https://github.com/katbyte/tctest/pull/77))
+
 ## v0.6.0 (2026-01-30)
 
 - add the `prs` sub-command ([#57](https://github.com/katbyte/tctest/issues/57))

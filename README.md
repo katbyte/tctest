@@ -6,11 +6,6 @@
 
 A command-line utility to trigger builds in TeamCity to run provider acceptance tests. Given a PR number it can find the files modified, discover the tests to run, and generate a `TEST_PATTERN` automatically.    
 
-Example:
-![pr-example](.github/images/example.png)
-
-Basic help:
-![help](.github/images/help.png)
 
 ## Installation
 
@@ -20,9 +15,8 @@ go install github.com/katbyte/tctest@latest
 
 ## Configuration
 
-All options can be passed as command-line flags but most can also be set via environment variables. Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and source it:
+All options can be passed as command-line flags but most can also be set via environment variables. Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and source it.
 
-![env](.github/images/env.png) 
 
 ### Environment Variables
 

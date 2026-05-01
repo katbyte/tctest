@@ -338,7 +338,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 		case strings.HasSuffix(f, "_test.go"):
 			cout.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
 		default:
-			cout.Printf("    <darkGray>%s%s</>\n", dir, base)
+			cout.Printf("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
 		}
 	}
 
@@ -358,7 +358,12 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 		}
 		label := strings.Join(labels, "/")
 
-		cout.Printf("    <darkGray>%s</><fg=28>%s</> <darkGray>[%s]</>\n", dir, base, label)
+		// changed files in green, derived-only in dark cyan
+		fileColor := "<fg=36>" // dark cyan for derived
+		if changedTestFiles[f] {
+			fileColor = "<fg=28>" // dark green for changed
+		}
+		cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
 	}
 
 	clog.Log.Debugf("  FOUND %d", len(result))
