@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v45/github"
-	c "github.com/gookit/color" //nolint:misspell
 	"github.com/katbyte/tctest/lib/chttp"
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/katbyte/tctest/lib/cout"
 	"github.com/pkg/browser"
 )
 
@@ -23,12 +23,12 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	gr := f.NewRepo()
 
 	prURL := gr.PrURL(number)
-	c.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
+	cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn)
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
-			c.Printf("failed to open build %s in browser", prURL)
+			cout.Printf("failed to open build %s in browser", prURL)
 		}
 	}
 
@@ -37,9 +37,9 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	}
 
 	for service, tests := range *serviceTests {
-		c.Printf("  <yellow>%s</>:\n", service)
+		cout.Printf("  <yellow>%s</>:\n", service)
 		for _, t := range tests {
-			c.Printf("    %s\n", t)
+			cout.Printf("    %s\n", t)
 		}
 	}
 
@@ -327,23 +327,23 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 	}
 
 	// print file regex and changed files
-	c.Printf("  file regex: <darkGray>%s</>\n", filterRegExStr)
-	c.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
+	cout.Printf("  file regex: <darkGray>%s</>\n", filterRegExStr)
+	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
 		switch {
 		case skippedFiles[f]:
-			c.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
+			cout.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
 		case strings.HasSuffix(f, "_test.go"):
-			c.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
+			cout.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
 		default:
-			c.Printf("    <darkGray>%s%s</>\n", dir, base)
+			cout.Printf("    <darkGray>%s%s</>\n", dir, base)
 		}
 	}
 
 	// print test files
-	c.Printf("  test files (<yellow>%d</>):\n", len(testFiles))
+	cout.Printf("  test files (<yellow>%d</>):\n", len(testFiles))
 	for _, f := range testFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
@@ -358,7 +358,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 		}
 		label := strings.Join(labels, "/")
 
-		c.Printf("    <darkGray>%s</><fg=28>%s</> <darkGray>[%s]</>\n", dir, base, label)
+		cout.Printf("    <darkGray>%s</><fg=28>%s</> <darkGray>[%s]</>\n", dir, base, label)
 	}
 
 	clog.Log.Debugf("  FOUND %d", len(result))

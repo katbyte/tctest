@@ -6,16 +6,15 @@ import (
 	"regexp"
 	"strings"
 
-	//nolint:misspell
-	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/katbyte/tctest/lib/cout"
 	"github.com/pkg/browser"
 )
 
-func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error {
+func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
 	tc := f.NewServer()
 
-	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
+	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
 
 	properties := f.TC.Build.Parameters
 	if f.TC.Build.Comment {
@@ -27,23 +26,27 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 
 	buildID, buildURL, err := tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
 	if err != nil {
-		return fmt.Errorf("unable to trigger build: %w", err)
+		return 0, "", fmt.Errorf("unable to trigger build: %w", err)
 	}
 
-	c.Printf("  build <green>%d</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildID, buildURL, testRegex)
+	if f.TC.Build.ForceOldUI {
+		buildURL += "&fromSakuraUI=true"
+	}
+
+	cout.Printf("  build <green>%d</> queued: <darkGray>%s</> with <darkGray>%s</>\n", buildID, buildURL, testRegex)
 
 	if len(f.TC.Build.Tags) > 0 {
-		c.Printf("  adding labels: <yellow>%v</>...\n", f.TC.Build.Tags)
+		cout.Printf("  adding labels: <yellow>%v</>...\n", f.TC.Build.Tags)
 		if err := tc.AddTags(buildID, f.TC.Build.Tags); err != nil {
-			c.Printf("  <yellow>WARNING:</> failed to add tags to build %d: %v\n", buildID, err)
+			cout.Printf("  <yellow>WARNING:</> failed to add tags to build %d: %v\n", buildID, err)
 		} else {
-			c.Printf("  tags added successfully\n")
+			cout.Printf("  tags added successfully\n")
 		}
 	}
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(buildURL); err != nil {
-			c.Printf("failed to open build %d in browser", buildID)
+			cout.Printf("failed to open build %d in browser", buildID)
 		}
 	}
 
@@ -51,15 +54,15 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 		clog.Log.Debugf("waiting...")
 		err := tc.WaitForBuild(buildID, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
 		if err != nil {
-			return fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)
+			return buildID, buildURL, fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)
 		}
 		err = f.BuildResultsCmd(buildID)
 		if err != nil {
-			return fmt.Errorf("error printing results from build %d: %w", buildID, err)
+			return buildID, buildURL, fmt.Errorf("error printing results from build %d: %w", buildID, err)
 		}
 	}
 
-	return nil
+	return buildID, buildURL, nil
 }
 
 func (f FlagData) BuildResultsCmd(buildID int) error {

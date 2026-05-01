@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,6 +35,19 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			switch {
+			case viper.GetBool("silent"):
+				cout.Level = cout.VerbositySilent
+			case viper.GetBool("json"):
+				cout.Level = cout.VerbosityJSON
+			case viper.GetBool("quiet"):
+				cout.Level = cout.VerbosityQuiet
+			}
+
+			// TODO: remove once --buildtypeid is removed
+			return resolveBuildTypeID(cmd)
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
 			return nil
@@ -57,7 +71,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Long:          `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
 		Aliases:       []string{"b"},
 		Args:          cobra.ExactArgs(2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
@@ -71,7 +85,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			cmd.SilenceUsage = true
 			f := GetFlags()
 
-			return f.BuildCmd(f.TC.Build.TypeID, branch, testRegEx, "")
+			_, _, err := f.BuildCmd(f.TC.Build.TypeID, branch, testRegEx, "")
+			return err
 		},
 	})
 
@@ -80,7 +95,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:          cobra.RangeArgs(1, 2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splitteston"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
@@ -114,7 +129,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "triggers acceptance tests for each open PR matching specified filters",
 		Long:          `TODO.`,
 		Args:          cobra.RangeArgs(0, 1),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splitteston"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			testRegExParam := ""
@@ -127,25 +142,24 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			f := GetFlags()
 			r := f.NewRepo()
 
-			c.Printf("Filters:\n")
+			cout.Printf("Filters:\n")
 			filters, err := f.GetFilters()
 			if err != nil {
 				return fmt.Errorf("error creating filters: %w", err)
 			}
 
 			// get all pull requests
-			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
+			cout.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
 			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
 			if err != nil {
-				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
-				return nil
+				return fmt.Errorf("error retrieving PRs: %w", err)
 			}
-			c.Printf(" found <yellow>%d</>\n", len(*prs))
+			cout.Printf(" found <yellow>%d</>\n", len(*prs))
 
 			prTitles := make(map[int]string)
-			fmt.Println("Filtering:")
+			cout.Printf("Filtering:\n")
 			for _, pr := range *prs {
-				c.Printf("  #<cyan>%d</> <gray>(%s></>\n", pr.GetNumber(), pr.GetHTMLURL())
+				cout.Printf("  #<cyan>%d</> <gray>(%s)</>\n", pr.GetNumber(), pr.GetHTMLURL())
 
 				passed := true
 				for _, f := range filters {
@@ -160,10 +174,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					prTitles[pr.GetNumber()] = pr.GetTitle()
 				}
 
-				fmt.Println()
+				cout.Println()
 			}
 
-			c.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
+			cout.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
 
 			return GetFlags().GetAndRunPrsTests(prTitles, testRegExParam)
 		},
@@ -214,7 +228,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr, err := strconv.Atoi(args[0])

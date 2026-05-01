@@ -1,18 +1,60 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+// resolveBuildTypeID handles the legacy --buildtypeid to --build-type-id migration.
+// It errors if both are set. When only the old flag is used, it copies the value to
+// build-type-id and enables build-type-id-add-service-suffix to maintain the old behaviour.
+// Called from PersistentPreRunE before ValidateParams so the resolved value is available for validation.
+func resolveBuildTypeID(cmd *cobra.Command) error {
+	oldFlagSet := cmd.Flags().Changed("buildtypeid")
+	newFlagSet := cmd.Flags().Changed("build-type-id")
+
+	// error only when both CLI flags are explicitly provided
+	if oldFlagSet && newFlagSet {
+		return errors.New("cannot use both --buildtypeid and --build-type-id; --buildtypeid is deprecated, use --build-type-id only")
+	}
+
+	// explicit --buildtypeid CLI flag: copy to build-type-id and enable service suffix
+	if oldFlagSet && !newFlagSet {
+		viper.Set("build-type-id", viper.GetString("buildtypeid"))
+		if !viper.GetBool("build-type-id-add-service-suffix") {
+			viper.Set("build-type-id-add-service-suffix", true)
+		}
+		fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
+		fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
+		fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behaviour, use --build-type-id-add-service-suffix.\n")
+		return nil
+	}
+
+	// no explicit CLI flags: fall back to env vars
+	if viper.GetString("build-type-id") == "" && viper.GetString("buildtypeid") != "" {
+		viper.Set("build-type-id", viper.GetString("buildtypeid"))
+		if !viper.GetBool("build-type-id-add-service-suffix") {
+			viper.Set("build-type-id-add-service-suffix", true)
+		}
+	}
+
+	return nil
+}
+
 type FlagData struct {
 	GH            FlagsGitHub
 	TC            FlagsTeamCity
 	OpenInBrowser bool
 	RunAllTests   bool
+	Services      []string
+	Quiet         bool
+	JSON          bool
+	Silent        bool
 }
 
 type FlagsGitHub struct {
@@ -43,15 +85,18 @@ type FlagsTeamCity struct {
 }
 
 type FlagsTeamCityBuild struct {
-	TypeID       string
-	Parameters   string
-	SkipQueue    bool
-	Wait         bool
-	Latest       bool
-	Comment      bool
-	QueueTimeout int
-	RunTimeout   int
-	Tags         []string
+	TypeID           string
+	LegacyTypeID     string // deprecated --buildtypeid, resolved in resolveBuildTypeID()
+	Parameters       string
+	SkipQueue        bool
+	Wait             bool
+	Latest           bool
+	Comment          bool
+	ForceOldUI       bool
+	AddServiceSuffix bool
+	QueueTimeout     int
+	RunTimeout       int
+	Tags             []string
 }
 
 func configureFlags(root *cobra.Command) error {
@@ -60,6 +105,10 @@ func configureFlags(root *cobra.Command) error {
 
 	pflags.BoolVarP(&flags.OpenInBrowser, "open", "o", false, "Open the PR and build in a browser")
 	pflags.BoolVarP(&flags.RunAllTests, "all", "", false, "run all tests when none are found by passing TestAcc")
+	pflags.StringSliceVar(&flags.Services, "service", []string{}, "force trigger builds for specific services (comma-separated), use 'all' to trigger all services")
+	pflags.BoolVar(&flags.Quiet, "quiet", false, "minimal machine-readable output (pr@service@build url)")
+	pflags.BoolVar(&flags.JSON, "json", false, "output build results as JSON array")
+	pflags.BoolVar(&flags.Silent, "silent", false, "suppress all output")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -79,7 +128,9 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.StringVar(&flags.TC.User, "username", "", "the TeamCity user to use")
 	pflags.StringVar(&flags.TC.Pass, "password", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
-	pflags.StringVarP(&flags.TC.Build.TypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
+	pflags.StringVarP(&flags.TC.Build.LegacyTypeID, "buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
+	pflags.StringVar(&flags.TC.Build.TypeID, "build-type-id", "", "the TeamCity BuildTypeId to trigger")
+	pflags.BoolVar(&flags.TC.Build.AddServiceSuffix, "build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behaviour from --buildtypeid)")
 	pflags.StringVarP(&flags.TC.Build.Parameters, "properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 	pflags.BoolVarP(&flags.TC.Build.SkipQueue, "skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolVarP(&flags.TC.Build.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
@@ -87,36 +138,45 @@ func configureFlags(root *cobra.Command) error {
 	pflags.IntVarP(&flags.TC.Build.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.TC.Build.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
 	pflags.BoolVarP(&flags.TC.Build.Comment, "comment", "c", false, "Post a GitHub comment on the PR with test results (adds POST_GITHUB_COMMENT=true property)")
+	pflags.BoolVar(&flags.TC.Build.ForceOldUI, "build-link-force-old-ui", false, "Append &fromSakuraUI=true to build URLs to force the classic TeamCity UI")
 	pflags.StringSliceVarP(&flags.TC.Build.Tags, "tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
-		"server":         "TCTEST_SERVER",
-		"buildtypeid":    "TCTEST_BUILDTYPEID",
-		"token-tc":       "TCTEST_TOKEN_TC",
-		"token-gh":       "GITHUB_TOKEN",
-		"username":       "TCTEST_USER",
-		"password":       "TCTEST_PASS",
-		"properties":     "TCTEST_PROPERTIES",
-		"repo":           "TCTEST_REPO",
-		"fileregex":      "TCTEST_FILEREGEX",
-		"splitteston":    "TCTEST_SPLIT_TESTS_ON",
-		"wait":           "TCTEST_WAIT",
-		"all":            "",
-		"queue-timeout":  "",
-		"run-timeout":    "",
-		"f-authors":      "",
-		"f-milestone":    "",
-		"f-labels-all":   "",
-		"f-labels-any":   "",
-		"f-created-time": "",
-		"f-updated-time": "",
-		"f-title-regex":  "",
-		"latest":         "TCTEST_LATESTBUILD",
-		"skip-queue":     "TCTEST_SKIP_QUEUE",
-		"open":           "TCTEST_OPEN_BROWSER",
-		"comment":        "",
-		"tag":            "TCTEST_BUILD_TAGS",
+		"server":                           "TCTEST_SERVER",
+		"buildtypeid":                      "TCTEST_BUILDTYPEID",
+		"build-type-id":                    "TCTEST_BUILD_TYPE_ID",
+		"build-type-id-add-service-suffix": "",
+		"token-tc":                         "TCTEST_TOKEN_TC",
+		"token-gh":                         "GITHUB_TOKEN",
+		"username":                         "TCTEST_USER",
+		"password":                         "TCTEST_PASS",
+		"properties":                       "TCTEST_PROPERTIES",
+		"repo":                             "TCTEST_REPO",
+		"fileregex":                        "TCTEST_FILEREGEX",
+		"splitteston":                      "TCTEST_SPLIT_TESTS_ON",
+		"wait":                             "TCTEST_WAIT",
+		"all":                              "",
+		"service":                          "",
+		"quiet":                            "TCTEST_OUTPUT_QUIET",
+		"json":                             "TCTEST_OUTPUT_JSON",
+		"silent":                           "TCTEST_OUTPUT_SILENT",
+		"queue-timeout":                    "",
+		"run-timeout":                      "",
+		"f-authors":                        "",
+		"f-milestone":                      "",
+		"f-labels-all":                     "",
+		"f-labels-any":                     "",
+		"f-created-time":                   "",
+		"f-updated-time":                   "",
+		"f-title-regex":                    "",
+		"f-drafts":                         "",
+		"latest":                           "TCTEST_LATESTBUILD",
+		"skip-queue":                       "TCTEST_SKIP_QUEUE",
+		"open":                             "TCTEST_OPEN_BROWSER",
+		"comment":                          "TCTEST_COMMENT",
+		"build-link-force-old-ui":          "TCTEST_FORCE_OLD_UI",
+		"tag":                              "TCTEST_BUILD_TAGS",
 	}
 
 	for name, env := range m {
@@ -149,6 +209,10 @@ func GetFlags() FlagData {
 	return FlagData{
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
+		Services:      viper.GetStringSlice("service"),
+		Quiet:         viper.GetBool("quiet"),
+		JSON:          viper.GetBool("json"),
+		Silent:        viper.GetBool("silent"),
 		GH: FlagsGitHub{
 			Repo:         viper.GetString("repo"),
 			Token:        viper.GetString("token-gh"),
@@ -171,15 +235,17 @@ func GetFlags() FlagData {
 			User:      viper.GetString("username"),
 			Pass:      viper.GetString("password"),
 			Build: FlagsTeamCityBuild{
-				TypeID:       viper.GetString("buildtypeid"),
-				Parameters:   viper.GetString("properties"),
-				SkipQueue:    viper.GetBool("skip-queue"),
-				Wait:         viper.GetBool("wait"),
-				Latest:       viper.GetBool("latest"),
-				Comment:      viper.GetBool("comment"),
-				QueueTimeout: viper.GetInt("queue-timeout"),
-				RunTimeout:   viper.GetInt("run-timeout"),
-				Tags:         viper.GetStringSlice("tag"),
+				TypeID:           viper.GetString("build-type-id"),
+				Parameters:       viper.GetString("properties"),
+				SkipQueue:        viper.GetBool("skip-queue"),
+				Wait:             viper.GetBool("wait"),
+				Latest:           viper.GetBool("latest"),
+				Comment:          viper.GetBool("comment"),
+				ForceOldUI:       viper.GetBool("build-link-force-old-ui"),
+				AddServiceSuffix: viper.GetBool("build-type-id-add-service-suffix"),
+				QueueTimeout:     viper.GetInt("queue-timeout"),
+				RunTimeout:       viper.GetInt("run-timeout"),
+				Tags:             viper.GetStringSlice("tag"),
 			},
 		},
 	}
