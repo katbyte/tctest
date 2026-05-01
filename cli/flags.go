@@ -48,6 +48,7 @@ type FlagsTeamCityBuild struct {
 	SkipQueue    bool
 	Wait         bool
 	Latest       bool
+	Comment      bool
 	QueueTimeout int
 	RunTimeout   int
 	Tags         []string
@@ -85,6 +86,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVarP(&flags.TC.Build.Latest, "latest", "", false, "gets the latest build in TeamCity")
 	pflags.IntVarP(&flags.TC.Build.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.TC.Build.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
+	pflags.BoolVarP(&flags.TC.Build.Comment, "comment", "c", false, "Post a GitHub comment on the PR with test results (adds POST_GITHUB_COMMENT=true property)")
 	pflags.StringSliceVarP(&flags.TC.Build.Tags, "tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
 
 	// binding map for viper/pflag -> env
@@ -113,6 +115,7 @@ func configureFlags(root *cobra.Command) error {
 		"latest":         "TCTEST_LATESTBUILD",
 		"skip-queue":     "TCTEST_SKIP_QUEUE",
 		"open":           "TCTEST_OPEN_BROWSER",
+		"comment":        "",
 		"tag":            "TCTEST_BUILD_TAGS",
 	}
 
@@ -173,6 +176,7 @@ func GetFlags() FlagData {
 				SkipQueue:    viper.GetBool("skip-queue"),
 				Wait:         viper.GetBool("wait"),
 				Latest:       viper.GetBool("wait"),
+				Comment:      viper.GetBool("comment"),
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
 				Tags:         viper.GetStringSlice("tag"),

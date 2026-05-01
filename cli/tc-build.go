@@ -17,7 +17,15 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) error
 
 	c.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
 
-	buildID, buildURL, err := tc.RunBuild(buildTypeID, f.TC.Build.Parameters, branch, testRegex, f.TC.Build.SkipQueue)
+	properties := f.TC.Build.Parameters
+	if f.TC.Build.Comment {
+		if properties != "" {
+			properties += ";"
+		}
+		properties += "POST_GITHUB_COMMENT=true"
+	}
+
+	buildID, buildURL, err := tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
 	if err != nil {
 		return fmt.Errorf("unable to trigger build: %w", err)
 	}
