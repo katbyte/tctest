@@ -11,7 +11,8 @@ import (
 )
 
 // resolveBuildTypeID handles the legacy --buildtypeid to --build-type-id migration.
-// It errors if both are set, and copies the old value to the new key when only the old one is used.
+// It errors if both are set. When only the old flag is used, it copies the value to
+// build-type-id and enables build-type-id-add-service-suffix to maintain the old behaviour.
 // Called from PersistentPreRunE before ValidateParams so the resolved value is available for validation.
 func resolveBuildTypeID() error {
 	oldSet := viper.GetString("buildtypeid") != ""
