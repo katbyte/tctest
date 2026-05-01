@@ -48,7 +48,7 @@ func (s Server) performRequestWithContentType(req *http.Request, contentType str
 
 	req.Header.Set("Content-Type", contentType)
 
-	resp, err := chttp.HTTP.Do(req)
+	resp, err := chttp.HTTP.Do(req) //nolint:gosec // G704: URL is from user-configured server
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %w", err)
 	}

@@ -142,7 +142,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringSliceVarP(&flags.TC.Build.Tags, "tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
 
 	// binding map for viper/pflag -> env
-	m := map[string]string{
+	m := map[string]string{ //nolint:gosec // G101: these are env var names, not credentials
 		"server":                           "TCTEST_SERVER",
 		"buildtypeid":                      "TCTEST_BUILDTYPEID",
 		"build-type-id":                    "TCTEST_BUILD_TYPE_ID",
