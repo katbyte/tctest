@@ -35,7 +35,7 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			switch {
 			case viper.GetBool("silent"):
 				cout.Level = cout.VerbositySilent
@@ -46,7 +46,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			}
 
 			// TODO: remove once --buildtypeid is removed
-			return resolveBuildTypeID()
+			return resolveBuildTypeID(cmd)
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")

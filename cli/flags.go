@@ -14,15 +14,17 @@ import (
 // It errors if both are set. When only the old flag is used, it copies the value to
 // build-type-id and enables build-type-id-add-service-suffix to maintain the old behaviour.
 // Called from PersistentPreRunE before ValidateParams so the resolved value is available for validation.
-func resolveBuildTypeID() error {
-	oldSet := viper.GetString("buildtypeid") != ""
-	newSet := viper.GetString("build-type-id") != ""
+func resolveBuildTypeID(cmd *cobra.Command) error {
+	oldFlagSet := cmd.Flags().Changed("buildtypeid")
+	newFlagSet := cmd.Flags().Changed("build-type-id")
 
-	if oldSet && newSet {
+	// error only when both CLI flags are explicitly provided
+	if oldFlagSet && newFlagSet {
 		return errors.New("cannot use both --buildtypeid and --build-type-id; --buildtypeid is deprecated, use --build-type-id only")
 	}
 
-	if oldSet && !newSet {
+	// explicit --buildtypeid CLI flag: copy to build-type-id and enable service suffix
+	if oldFlagSet && !newFlagSet {
 		viper.Set("build-type-id", viper.GetString("buildtypeid"))
 		if !viper.GetBool("build-type-id-add-service-suffix") {
 			viper.Set("build-type-id-add-service-suffix", true)
@@ -30,6 +32,15 @@ func resolveBuildTypeID() error {
 		fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
 		fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
 		fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behaviour, use --build-type-id-add-service-suffix.\n")
+		return nil
+	}
+
+	// no explicit CLI flags: fall back to env vars
+	if viper.GetString("build-type-id") == "" && viper.GetString("buildtypeid") != "" {
+		viper.Set("build-type-id", viper.GetString("buildtypeid"))
+		if !viper.GetBool("build-type-id-add-service-suffix") {
+			viper.Set("build-type-id-add-service-suffix", true)
+		}
 	}
 
 	return nil
