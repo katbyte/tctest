@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -36,7 +35,7 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
-		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			if viper.GetBool("silent") {
 				cout.Level = cout.VerbositySilent
 			} else if viper.GetBool("json") {
@@ -45,16 +44,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				cout.Level = cout.VerbosityQuiet
 			}
 
-			// resolve legacy --buildtypeid to --build-type-id
-			if viper.GetString("build-type-id") == "" && viper.GetString("buildtypeid") != "" {
-				viper.Set("build-type-id", viper.GetString("buildtypeid"))
-				if !viper.GetBool("build-type-id-add-service-suffix") {
-					viper.Set("build-type-id-add-service-suffix", true)
-				}
-				fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
-				fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
-				fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behavior, use --build-type-id-add-service-suffix.\n")
-			}
+			// TODO: remove once --buildtypeid is removed
+			return resolveBuildTypeID()
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")

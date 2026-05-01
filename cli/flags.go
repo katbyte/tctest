@@ -2,11 +2,36 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
+
+// resolveBuildTypeID handles the legacy --buildtypeid to --build-type-id migration.
+// It errors if both are set, and copies the old value to the new key when only the old one is used.
+// Called from PersistentPreRunE before ValidateParams so the resolved value is available for validation.
+func resolveBuildTypeID() error {
+	oldSet := viper.GetString("buildtypeid") != ""
+	newSet := viper.GetString("build-type-id") != ""
+
+	if oldSet && newSet {
+		return fmt.Errorf("cannot use both --buildtypeid and --build-type-id; --buildtypeid is deprecated, use --build-type-id only")
+	}
+
+	if oldSet && !newSet {
+		viper.Set("build-type-id", viper.GetString("buildtypeid"))
+		if !viper.GetBool("build-type-id-add-service-suffix") {
+			viper.Set("build-type-id-add-service-suffix", true)
+		}
+		fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
+		fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
+		fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behavior, use --build-type-id-add-service-suffix.\n")
+	}
+
+	return nil
+}
 
 type FlagData struct {
 	GH            FlagsGitHub
