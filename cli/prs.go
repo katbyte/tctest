@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	c "github.com/gookit/color" //nolint:misspell
+	"github.com/katbyte/tctest/lib/cout"
 	"github.com/spf13/viper"
 )
 
@@ -34,7 +35,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 				testRegEx = "TestAcc"
 			}
 
-			c.Printf("PR <cyan>#%d</> %s (--all: running %s)\n", number, title, testRegEx)
+			cout.Printf("PR <cyan>#%d</> %s (--all: running %s)\n", number, title, testRegEx)
 			for _, s := range serviceFilter.services {
 				f.triggerServiceBuild(s, number, testRegEx)
 			}
@@ -53,6 +54,8 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			c.Printf("  <red>ERROR: service tests is nil</>\n\n")
 			continue
 		}
+
+
 
 		// trigger a build for each service
 		for s, tests := range *serviceTests {
@@ -89,9 +92,9 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 	}
 
 	if serviceFilter != nil {
-		c.Printf("triggered tests for <yellow>%d</> PRs across <yellow>%d</> services!\n\n", ok, len(serviceFilter.services))
+		cout.Printf("triggered tests for <yellow>%d</> PRs across <yellow>%d</> services!\n\n", ok, len(serviceFilter.services))
 	} else {
-		c.Printf("triggered tests for <yellow>%d</> PRs!\n\n", ok)
+		cout.Printf("triggered tests for <yellow>%d</> PRs!\n\n", ok)
 	}
 
 	return nil
@@ -99,8 +102,8 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 
 // serviceFilterResult holds the resolved and validated service filter
 type serviceFilterResult struct {
-	services []string          // ordered list of services
-	set      map[string]bool   // set for fast lookup
+	services []string        // ordered list of services
+	set      map[string]bool // set for fast lookup
 }
 
 // resolveServiceFilter validates --service values against the GitHub repo. Returns nil if --service is not set.
@@ -111,12 +114,12 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 
 	gr := f.NewRepo()
 
-	c.Printf("Fetching service list from <cyan>%s/%s</>...\n", gr.Owner, gr.Name)
+	cout.Printf("Fetching service list from <cyan>%s/%s</>...\n", gr.Owner, gr.Name)
 	validServices, err := gr.ListServices()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
-	c.Printf("  found <yellow>%d</> services\n", len(validServices))
+	cout.Printf("  found <yellow>%d</> services\n", len(validServices))
 
 	validSet := make(map[string]bool, len(validServices))
 	for _, s := range validServices {
@@ -127,7 +130,7 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 	services := f.Services
 	if len(services) == 1 && strings.EqualFold(services[0], "all") {
 		services = validServices
-		c.Printf("  using <yellow>all</> services\n")
+		cout.Printf("  using <yellow>all</> services\n")
 	} else {
 		// validate each specified service
 		var invalid []string
@@ -153,7 +156,7 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx string) {
 	serviceInfo := ""
 	if service != "" {
-		serviceInfo = "[<yellow>" + service + "</>]"
+		serviceInfo = "[" + service + "]"
 	}
 
 	buildTypeID := viper.GetString("buildtypeid")
@@ -163,8 +166,11 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 
 	branch := fmt.Sprintf("refs/pull/%d/merge", prNumber)
 
-	if err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo); err != nil {
+	buildID, buildURL, err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
+	if err != nil {
 		c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
+	} else {
+		cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
 	}
-	fmt.Println()
+	cout.Printf("\n")
 }

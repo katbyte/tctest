@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v45/github"
-	c "github.com/gookit/color" //nolint:misspell
+	"github.com/katbyte/tctest/lib/cout"
 )
 
 type Filter struct {
@@ -51,7 +51,7 @@ func (f FlagData) GetFilters() ([]Filter, error) {
 		filters = append(filters, *titleFilter)
 	}
 
-	fmt.Println()
+	cout.Printf("\n")
 
 	return filters, nil
 }
@@ -66,7 +66,7 @@ func GetFilterForAuthors(authors []string) *Filter {
 		authorMap[a] = true
 	}
 
-	c.Printf("  authors: <magenta>%s</>\n", strings.Join(authors, "</>,<magenta>"))
+	cout.Printf("  authors: <magenta>%s</>\n", strings.Join(authors, "</>,<magenta>"))
 
 	return &Filter{
 		Name: "authors",
@@ -74,10 +74,10 @@ func GetFilterForAuthors(authors []string) *Filter {
 			author := pr.User.GetLogin()
 
 			if _, ok := authorMap[author]; ok {
-				c.Printf("    author: <green>%s</>\n", author)
+				cout.Printf("    author: <green>%s</>\n", author)
 				return true, nil
 			}
-			c.Printf("    author: <red>%s</>\n", author)
+			cout.Printf("    author: <red>%s</>\n", author)
 
 			return false, nil
 		},
@@ -91,7 +91,7 @@ func GetFilterForMilestone(milestoneRaw string) *Filter {
 	filterMilestone := strings.TrimPrefix(milestoneRaw, "-")
 	negate := strings.HasPrefix(milestoneRaw, "-")
 
-	c.Printf("  milestone: <magenta>%s</>\n", milestoneRaw)
+	cout.Printf("  milestone: <magenta>%s</>\n", milestoneRaw)
 
 	return &Filter{
 		Name: "milestones",
@@ -100,14 +100,14 @@ func GetFilterForMilestone(milestoneRaw string) *Filter {
 
 			//nolint:gocritic
 			if strings.EqualFold(filterMilestone, milestone) && !negate {
-				c.Printf("    milestone: <green>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+				cout.Printf("    milestone: <green>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
 			} else if negate {
-				c.Printf("    milestone: <green>-%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+				cout.Printf("    milestone: <green>-%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
 			} else {
 				//revive:disable:indent-error-flow
-				c.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+				cout.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return false, nil
 			}
 		},
@@ -120,7 +120,7 @@ func GetFilterForCreatedTime(duration time.Duration) *Filter {
 	}
 	cutoffTime := time.Now().Add(-duration)
 
-	c.Printf("  created within: <magenta>%s</>\n", duration.String())
+	cout.Printf("  created within: <magenta>%s</>\n", duration.String())
 
 	return &Filter{
 		Name: "creation-time",
@@ -128,11 +128,11 @@ func GetFilterForCreatedTime(duration time.Duration) *Filter {
 			createdAt := pr.GetCreatedAt()
 
 			if createdAt.After(cutoffTime) {
-				c.Printf("    created: <green>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
+				cout.Printf("    created: <green>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
 				return true, nil
 			}
 
-			c.Printf("    created: <red>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
+			cout.Printf("    created: <red>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
 
 			return false, nil
 		},
@@ -145,7 +145,7 @@ func GetFilterForUpdatedTime(duration time.Duration) *Filter {
 	}
 	cutoffTime := time.Now().Add(-duration)
 
-	c.Printf("  updated within: <magenta>%s</>\n", duration.String())
+	cout.Printf("  updated within: <magenta>%s</>\n", duration.String())
 
 	return &Filter{
 		Name: "creation-time",
@@ -153,11 +153,11 @@ func GetFilterForUpdatedTime(duration time.Duration) *Filter {
 			createdAt := pr.GetUpdatedAt()
 
 			if createdAt.After(cutoffTime) {
-				c.Printf("    updated: <green>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
+				cout.Printf("    updated: <green>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
 				return true, nil
 			}
 
-			c.Printf("    updated: <red>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
+			cout.Printf("    updated: <red>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
 
 			return false, nil
 		},
@@ -189,7 +189,7 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 		actionAnd = true
 	}
 
-	c.Printf("  labels %s:  <blue>%s</>\n", action, strings.Join(labels, "</>,<blue>"))
+	cout.Printf("  labels %s: <blue>%s</>\n", action, strings.Join(labels, "</>,<blue>"))
 
 	//	found := false
 	return &Filter{
@@ -205,9 +205,9 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 			// for each label,
 
 			if actionAnd {
-				c.Printf("    labels all: ")
+				cout.Printf("    labels all:")
 			} else {
-				c.Printf("    labels any: ")
+				cout.Printf("    labels any:")
 			}
 
 			andFail := false
@@ -220,19 +220,19 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 				//nolint:gocritic
 				if found && !negate {
 					orPass = true
-					c.Printf(" <green>%s</>", filterLabel)
+					cout.Printf(" <green>%s</>", filterLabel)
 				} else if found && negate {
 					andFail = true
-					c.Printf(" <red>-%s</>", filterLabel)
+					cout.Printf(" <red>-%s</>", filterLabel)
 				} else if negate {
 					orPass = true
-					c.Printf(" <green>-%s</>", filterLabel)
+					cout.Printf(" <green>-%s</>", filterLabel)
 				} else {
 					andFail = true
-					c.Printf(" <red>%s</>", filterLabel)
+					cout.Printf(" <red>%s</>", filterLabel)
 				}
 			}
-			fmt.Println()
+			cout.Println()
 
 			if actionAnd {
 				return !andFail, nil
@@ -255,7 +255,7 @@ func GetFilterForTitleRegex(pattern string) (*Filter, error) {
 		return nil, fmt.Errorf("invalid title regex pattern '%s': %w", pattern, err)
 	}
 
-	c.Printf("  title regex: <magenta>%s</> (case-insensitive)\n", pattern)
+	cout.Printf("  title regex: <magenta>%s</> (case-insensitive)\n", pattern)
 
 	return &Filter{
 		Name: "title-regex",
@@ -263,11 +263,11 @@ func GetFilterForTitleRegex(pattern string) (*Filter, error) {
 			title := pr.GetTitle()
 
 			if re.MatchString(title) {
-				c.Printf("    title: <green>%s</>\n", title)
+				cout.Printf("    title: <green>%s</>\n", title)
 				return true, nil
 			}
 
-			c.Printf("    title: <red>%s</>\n", title)
+			cout.Printf("    title: <red>%s</>\n", title)
 			return false, nil
 		},
 	}, nil

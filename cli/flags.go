@@ -14,6 +14,8 @@ type FlagData struct {
 	OpenInBrowser bool
 	RunAllTests   bool
 	Services      []string
+	Quiet         bool
+	Silent        bool
 }
 
 type FlagsGitHub struct {
@@ -50,6 +52,7 @@ type FlagsTeamCityBuild struct {
 	Wait         bool
 	Latest       bool
 	Comment      bool
+	ForceOldUI   bool
 	QueueTimeout int
 	RunTimeout   int
 	Tags         []string
@@ -62,6 +65,8 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVarP(&flags.OpenInBrowser, "open", "o", false, "Open the PR and build in a browser")
 	pflags.BoolVarP(&flags.RunAllTests, "all", "", false, "run all tests when none are found by passing TestAcc")
 	pflags.StringSliceVar(&flags.Services, "service", []string{}, "force trigger builds for specific services (comma-separated), use 'all' to trigger all services")
+	pflags.BoolVar(&flags.Quiet, "quiet", false, "minimal machine-readable output (pr, service, build id/url)")
+	pflags.BoolVar(&flags.Silent, "silent", false, "suppress all output")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -89,6 +94,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.IntVarP(&flags.TC.Build.QueueTimeout, "queue-timeout", "", 60, "How long to wait for a queued build to start running before tctest times out")
 	pflags.IntVarP(&flags.TC.Build.RunTimeout, "run-timeout", "", 60, "How long to wait for a running build to finish before tctest times out")
 	pflags.BoolVarP(&flags.TC.Build.Comment, "comment", "c", false, "Post a GitHub comment on the PR with test results (adds POST_GITHUB_COMMENT=true property)")
+	pflags.BoolVar(&flags.TC.Build.ForceOldUI, "build-link-force-old-ui", false, "Append &fromSakuraUI=true to build URLs to force the classic TeamCity UI")
 	pflags.StringSliceVarP(&flags.TC.Build.Tags, "tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
 
 	// binding map for viper/pflag -> env
@@ -106,20 +112,24 @@ func configureFlags(root *cobra.Command) error {
 		"wait":           "TCTEST_WAIT",
 		"all":            "",
 		"service":        "",
-		"queue-timeout":  "",
-		"run-timeout":    "",
-		"f-authors":      "",
-		"f-milestone":    "",
-		"f-labels-all":   "",
-		"f-labels-any":   "",
-		"f-created-time": "",
-		"f-updated-time": "",
-		"f-title-regex":  "",
-		"latest":         "TCTEST_LATESTBUILD",
-		"skip-queue":     "TCTEST_SKIP_QUEUE",
-		"open":           "TCTEST_OPEN_BROWSER",
-		"comment":        "",
-		"tag":            "TCTEST_BUILD_TAGS",
+		"quiet":                   "TCTEST_QUIET",
+		"silent":                  "TCTEST_SILENT",
+		"queue-timeout":           "",
+		"run-timeout":             "",
+		"f-authors":               "",
+		"f-milestone":             "",
+		"f-labels-all":            "",
+		"f-labels-any":            "",
+		"f-created-time":          "",
+		"f-updated-time":          "",
+		"f-title-regex":           "",
+		"f-drafts":                "",
+		"latest":                  "TCTEST_LATESTBUILD",
+		"skip-queue":              "TCTEST_SKIP_QUEUE",
+		"open":                    "TCTEST_OPEN_BROWSER",
+		"comment":                 "TCTEST_COMMENT",
+		"build-link-force-old-ui": "TCTEST_FORCE_OLD_UI",
+		"tag":                     "TCTEST_BUILD_TAGS",
 	}
 
 	for name, env := range m {
@@ -153,6 +163,8 @@ func GetFlags() FlagData {
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
 		Services:      viper.GetStringSlice("service"),
+		Quiet:         viper.GetBool("quiet"),
+		Silent:        viper.GetBool("silent"),
 		GH: FlagsGitHub{
 			Repo:         viper.GetString("repo"),
 			Token:        viper.GetString("token-gh"),
@@ -181,6 +193,7 @@ func GetFlags() FlagData {
 				Wait:         viper.GetBool("wait"),
 				Latest:       viper.GetBool("latest"),
 				Comment:      viper.GetBool("comment"),
+				ForceOldUI:   viper.GetBool("build-link-force-old-ui"),
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
 				Tags:         viper.GetStringSlice("tag"),

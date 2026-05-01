@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,6 +35,13 @@ func Make() (*cobra.Command, error) {
 		Long: `A small utility to trigger acceptance tests on teamcity. 
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
+		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+			if viper.GetBool("silent") {
+				cout.Level = cout.VerbositySilent
+			} else if viper.GetBool("quiet") {
+				cout.Level = cout.VerbosityQuiet
+			}
+		},
 		RunE: func(_ *cobra.Command, _ []string) error {
 			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
 			return nil
@@ -71,7 +79,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			cmd.SilenceUsage = true
 			f := GetFlags()
 
-			return f.BuildCmd(f.TC.Build.TypeID, branch, testRegEx, "")
+			_, _, err := f.BuildCmd(f.TC.Build.TypeID, branch, testRegEx, "")
+			return err
 		},
 	})
 
@@ -127,25 +136,24 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			f := GetFlags()
 			r := f.NewRepo()
 
-			c.Printf("Filters:\n")
+			cout.Printf("Filters:\n")
 			filters, err := f.GetFilters()
 			if err != nil {
 				return fmt.Errorf("error creating filters: %w", err)
 			}
 
 			// get all pull requests
-			c.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
+			cout.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
 			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
 			if err != nil {
-				c.Printf("\n\n <red>ERROR!!</> %s\n", err)
-				return nil
+				return fmt.Errorf("error retrieving PRs: %w", err)
 			}
-			c.Printf(" found <yellow>%d</>\n", len(*prs))
+			cout.Printf(" found <yellow>%d</>\n", len(*prs))
 
 			prTitles := make(map[int]string)
-			fmt.Println("Filtering:")
+			cout.Printf("Filtering:\n")
 			for _, pr := range *prs {
-				c.Printf("  #<cyan>%d</> <gray>(%s></>\n", pr.GetNumber(), pr.GetHTMLURL())
+				cout.Printf("  #<cyan>%d</> <gray>(%s)</>\n", pr.GetNumber(), pr.GetHTMLURL())
 
 				passed := true
 				for _, f := range filters {
@@ -160,10 +168,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					prTitles[pr.GetNumber()] = pr.GetTitle()
 				}
 
-				fmt.Println()
+				cout.Printf("\n")
 			}
 
-			c.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
+			cout.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
 
 			return GetFlags().GetAndRunPrsTests(prTitles, testRegExParam)
 		},
