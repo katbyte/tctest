@@ -97,6 +97,8 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		cout.Printf("triggered tests for <yellow>%d</> PRs!\n\n", ok)
 	}
 
+	cout.FlushJSON()
+
 	return nil
 }
 
@@ -159,8 +161,8 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 		serviceInfo = "[" + service + "]"
 	}
 
-	buildTypeID := viper.GetString("buildtypeid")
-	if service != "" {
+	buildTypeID := viper.GetString("build-type-id")
+	if service != "" && viper.GetBool("build-type-id-add-service-suffix") {
 		buildTypeID += "_" + strings.ToUpper(service)
 	}
 
@@ -171,6 +173,7 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 		c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 	} else {
 		cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
+		cout.AddResult(prNumber, service, buildID, buildURL)
 	}
-	cout.Printf("\n")
+	cout.Println()
 }

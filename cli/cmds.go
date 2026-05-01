@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -38,8 +39,21 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		PersistentPreRun: func(_ *cobra.Command, _ []string) {
 			if viper.GetBool("silent") {
 				cout.Level = cout.VerbositySilent
+			} else if viper.GetBool("json") {
+				cout.Level = cout.VerbosityJSON
 			} else if viper.GetBool("quiet") {
 				cout.Level = cout.VerbosityQuiet
+			}
+
+			// resolve legacy --buildtypeid to --build-type-id
+			if viper.GetString("build-type-id") == "" && viper.GetString("buildtypeid") != "" {
+				viper.Set("build-type-id", viper.GetString("buildtypeid"))
+				if !viper.GetBool("build-type-id-add-service-suffix") {
+					viper.Set("build-type-id-add-service-suffix", true)
+				}
+				fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
+				fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
+				fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behavior, use --build-type-id-add-service-suffix.\n")
 			}
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -65,7 +79,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Long:          `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
 		Aliases:       []string{"b"},
 		Args:          cobra.ExactArgs(2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			branch := args[0]
@@ -89,7 +103,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "triggers acceptance tests matching regex for a PR",
 		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
 		Args:          cobra.RangeArgs(1, 2),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splitteston"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
@@ -123,7 +137,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "triggers acceptance tests for each open PR matching specified filters",
 		Long:          `TODO.`,
 		Args:          cobra.RangeArgs(0, 1),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid", "repo", "fileregex", "splitteston"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			testRegExParam := ""
@@ -168,7 +182,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					prTitles[pr.GetNumber()] = pr.GetTitle()
 				}
 
-				cout.Printf("\n")
+				cout.Println()
 			}
 
 			cout.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
@@ -222,7 +236,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
 		Args:          cobra.RangeArgs(1, 1),
-		PreRunE:       ValidateParams([]string{"server", "buildtypeid"}),
+		PreRunE:       ValidateParams([]string{"server", "build-type-id"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr, err := strconv.Atoi(args[0])

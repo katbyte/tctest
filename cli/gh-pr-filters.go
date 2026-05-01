@@ -51,7 +51,7 @@ func (f FlagData) GetFilters() ([]Filter, error) {
 		filters = append(filters, *titleFilter)
 	}
 
-	cout.Printf("\n")
+	cout.Println()
 
 	return filters, nil
 }

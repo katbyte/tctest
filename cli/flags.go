@@ -15,6 +15,7 @@ type FlagData struct {
 	RunAllTests   bool
 	Services      []string
 	Quiet         bool
+	JSON          bool
 	Silent        bool
 }
 
@@ -46,16 +47,17 @@ type FlagsTeamCity struct {
 }
 
 type FlagsTeamCityBuild struct {
-	TypeID       string
-	Parameters   string
-	SkipQueue    bool
-	Wait         bool
-	Latest       bool
-	Comment      bool
-	ForceOldUI   bool
-	QueueTimeout int
-	RunTimeout   int
-	Tags         []string
+	TypeID            string
+	Parameters        string
+	SkipQueue         bool
+	Wait              bool
+	Latest            bool
+	Comment           bool
+	ForceOldUI        bool
+	AddServiceSuffix  bool
+	QueueTimeout      int
+	RunTimeout        int
+	Tags              []string
 }
 
 func configureFlags(root *cobra.Command) error {
@@ -65,7 +67,8 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVarP(&flags.OpenInBrowser, "open", "o", false, "Open the PR and build in a browser")
 	pflags.BoolVarP(&flags.RunAllTests, "all", "", false, "run all tests when none are found by passing TestAcc")
 	pflags.StringSliceVar(&flags.Services, "service", []string{}, "force trigger builds for specific services (comma-separated), use 'all' to trigger all services")
-	pflags.BoolVar(&flags.Quiet, "quiet", false, "minimal machine-readable output (pr, service, build id/url)")
+	pflags.BoolVar(&flags.Quiet, "quiet", false, "minimal machine-readable output (pr@service@build url)")
+	pflags.BoolVar(&flags.JSON, "json", false, "output build results as JSON array")
 	pflags.BoolVar(&flags.Silent, "silent", false, "suppress all output")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
@@ -86,7 +89,9 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.TC.Token, "token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.StringVar(&flags.TC.User, "username", "", "the TeamCity user to use")
 	pflags.StringVar(&flags.TC.Pass, "password", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
-	pflags.StringVarP(&flags.TC.Build.TypeID, "buildtypeid", "b", "", "the TeamCity BuildTypeId to trigger")
+	pflags.StringVarP(&flags.TC.Build.TypeID, "buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
+	pflags.StringVar(&flags.TC.Build.TypeID, "build-type-id", "", "the TeamCity BuildTypeId to trigger")
+	pflags.BoolVar(&flags.TC.Build.AddServiceSuffix, "build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behavior from --buildtypeid)")
 	pflags.StringVarP(&flags.TC.Build.Parameters, "properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 	pflags.BoolVarP(&flags.TC.Build.SkipQueue, "skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolVarP(&flags.TC.Build.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
@@ -100,7 +105,9 @@ func configureFlags(root *cobra.Command) error {
 	// binding map for viper/pflag -> env
 	m := map[string]string{
 		"server":         "TCTEST_SERVER",
-		"buildtypeid":    "TCTEST_BUILDTYPEID",
+		"buildtypeid":              "TCTEST_BUILDTYPEID",
+		"build-type-id":            "TCTEST_BUILD_TYPE_ID",
+		"build-type-id-add-service-suffix": "",
 		"token-tc":       "TCTEST_TOKEN_TC",
 		"token-gh":       "GITHUB_TOKEN",
 		"username":       "TCTEST_USER",
@@ -112,8 +119,9 @@ func configureFlags(root *cobra.Command) error {
 		"wait":           "TCTEST_WAIT",
 		"all":            "",
 		"service":        "",
-		"quiet":                   "TCTEST_QUIET",
-		"silent":                  "TCTEST_SILENT",
+		"quiet":                   "TCTEST_OUTPUT_QUIET",
+		"json":                    "TCTEST_OUTPUT_JSON",
+		"silent":                  "TCTEST_OUTPUT_SILENT",
 		"queue-timeout":           "",
 		"run-timeout":             "",
 		"f-authors":               "",
@@ -164,6 +172,7 @@ func GetFlags() FlagData {
 		RunAllTests:   viper.GetBool("all"),
 		Services:      viper.GetStringSlice("service"),
 		Quiet:         viper.GetBool("quiet"),
+		JSON:          viper.GetBool("json"),
 		Silent:        viper.GetBool("silent"),
 		GH: FlagsGitHub{
 			Repo:         viper.GetString("repo"),
@@ -187,13 +196,14 @@ func GetFlags() FlagData {
 			User:      viper.GetString("username"),
 			Pass:      viper.GetString("password"),
 			Build: FlagsTeamCityBuild{
-				TypeID:       viper.GetString("buildtypeid"),
-				Parameters:   viper.GetString("properties"),
-				SkipQueue:    viper.GetBool("skip-queue"),
-				Wait:         viper.GetBool("wait"),
-				Latest:       viper.GetBool("latest"),
-				Comment:      viper.GetBool("comment"),
-				ForceOldUI:   viper.GetBool("build-link-force-old-ui"),
+				TypeID:           viper.GetString("build-type-id"),
+				Parameters:       viper.GetString("properties"),
+				SkipQueue:        viper.GetBool("skip-queue"),
+				Wait:             viper.GetBool("wait"),
+				Latest:           viper.GetBool("latest"),
+				Comment:          viper.GetBool("comment"),
+				ForceOldUI:       viper.GetBool("build-link-force-old-ui"),
+				AddServiceSuffix: viper.GetBool("build-type-id-add-service-suffix"),
 				QueueTimeout: viper.GetInt("queue-timeout"),
 				RunTimeout:   viper.GetInt("run-timeout"),
 				Tags:         viper.GetStringSlice("tag"),

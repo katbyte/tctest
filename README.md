@@ -43,6 +43,11 @@ All options can be passed as command-line flags but most can also be set via env
 | `TCTEST_SKIP_QUEUE` | `--skip-queue`, `-q` | Put the build to the top of the queue |
 | `TCTEST_OPEN_BROWSER` | `--open`, `-o` | Open PR and build URLs in the browser |
 | `TCTEST_BUILD_TAGS` | `--tag` | Build tags to add to triggered builds |
+| `TCTEST_COMMENT` | `--comment`, `-c` | Post a GitHub comment with test results |
+| `TCTEST_FORCE_OLD_UI` | `--build-link-force-old-ui` | Force build URLs to use the classic TeamCity UI |
+| `TCTEST_OUTPUT_QUIET` | `--quiet` | Minimal machine-readable output |
+| `TCTEST_OUTPUT_JSON` | `--json` | Output build results as a JSON array |
+| `TCTEST_OUTPUT_SILENT` | `--silent` | Suppress all output |
 
 ## Commands
 
@@ -227,6 +232,44 @@ These flags apply to any command that triggers a build:
 | `--queue-timeout` | | Minutes to wait for a queued build to start (default: 60) |
 | `--run-timeout` | | Minutes to wait for a running build to finish (default: 60) |
 | `--open` | `-o` | Open the PR and build URL in the browser |
+| `--build-link-force-old-ui` | | Append `&fromSakuraUI=true` to build URLs to force the classic TeamCity UI |
+
+## Output Modes
+
+By default `tctest` prints colorized, verbose output. Use these flags to control output:
+
+| Flag | Description |
+|---|---|
+| *(default)* | Full colorized output with test discovery details, file listings, and build info |
+| `--quiet` | One line per build: `PR@SERVICE@BUILDID URL` |
+| `--json` | JSON array of all triggered builds (output at end) |
+| `--silent` | Suppress all output (errors still print to stderr) |
+
+### Quiet output
+
+```
+32181@costmanagement@658292 https://hashicorp.teamcity.com/viewQueued.html?itemId=658292
+32181@mssql@658293 https://hashicorp.teamcity.com/viewQueued.html?itemId=658293
+```
+
+### JSON output
+
+```json
+[
+    {
+        "pr": 32181,
+        "service": "costmanagement",
+        "build_number": 658292,
+        "url": "https://hashicorp.teamcity.com/viewQueued.html?itemId=658292"
+    },
+    {
+        "pr": 32181,
+        "service": "mssql",
+        "build_number": 658293,
+        "url": "https://hashicorp.teamcity.com/viewQueued.html?itemId=658293"
+    }
+]
+```
 
 ## Test Discovery
 
