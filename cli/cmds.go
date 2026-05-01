@@ -36,11 +36,12 @@ func Make() (*cobra.Command, error) {
 It can also pull the tests to run for a PR on github
 Complete documentation is available at https://github.com/katbyte/tctest`,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			if viper.GetBool("silent") {
+			switch {
+			case viper.GetBool("silent"):
 				cout.Level = cout.VerbositySilent
-			} else if viper.GetBool("json") {
+			case viper.GetBool("json"):
 				cout.Level = cout.VerbosityJSON
-			} else if viper.GetBool("quiet") {
+			case viper.GetBool("quiet"):
 				cout.Level = cout.VerbosityQuiet
 			}
 

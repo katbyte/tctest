@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -17,7 +18,7 @@ func resolveBuildTypeID() error {
 	newSet := viper.GetString("build-type-id") != ""
 
 	if oldSet && newSet {
-		return fmt.Errorf("cannot use both --buildtypeid and --build-type-id; --buildtypeid is deprecated, use --build-type-id only")
+		return errors.New("cannot use both --buildtypeid and --build-type-id; --buildtypeid is deprecated, use --build-type-id only")
 	}
 
 	if oldSet && !newSet {
@@ -27,7 +28,7 @@ func resolveBuildTypeID() error {
 		}
 		fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
 		fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
-		fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behavior, use --build-type-id-add-service-suffix.\n")
+		fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behaviour, use --build-type-id-add-service-suffix.\n")
 	}
 
 	return nil
@@ -72,17 +73,17 @@ type FlagsTeamCity struct {
 }
 
 type FlagsTeamCityBuild struct {
-	TypeID            string
-	Parameters        string
-	SkipQueue         bool
-	Wait              bool
-	Latest            bool
-	Comment           bool
-	ForceOldUI        bool
-	AddServiceSuffix  bool
-	QueueTimeout      int
-	RunTimeout        int
-	Tags              []string
+	TypeID           string
+	Parameters       string
+	SkipQueue        bool
+	Wait             bool
+	Latest           bool
+	Comment          bool
+	ForceOldUI       bool
+	AddServiceSuffix bool
+	QueueTimeout     int
+	RunTimeout       int
+	Tags             []string
 }
 
 func configureFlags(root *cobra.Command) error {
@@ -116,7 +117,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVar(&flags.TC.Pass, "password", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
 	pflags.StringVarP(&flags.TC.Build.TypeID, "buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
 	pflags.StringVar(&flags.TC.Build.TypeID, "build-type-id", "", "the TeamCity BuildTypeId to trigger")
-	pflags.BoolVar(&flags.TC.Build.AddServiceSuffix, "build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behavior from --buildtypeid)")
+	pflags.BoolVar(&flags.TC.Build.AddServiceSuffix, "build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behaviour from --buildtypeid)")
 	pflags.StringVarP(&flags.TC.Build.Parameters, "properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 	pflags.BoolVarP(&flags.TC.Build.SkipQueue, "skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolVarP(&flags.TC.Build.Wait, "wait", "w", false, "Wait for the build to complete before tctest exits")
@@ -129,40 +130,40 @@ func configureFlags(root *cobra.Command) error {
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{
-		"server":         "TCTEST_SERVER",
-		"buildtypeid":              "TCTEST_BUILDTYPEID",
-		"build-type-id":            "TCTEST_BUILD_TYPE_ID",
+		"server":                           "TCTEST_SERVER",
+		"buildtypeid":                      "TCTEST_BUILDTYPEID",
+		"build-type-id":                    "TCTEST_BUILD_TYPE_ID",
 		"build-type-id-add-service-suffix": "",
-		"token-tc":       "TCTEST_TOKEN_TC",
-		"token-gh":       "GITHUB_TOKEN",
-		"username":       "TCTEST_USER",
-		"password":       "TCTEST_PASS",
-		"properties":     "TCTEST_PROPERTIES",
-		"repo":           "TCTEST_REPO",
-		"fileregex":      "TCTEST_FILEREGEX",
-		"splitteston":    "TCTEST_SPLIT_TESTS_ON",
-		"wait":           "TCTEST_WAIT",
-		"all":            "",
-		"service":        "",
-		"quiet":                   "TCTEST_OUTPUT_QUIET",
-		"json":                    "TCTEST_OUTPUT_JSON",
-		"silent":                  "TCTEST_OUTPUT_SILENT",
-		"queue-timeout":           "",
-		"run-timeout":             "",
-		"f-authors":               "",
-		"f-milestone":             "",
-		"f-labels-all":            "",
-		"f-labels-any":            "",
-		"f-created-time":          "",
-		"f-updated-time":          "",
-		"f-title-regex":           "",
-		"f-drafts":                "",
-		"latest":                  "TCTEST_LATESTBUILD",
-		"skip-queue":              "TCTEST_SKIP_QUEUE",
-		"open":                    "TCTEST_OPEN_BROWSER",
-		"comment":                 "TCTEST_COMMENT",
-		"build-link-force-old-ui": "TCTEST_FORCE_OLD_UI",
-		"tag":                     "TCTEST_BUILD_TAGS",
+		"token-tc":                         "TCTEST_TOKEN_TC",
+		"token-gh":                         "GITHUB_TOKEN",
+		"username":                         "TCTEST_USER",
+		"password":                         "TCTEST_PASS",
+		"properties":                       "TCTEST_PROPERTIES",
+		"repo":                             "TCTEST_REPO",
+		"fileregex":                        "TCTEST_FILEREGEX",
+		"splitteston":                      "TCTEST_SPLIT_TESTS_ON",
+		"wait":                             "TCTEST_WAIT",
+		"all":                              "",
+		"service":                          "",
+		"quiet":                            "TCTEST_OUTPUT_QUIET",
+		"json":                             "TCTEST_OUTPUT_JSON",
+		"silent":                           "TCTEST_OUTPUT_SILENT",
+		"queue-timeout":                    "",
+		"run-timeout":                      "",
+		"f-authors":                        "",
+		"f-milestone":                      "",
+		"f-labels-all":                     "",
+		"f-labels-any":                     "",
+		"f-created-time":                   "",
+		"f-updated-time":                   "",
+		"f-title-regex":                    "",
+		"f-drafts":                         "",
+		"latest":                           "TCTEST_LATESTBUILD",
+		"skip-queue":                       "TCTEST_SKIP_QUEUE",
+		"open":                             "TCTEST_OPEN_BROWSER",
+		"comment":                          "TCTEST_COMMENT",
+		"build-link-force-old-ui":          "TCTEST_FORCE_OLD_UI",
+		"tag":                              "TCTEST_BUILD_TAGS",
 	}
 
 	for name, env := range m {
@@ -229,9 +230,9 @@ func GetFlags() FlagData {
 				Comment:          viper.GetBool("comment"),
 				ForceOldUI:       viper.GetBool("build-link-force-old-ui"),
 				AddServiceSuffix: viper.GetBool("build-type-id-add-service-suffix"),
-				QueueTimeout: viper.GetInt("queue-timeout"),
-				RunTimeout:   viper.GetInt("run-timeout"),
-				Tags:         viper.GetStringSlice("tag"),
+				QueueTimeout:     viper.GetInt("queue-timeout"),
+				RunTimeout:       viper.GetInt("run-timeout"),
+				Tags:             viper.GetStringSlice("tag"),
 			},
 		},
 	}

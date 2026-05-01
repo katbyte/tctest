@@ -55,8 +55,6 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			continue
 		}
 
-
-
 		// trigger a build for each service
 		for s, tests := range *serviceTests {
 			// if --service is set, skip services not in the filter
