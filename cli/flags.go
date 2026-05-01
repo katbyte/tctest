@@ -13,6 +13,7 @@ type FlagData struct {
 	TC            FlagsTeamCity
 	OpenInBrowser bool
 	RunAllTests   bool
+	Services      []string
 }
 
 type FlagsGitHub struct {
@@ -60,6 +61,7 @@ func configureFlags(root *cobra.Command) error {
 
 	pflags.BoolVarP(&flags.OpenInBrowser, "open", "o", false, "Open the PR and build in a browser")
 	pflags.BoolVarP(&flags.RunAllTests, "all", "", false, "run all tests when none are found by passing TestAcc")
+	pflags.StringSliceVar(&flags.Services, "service", []string{}, "force trigger builds for specific services (comma-separated), use 'all' to trigger all services")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -103,6 +105,7 @@ func configureFlags(root *cobra.Command) error {
 		"splitteston":    "TCTEST_SPLIT_TESTS_ON",
 		"wait":           "TCTEST_WAIT",
 		"all":            "",
+		"service":        "",
 		"queue-timeout":  "",
 		"run-timeout":    "",
 		"f-authors":      "",
@@ -149,6 +152,7 @@ func GetFlags() FlagData {
 	return FlagData{
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
+		Services:      viper.GetStringSlice("service"),
 		GH: FlagsGitHub{
 			Repo:         viper.GetString("repo"),
 			Token:        viper.GetString("token-gh"),
