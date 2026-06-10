@@ -24,7 +24,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 
 	prURL := gr.PrURL(number)
 	cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
-	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn)
+	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn, f.GH.ReappendSplitCharacter)
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
@@ -47,7 +47,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map[string][]string, error) {
+func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reappendSplitChar bool) (*map[string][]string, error) {
 	client, ctx := gr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
@@ -147,7 +147,13 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string) (*map
 			}
 
 			// if there is nothing split on `(` to make sure we just get the full function name
-			serviceTestMap[service][strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]] = true
+			testName := strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]
+
+			if reappendSplitChar && splitTestsAt != "" {
+				testName = testName + splitTestsAt
+			}
+
+			serviceTestMap[service][testName] = true
 		}
 	}
 

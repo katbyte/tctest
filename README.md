@@ -22,28 +22,29 @@ All options can be passed as command-line flags but most can also be set via env
 
 ### Environment Variables
 
-| Variable | Flag | Description |
-|---|---|---|
-| `TCTEST_SERVER` | `--server`, `-s` | TeamCity server URL |
-| `TCTEST_BUILDTYPEID` | `--buildtypeid`, `-b` | TeamCity build configuration ID |
-| `TCTEST_TOKEN_TC` | `--token-tc`, `-t` | TeamCity authentication token |
-| `TCTEST_USER` | `--username` | TeamCity username (alternative to token) |
-| `TCTEST_PASS` | `--password` | TeamCity password (alternative to token) |
-| `TCTEST_PROPERTIES` | `--properties`, `-p` | Default build parameters in `KEY=VALUE;KEY2=VALUE2` format |
-| `GITHUB_TOKEN` | `--token-gh` | GitHub OAuth token |
-| `TCTEST_REPO` | `--repo`, `-r` | GitHub repository (e.g. `hashicorp/terraform-provider-azurerm`) |
-| `TCTEST_FILEREGEX` | `--fileregex` | Regex to filter PR files for test discovery |
-| `TCTEST_SPLIT_TESTS_ON` | `--splitteston` | Character to split test names on (default: `_`) |
-| `TCTEST_WAIT` | `--wait`, `-w` | Wait for builds to complete |
-| `TCTEST_LATESTBUILD` | `--latest` | Get the latest build |
-| `TCTEST_SKIP_QUEUE` | `--skip-queue`, `-q` | Put the build to the top of the queue |
-| `TCTEST_OPEN_BROWSER` | `--open`, `-o` | Open PR and build URLs in the browser |
-| `TCTEST_BUILD_TAGS` | `--tag` | Build tags to add to triggered builds |
-| `TCTEST_COMMENT` | `--comment`, `-c` | Post a GitHub comment with test results |
-| `TCTEST_FORCE_OLD_UI` | `--build-link-force-old-ui` | Force build URLs to use the classic TeamCity UI |
-| `TCTEST_OUTPUT_QUIET` | `--quiet` | Minimal machine-readable output |
-| `TCTEST_OUTPUT_JSON` | `--json` | Output build results as a JSON array |
-| `TCTEST_OUTPUT_SILENT` | `--silent` | Suppress all output |
+| Variable                          | Flag | Description                                                                                   |
+|-----------------------------------|---|-----------------------------------------------------------------------------------------------|
+| `TCTEST_SERVER`                   | `--server`, `-s` | TeamCity server URL                                                                           |
+| `TCTEST_BUILDTYPEID`              | `--buildtypeid`, `-b` | TeamCity build configuration ID                                                               |
+| `TCTEST_TOKEN_TC`                 | `--token-tc`, `-t` | TeamCity authentication token                                                                 |
+| `TCTEST_USER`                     | `--username` | TeamCity username (alternative to token)                                                      |
+| `TCTEST_PASS`                     | `--password` | TeamCity password (alternative to token)                                                      |
+| `TCTEST_PROPERTIES`               | `--properties`, `-p` | Default build parameters in `KEY=VALUE;KEY2=VALUE2` format                                    |
+| `GITHUB_TOKEN`                    | `--token-gh` | GitHub OAuth token                                                                            |
+| `TCTEST_REPO`                     | `--repo`, `-r` | GitHub repository (e.g. `hashicorp/terraform-provider-azurerm`)                               |
+| `TCTEST_FILEREGEX`                | `--fileregex` | Regex to filter PR files for test discovery                                                   |
+| `TCTEST_SPLIT_TESTS_ON`           | `--splitteston` | Character to split test names on (default: `_`)                                               |
+| `TCTEST_REAPPEND_SPLIT_CHARACTER` | `--reappend-split-character` | Whether to append the split character to the resulting test filter for more precise filtering |
+| `TCTEST_WAIT`                     | `--wait`, `-w` | Wait for builds to complete                                                                   |
+| `TCTEST_LATESTBUILD`              | `--latest` | Get the latest build                                                                          |
+| `TCTEST_SKIP_QUEUE`               | `--skip-queue`, `-q` | Put the build to the top of the queue                                                         |
+| `TCTEST_OPEN_BROWSER`             | `--open`, `-o` | Open PR and build URLs in the browser                                                         |
+| `TCTEST_BUILD_TAGS`               | `--tag` | Build tags to add to triggered builds                                                         |
+| `TCTEST_COMMENT`                  | `--comment`, `-c` | Post a GitHub comment with test results                                                       |
+| `TCTEST_FORCE_OLD_UI`             | `--build-link-force-old-ui` | Force build URLs to use the classic TeamCity UI                                               |
+| `TCTEST_OUTPUT_QUIET`             | `--quiet` | Minimal machine-readable output                                                               |
+| `TCTEST_OUTPUT_JSON`              | `--json` | Output build results as a JSON array                                                          |
+| `TCTEST_OUTPUT_SILENT`            | `--silent` | Suppress all output                                                                           |
 
 ## Commands
 
