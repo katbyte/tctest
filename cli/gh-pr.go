@@ -150,7 +150,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reapp
 			testName := strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]
 
 			if reappendSplitChar && splitTestsAt != "" {
-				testName = testName + splitTestsAt
+				testName += splitTestsAt
 			}
 
 			serviceTestMap[service][testName] = true
