@@ -58,11 +58,12 @@ type FlagData struct {
 }
 
 type FlagsGitHub struct {
-	Token        string
-	Repo         string
-	FileRegEx    string
-	SplitTestsOn string
-	FilterPRs    FlagsGitHubPrFilter
+	Token                  string
+	Repo                   string
+	FileRegEx              string
+	SplitTestsOn           string
+	ReappendSplitCharacter bool
+	FilterPRs              FlagsGitHubPrFilter
 }
 
 type FlagsGitHubPrFilter struct {
@@ -114,6 +115,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 	pflags.StringVar(&flags.GH.FileRegEx, "fileregex", "(/[a-z0-9_]*_resource|/[a-z0-9_]*_data_source)|/[a-z0-9_]*_ephemeral", "the regex to filter files by`")
 	pflags.StringVar(&flags.GH.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
+	pflags.BoolVar(&flags.GH.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
 
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "f-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsAnd, "f-labels-all", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
@@ -155,6 +157,7 @@ func configureFlags(root *cobra.Command) error {
 		"repo":                             "TCTEST_REPO",
 		"fileregex":                        "TCTEST_FILEREGEX",
 		"splitteston":                      "TCTEST_SPLIT_TESTS_ON",
+		"reappend-split-character":         "TCTEST_REAPPEND_SPLIT_CHARACTER",
 		"wait":                             "TCTEST_WAIT",
 		"all":                              "",
 		"service":                          "",
@@ -214,10 +217,11 @@ func GetFlags() FlagData {
 		JSON:          viper.GetBool("json"),
 		Silent:        viper.GetBool("silent"),
 		GH: FlagsGitHub{
-			Repo:         viper.GetString("repo"),
-			Token:        viper.GetString("token-gh"),
-			FileRegEx:    viper.GetString("fileregex"),
-			SplitTestsOn: viper.GetString("splitteston"),
+			Repo:                   viper.GetString("repo"),
+			Token:                  viper.GetString("token-gh"),
+			FileRegEx:              viper.GetString("fileregex"),
+			SplitTestsOn:           viper.GetString("splitteston"),
+			ReappendSplitCharacter: viper.GetBool("reappend-split-character"),
 			FilterPRs: FlagsGitHubPrFilter{
 				Authors:      viper.GetStringSlice("f-authors"),
 				LabelsOr:     viper.GetStringSlice("f-labels-any"),

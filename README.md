@@ -34,6 +34,7 @@ All options can be passed as command-line flags but most can also be set via env
 | `TCTEST_REPO` | `--repo`, `-r` | GitHub repository (e.g. `hashicorp/terraform-provider-azurerm`) |
 | `TCTEST_FILEREGEX` | `--fileregex` | Regex to filter PR files for test discovery |
 | `TCTEST_SPLIT_TESTS_ON` | `--splitteston` | Character to split test names on (default: `_`) |
+| `TCTEST_REAPPEND_SPLIT_CHARACTER` | `--reappend-split-character` | Whether to append the split character to the resulting test filter for more precise filtering |
 | `TCTEST_WAIT` | `--wait`, `-w` | Wait for builds to complete |
 | `TCTEST_LATESTBUILD` | `--latest` | Get the latest build |
 | `TCTEST_SKIP_QUEUE` | `--skip-queue`, `-q` | Put the build to the top of the queue |
