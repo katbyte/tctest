@@ -96,7 +96,7 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 		}
 
 		// todo thread ctx
-		//nolint: noctx
+		// nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
@@ -152,10 +152,10 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 
 			// if there is nothing split on `(` to make sure we just get the full function name
 			serviceTestMap[service][strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]] = true
-			testName := strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]
+			testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
 
-			if reappendSplitChar && splitTestsAt != "" {
-				testName += splitTestsAt
+			if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
+				testName += cfg.SplitTestsOn
 			}
 
 			serviceTestMap[service][testName] = true

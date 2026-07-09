@@ -61,13 +61,13 @@ type FlagData struct {
 type DiscoveryConfig struct {
 	FileRegExStr             string
 	SplitTestsOn             string
+	ReappendSplitCharacter   bool
 	AccTestFileSuffixRegexes []string
 }
 
 type FlagsGitHub struct {
 	Token     string
 	Repo      string
-	ReappendSplitCharacter bool
 	FilterPRs FlagsGitHubPrFilter
 }
 
@@ -129,7 +129,7 @@ func configureFlags(root *cobra.Command) error {
 		`^_tags_gen_test$`,     // AWS generated tags tests
 		`^_data_source_test$`,  // data-source tests (both providers)
 	}, "comma-separated list of regex patterns to match acceptance test filenames suffix (without '.go')")
-	pflags.BoolVar(&flags.GH.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
+	pflags.BoolVar(&flags.DiscoveryConfig.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
 
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "f-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsAnd, "f-labels-all", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
@@ -234,12 +234,12 @@ func GetFlags() FlagData {
 		DiscoveryConfig: DiscoveryConfig{
 			FileRegExStr:             viper.GetString("fileregex"),
 			SplitTestsOn:             viper.GetString("splitteston"),
+			ReappendSplitCharacter:   viper.GetBool("reappend-split-character"),
 			AccTestFileSuffixRegexes: viper.GetStringSlice("acctest-file-suffix-regexes"),
 		},
 		GH: FlagsGitHub{
 			Repo:  viper.GetString("repo"),
 			Token: viper.GetString("token-gh"),
-			ReappendSplitCharacter: viper.GetBool("reappend-split-character"),
 			FilterPRs: FlagsGitHubPrFilter{
 				Authors:      viper.GetStringSlice("f-authors"),
 				LabelsOr:     viper.GetStringSlice("f-labels-any"),
