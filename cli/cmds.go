@@ -18,9 +18,11 @@ import (
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
 	return func(_ *cobra.Command, _ []string) error {
 		for _, p := range params {
-			if viper.GetString(p) == "" {
-				return errors.New(p + " parameter can't be empty")
+			// GetString returns "" for stringSlice flag (e.g. acctest-file-suffix-regexes), hence the second check for stringSlice length
+			if viper.GetString(p) != "" || len(viper.GetStringSlice(p)) > 0 {
+				continue
 			}
+			return errors.New(p + " parameter can't be empty")
 		}
 
 		return nil
@@ -188,7 +190,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Short:         "attempts to discover what acceptance tests to run for a PR",
 		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
 		Args:          cobra.RangeArgs(1, 1),
-		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splitteston"}),
+		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splitteston", "acctest-file-suffix-regexes"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			pr, err := strconv.Atoi(args[0])

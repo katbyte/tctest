@@ -33,6 +33,7 @@ All options can be passed as command-line flags but most can also be set via env
 | `GITHUB_TOKEN` | `--token-gh` | GitHub OAuth token |
 | `TCTEST_REPO` | `--repo`, `-r` | GitHub repository (e.g. `hashicorp/terraform-provider-azurerm`) |
 | `TCTEST_FILEREGEX` | `--fileregex` | Regex to filter PR files for test discovery |
+| `TCTEST_ACCTEST_FILE_SUFFIX_REGEXES` | `--acctest-file-suffix-regexes` | Comma-separated regex suffix (without `.go`) to find relevant acceptance-test files for a resource. |
 | `TCTEST_SPLIT_TESTS_ON` | `--splitteston` | Character to split test names on (default: `_`) |
 | `TCTEST_WAIT` | `--wait`, `-w` | Wait for builds to complete |
 | `TCTEST_LATESTBUILD` | `--latest` | Get the latest build |
@@ -180,8 +181,15 @@ tctest prs TestAccAzureRM -a katbyte -l needs-testing
 Lists the tests that would be triggered for a PR without actually starting a build.
 
 ```bash
-tctest list 3232
+tctest list 3232 
 ```
+Defaults work for both AzureRM and AWS out of the box. In most of the cases just set repositry flag.
+
+```bash
+tctest list 3232 -r hashicorp/terraform-provider-aws
+```
+For custom usecases, you can override `--fileregex` and `--acctest-file-suffix-regexes` flags.
+run `tctest --help` to see their defaults.
 
 ### `results` — Show build results
 
@@ -272,7 +280,7 @@ By default `tctest` prints colorized, verbose output. Use these flags to control
 When no test regex is provided, `tctest` automatically discovers tests by:
 
 1. Listing all files modified in the PR
-2. Filtering to resource, data source, and ephemeral files (configurable via `--fileregex`)
+2. Filtering to files in `internal/service/<service_name>/<file_name>.go` directory only (configurable via `--fileregex`)
 3. Deriving test file names (e.g. `resource_foo.go` → `resource_foo_test.go`)
 4. Also discovering related test files (e.g. `resource_foo_list_test.go`, `resource_foo_data_source_test.go`)
 5. Downloading test files and extracting test function names using Go AST parsing
