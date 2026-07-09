@@ -74,7 +74,6 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	for attempt := range t.maxRetry {
 		resp, err = t.transport.RoundTrip(req)
-
 		if err != nil {
 			if attempt < t.maxRetry-1 {
 				wait := time.Duration(1<<attempt) * time.Second
