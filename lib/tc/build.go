@@ -27,12 +27,12 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx 
 	}{}
 
 	if err := xml.NewDecoder(strings.NewReader(body)).Decode(&data); err != nil {
-		return 0, "", fmt.Errorf("unable to decode XML: %d", statusCode)
+		return 0, "", fmt.Errorf("unable to decode XML (status %d): %w", statusCode, err)
 	}
 
 	bid, err := strconv.Atoi(data.BuildID)
 	if err != nil {
-		return 0, "", fmt.Errorf("unable to convert build.ID (%d) from response into an integer: %w", bid, err)
+		return 0, "", fmt.Errorf("unable to convert build.ID (%s) from response into an integer: %w", data.BuildID, err)
 	}
 
 	return bid, fmt.Sprintf("https://%s/viewQueued.html?itemId=%d", s.Server, bid), nil

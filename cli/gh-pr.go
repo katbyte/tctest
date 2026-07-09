@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io"
+	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/google/go-github/v45/github"
 	"github.com/katbyte/tctest/lib/chttp"
@@ -74,92 +77,57 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 
 	// for each file get content and parse out test files & services
 	serviceTestMap := map[string]map[string]bool{}
-	clog.Log.Debugf("  parsing content:")
+
+	files := make([]string, 0, len(*filesFiltered))
 	for f := range *filesFiltered {
-		clog.Log.Debugf("    download %s", f)
+		files = append(files, f)
+	}
 
-		// DownloadContents always performs a directory listing for the file,
-		// which has a 1000 file limit.
-		fileContents, _, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, f, &github.RepositoryContentGetOptions{Ref: *pr.MergeCommitSHA})
-		if err != nil {
-			clog.Log.Debugf("    skipping %s (not found at merge commit)", f)
-			continue
-		}
+	clog.Log.Debugf("  downloading & parsing %d files concurrently:", len(files))
+	mu := sync.Mutex{}
+	wg := sync.WaitGroup{}
+	firstErr := error(nil)
+	sem := make(chan struct{}, 5) // limit to 5 concurrent downloads
 
-		if fileContents == nil {
-			return nil, fmt.Errorf("downloading file (%s): no contents", f)
-		}
+	for _, f := range files {
+		wg.Add(1)
+		go func(f string) {
+			defer wg.Done()
+			sem <- struct{}{}        // acquire semaphore
+			defer func() { <-sem }() // release semaphore
 
-		// GetContents has a 1MB limit. Use the DownloadURL to ensure we get full contents.
-		if fileContents.DownloadURL == nil || *fileContents.DownloadURL == "" {
-			return nil, fmt.Errorf("downloading file (%s): missing DownloadURL", f)
-		}
-
-		// todo thread ctx
-		// nolint: noctx
-		resp, err := httpClient.Get(*fileContents.DownloadURL)
-		if err != nil {
-			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
-		}
-
-		content, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("reading file (%s): %w", f, err)
-		}
-
-		// use go/ast to extract test function names
-		var tests []string
-		fset := token.NewFileSet()
-		parsed, parseErr := parser.ParseFile(fset, f, content, 0)
-		if parseErr != nil {
-			clog.Log.Debugf("    failed to parse %s, falling back to regex: %v", f, parseErr)
-			// fallback: scan lines for "func TestAcc" if AST parsing fails
-			for _, line := range strings.Split(string(content), "\n") {
-				if strings.Contains(line, "func TestAcc") {
-					parts := strings.Fields(line)
-					if len(parts) >= 2 {
-						tests = append(tests, strings.Split(parts[1], "(")[0])
-					}
+			service, tests, err := gr.downloadAndParseTestFile(ctx, httpClient, f, *pr.MergeCommitSHA, cfg)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
 				}
+				mu.Unlock()
+				return
 			}
-		} else {
-			for _, decl := range parsed.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if ok && strings.HasPrefix(fn.Name.Name, "TestAcc") {
-					clog.Log.Tracef("found test function: %s", fn.Name.Name)
-					tests = append(tests, fn.Name.Name)
+
+			if tests == nil {
+				return // file was skipped (e.g. not found at merge commit)
+			}
+
+			mu.Lock()
+			for _, t := range tests {
+				clog.Log.Debugf("test: %s", t)
+
+				if _, ok := serviceTestMap[service]; !ok {
+					serviceTestMap[service] = make(map[string]bool)
 				}
+
+				serviceTestMap[service][t] = true
 			}
-		}
+			mu.Unlock()
+		}(f)
+	}
 
-		// For simplicity, we assume the service name is the parent directory of the test file. This works for both Azure and AWS.
-		// AWS: internal/service/route53/cidr_collection_test.go -> route53
-		// Azure: internal/services/apimanagement/api_management_api_resource_test.go -> apimanagement
-		// In future depending on requirements, we can modify current hard coded service name extraction logic to be configurable.
-		service := ""
-		parts := strings.Split(f, "/")
-		if len(parts) >= 2 {
-			service = parts[len(parts)-2]
-		}
+	wg.Wait()
 
-		for _, t := range tests {
-			clog.Log.Debugf("test: %s", t)
-
-			if _, ok := serviceTestMap[service]; !ok {
-				serviceTestMap[service] = make(map[string]bool)
-			}
-
-			// if there is nothing split on `(` to make sure we just get the full function name
-			serviceTestMap[service][strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]] = true
-			testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
-
-			if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
-				testName += cfg.SplitTestsOn
-			}
-
-			serviceTestMap[service][testName] = true
-		}
+	if firstErr != nil {
+		return nil, firstErr
 	}
 
 	serviceTests := map[string][]string{}
@@ -176,6 +144,93 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 	}
 
 	return &serviceTests, nil
+}
+
+// downloadAndParseTestFile downloads a single file from GitHub using the raw content URL
+// and parses it for acceptance test function names. Returns (service, testNames, nil) on
+// success, ("", nil, nil) when the file should be skipped (e.g. not found at merge commit),
+// or ("", nil, err) on failure.
+//
+// This uses raw.githubusercontent.com directly instead of the GitHub Contents API
+// (client.Repositories.GetContents) to avoid two issues with that approach:
+//  1. GetContents has a 1MB file size limit
+//  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
+func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, filePath, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
+	clog.Log.Debugf("    download %s", filePath)
+
+	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", gr.Owner, gr.Name, mergeCommitSHA, filePath)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return "", nil, fmt.Errorf("creating request for %s: %w", filePath, err)
+	}
+
+	if gr.Token.Token != nil {
+		req.Header.Set("Authorization", "token "+*gr.Token.Token)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("downloading file (%s): %w", filePath, err)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		return "", nil, fmt.Errorf("reading file (%s): %w", filePath, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", filePath, resp.StatusCode)
+		return "", nil, nil
+	}
+
+	// use go/ast to extract test function names
+	var tests []string
+	fset := token.NewFileSet()
+	parsed, parseErr := parser.ParseFile(fset, filePath, content, 0)
+	if parseErr != nil {
+		clog.Log.Debugf("    failed to parse %s, falling back to regex: %v", filePath, parseErr)
+		// fallback: scan lines for "func TestAcc" if AST parsing fails
+		for _, line := range strings.Split(string(content), "\n") {
+			if strings.Contains(line, "func TestAcc") {
+				parts := strings.Fields(line)
+				if len(parts) >= 2 {
+					tests = append(tests, strings.Split(parts[1], "(")[0])
+				}
+			}
+		}
+	} else {
+		for _, decl := range parsed.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if ok && strings.HasPrefix(fn.Name.Name, "TestAcc") {
+				clog.Log.Tracef("found test function: %s", fn.Name.Name)
+				tests = append(tests, fn.Name.Name)
+			}
+		}
+	}
+
+	// extract service name from path
+	service := ""
+	parts := strings.Split(filePath, "/services/")
+	if len(parts) == 2 {
+		service = strings.Split(parts[1], "/")[0]
+	}
+
+	// process test names: split and optionally reappend split character
+	processedTests := make([]string, 0, len(tests))
+	for _, t := range tests {
+		// split on `(` to make sure we just get the full function name
+		testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
+
+		if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
+			testName += cfg.SplitTestsOn
+		}
+
+		processedTests = append(processedTests, testName)
+	}
+
+	return service, processedTests, nil
 }
 
 func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {

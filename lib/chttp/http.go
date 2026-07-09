@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/sirupsen/logrus"
 )
 
 var HTTP = http.DefaultClient
@@ -24,12 +25,13 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	reqData, err := httputil.DumpRequestOut(req, true)
-
-	if err == nil {
-		clog.Log.Tracef(logReqMsg, t.name, prettyPrintJSON(reqData))
-	} else {
-		clog.Log.Debugf("%s API Request error: %#v", t.name, err)
+	if clog.Log.IsLevelEnabled(logrus.TraceLevel) {
+		reqData, err := httputil.DumpRequestOut(req, true)
+		if err == nil {
+			clog.Log.Tracef(logReqMsg, t.name, prettyPrintJSON(reqData))
+		} else {
+			clog.Log.Debugf("%s API Request error: %#v", t.name, err)
+		}
 	}
 
 	resp, err := t.transport.RoundTrip(req)
@@ -37,11 +39,13 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, err
 	}
 
-	respData, err := httputil.DumpResponse(resp, true)
-	if err == nil {
-		clog.Log.Tracef(logRespMsg, t.name, prettyPrintJSON(respData))
-	} else {
-		clog.Log.Debugf("%s API Response error: %#v", t.name, err)
+	if clog.Log.IsLevelEnabled(logrus.TraceLevel) {
+		respData, err := httputil.DumpResponse(resp, true)
+		if err == nil {
+			clog.Log.Tracef(logRespMsg, t.name, prettyPrintJSON(respData))
+		} else {
+			clog.Log.Debugf("%s API Response error: %#v", t.name, err)
+		}
 	}
 
 	return resp, nil

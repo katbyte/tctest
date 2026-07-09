@@ -7,7 +7,6 @@ import (
 
 	c "github.com/gookit/color" //nolint:misspell
 	"github.com/katbyte/tctest/lib/cout"
-	"github.com/spf13/viper"
 )
 
 func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) error {
@@ -159,14 +158,14 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 		serviceInfo = "[" + service + "]"
 	}
 
-	buildTypeID := viper.GetString("build-type-id")
-	if service != "" && viper.GetBool("build-type-id-add-service-suffix") {
+	buildTypeID := f.TC.Build.TypeID
+	if service != "" && f.TC.Build.AddServiceSuffix {
 		buildTypeID += "_" + strings.ToUpper(service)
 	}
 
 	branch := fmt.Sprintf("refs/pull/%d/merge", prNumber)
 
-	buildID, buildURL, err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
+	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
 	if err != nil {
 		c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 	} else {
