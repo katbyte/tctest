@@ -56,6 +56,7 @@ type FlagData struct {
 	Quiet           bool
 	JSON            bool
 	Silent          bool
+	DryRun          bool
 }
 
 type DiscoveryConfig struct {
@@ -63,6 +64,7 @@ type DiscoveryConfig struct {
 	SplitTestsOn             string
 	ReappendSplitCharacter   bool
 	AccTestFileSuffixRegexes []string
+	Concurrency              int
 }
 
 type FlagsGitHub struct {
@@ -115,9 +117,10 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVar(&flags.Quiet, "quiet", false, "minimal machine-readable output (pr@service@build url)")
 	pflags.BoolVar(&flags.JSON, "json", false, "output build results as JSON array")
 	pflags.BoolVar(&flags.Silent, "silent", false, "suppress all output")
-
+	pflags.BoolVar(&flags.DryRun, "dry-run", false, "show what builds would be triggered without actually triggering them")
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
+
 	// "services?" matches both provider layouts: AWS(`service`) and Azure(`services`).
 	pflags.StringVar(&flags.DiscoveryConfig.FileRegExStr, "fileregex", `^internal/services?/[^/]+/[a-z0-9_][^/]*$`, "the regex to filter files by")
 	pflags.StringVar(&flags.DiscoveryConfig.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
@@ -130,6 +133,7 @@ func configureFlags(root *cobra.Command) error {
 		`^_data_source_test$`,  // data-source tests (both providers)
 	}, "comma-separated list of regex patterns to match acceptance test filenames suffix (without '.go')")
 	pflags.BoolVar(&flags.DiscoveryConfig.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
+	pflags.IntVar(&flags.DiscoveryConfig.Concurrency, "concurrency", 5, "maximum number of concurrent file downloads during test discovery")
 
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "f-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsAnd, "f-labels-all", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
@@ -179,6 +183,8 @@ func configureFlags(root *cobra.Command) error {
 		"quiet":                            "TCTEST_OUTPUT_QUIET",
 		"json":                             "TCTEST_OUTPUT_JSON",
 		"silent":                           "TCTEST_OUTPUT_SILENT",
+		"dry-run":                          "",
+		"concurrency":                      "",
 		"queue-timeout":                    "",
 		"run-timeout":                      "",
 		"f-authors":                        "",
@@ -231,11 +237,13 @@ func GetFlags() FlagData {
 		Quiet:         viper.GetBool("quiet"),
 		JSON:          viper.GetBool("json"),
 		Silent:        viper.GetBool("silent"),
+		DryRun:        viper.GetBool("dry-run"),
 		DiscoveryConfig: DiscoveryConfig{
 			FileRegExStr:             viper.GetString("fileregex"),
 			SplitTestsOn:             viper.GetString("splitteston"),
 			ReappendSplitCharacter:   viper.GetBool("reappend-split-character"),
 			AccTestFileSuffixRegexes: viper.GetStringSlice("acctest-file-suffix-regexes"),
+			Concurrency:              viper.GetInt("concurrency"),
 		},
 		GH: FlagsGitHub{
 			Repo:  viper.GetString("repo"),

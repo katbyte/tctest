@@ -24,6 +24,14 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int,
 		properties += "POST_GITHUB_COMMENT=true"
 	}
 
+	if f.DryRun {
+		cout.Printf("  <yellow>[DRY RUN]</> would trigger build on <darkGray>%s</> with test regex <darkGray>%s</>\n", buildTypeID, testRegex)
+		if properties != "" {
+			cout.Printf("  <yellow>[DRY RUN]</> properties: <darkGray>%s</>\n", properties)
+		}
+		return 0, "", nil
+	}
+
 	buildID, buildURL, err := tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to trigger build: %w", err)
@@ -108,7 +116,7 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 func (f FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewServer()
 
-	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.RunTimeout, f.TC.Build.RunTimeout)
+	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
 	if err != nil {
 		return fmt.Errorf("error looking for builds for PR %d state: %w", pr, err)
 	}

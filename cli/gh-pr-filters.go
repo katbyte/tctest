@@ -97,19 +97,25 @@ func GetFilterForMilestone(milestoneRaw string) *Filter {
 		Name: "milestones",
 		PR: func(pr github.PullRequest) (bool, error) {
 			milestone := pr.GetMilestone().GetTitle()
+			matches := strings.EqualFold(filterMilestone, milestone)
 
-			//nolint:gocritic
-			if strings.EqualFold(filterMilestone, milestone) && !negate {
-				cout.Printf("    milestone: <green>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
-				return true, nil
-			} else if negate {
+			if negate {
+				// negated: pass if milestone does NOT match (exclude PRs with this milestone)
+				if matches {
+					cout.Printf("    milestone: <red>-%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+					return false, nil
+				}
 				cout.Printf("    milestone: <green>-%s</> <gray>(%s)</>\n", filterMilestone, milestone)
 				return true, nil
-			} else {
-				//revive:disable:indent-error-flow
-				cout.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
-				return false, nil
 			}
+
+			if matches {
+				cout.Printf("    milestone: <green>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+				return true, nil
+			}
+
+			cout.Printf("    milestone: <red>%s</> <gray>(%s)</>\n", filterMilestone, milestone)
+			return false, nil
 		},
 	}
 }
@@ -148,16 +154,16 @@ func GetFilterForUpdatedTime(duration time.Duration) *Filter {
 	cout.Printf("  updated within: <magenta>%s</>\n", duration.String())
 
 	return &Filter{
-		Name: "creation-time",
+		Name: "updated-time",
 		PR: func(pr github.PullRequest) (bool, error) {
-			createdAt := pr.GetUpdatedAt()
+			updatedAt := pr.GetUpdatedAt()
 
-			if createdAt.After(cutoffTime) {
-				cout.Printf("    updated: <green>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
+			if updatedAt.After(cutoffTime) {
+				cout.Printf("    updated: <green>%s</> <gray>(%s)</>\n", updatedAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
 				return true, nil
 			}
 
-			cout.Printf("    updated: <red>%s</> <gray>(%s)</>\n", createdAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
+			cout.Printf("    updated: <red>%s</> <gray>(%s)</>\n", updatedAt.Format(time.RFC822), cutoffTime.Format(time.RFC822))
 
 			return false, nil
 		},

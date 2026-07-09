@@ -60,8 +60,8 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 		return nil, err
 	}
 
-	clog.Log.Debugf("  checking pr state: %v", *pr.State)
-	if pr.State != nil && *pr.State == "closed" {
+	clog.Log.Debugf("  checking pr state: %v", pr.GetState())
+	if pr.GetState() == "closed" {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
 
@@ -83,11 +83,11 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 		files = append(files, f)
 	}
 
-	clog.Log.Debugf("  downloading & parsing %d files concurrently:", len(files))
+	clog.Log.Debugf("  downloading & parsing %d files concurrently (max %d):", len(files), cfg.Concurrency)
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	firstErr := error(nil)
-	sem := make(chan struct{}, 5) // limit to 5 concurrent downloads
+	sem := make(chan struct{}, cfg.Concurrency)
 
 	for _, f := range files {
 		wg.Add(1)
