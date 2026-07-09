@@ -10,6 +10,8 @@ import (
 	"github.com/katbyte/tctest/lib/chttp"
 )
 
+var httpClient = chttp.NewHTTPClient("TC")
+
 func (s Server) makeGetRequest(endpoint string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
 
@@ -42,13 +44,13 @@ func (s Server) performRequest(req *http.Request) (int, string, error) {
 func (s Server) performRequestWithContentType(req *http.Request, contentType string) (int, string, error) {
 	if s.token != nil {
 		req.Header.Set("Authorization", "Bearer "+*s.token)
-	} else {
+	} else if s.User != nil && s.Pass != nil {
 		req.SetBasicAuth(*s.User, *s.Pass)
 	}
 
 	req.Header.Set("Content-Type", contentType)
 
-	resp, err := chttp.HTTP.Do(req) //nolint:gosec // G704: URL is from user-configured server
+	resp, err := httpClient.Do(req) //nolint:gosec // G704: URL is from user-configured server
 	if err != nil {
 		return 0, "", fmt.Errorf("http request failed: %w", err)
 	}

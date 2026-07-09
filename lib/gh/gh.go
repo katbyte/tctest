@@ -45,7 +45,7 @@ func (t Token) NewClient() (*github.Client, context.Context) {
 		httpClient = oauth2.NewClient(ctx, t)
 	}
 
-	httpClient.Transport = common.NewTransport("GitHub", httpClient.Transport)
+	httpClient.Transport = common.NewRetryTransport("GitHub", common.NewTransport("GitHub", httpClient.Transport), 3)
 
 	return github.NewClient(httpClient), ctx
 }

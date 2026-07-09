@@ -20,7 +20,7 @@ func (r Repo) GetLabelsFor(number int) (*[]string, error) {
 		clog.Log.Debugf("Listing labels for %s/%s/%d (Page %d)...", r.Owner, r.Name, number, opts.Page)
 		labels, resp, err := client.Issues.ListLabelsByIssue(ctx, r.Owner, r.Name, number, opts)
 		if err != nil {
-			return nil, fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.Page, err)
+			return nil, fmt.Errorf("unable to list labels for %s/%s#%d (Page %d): %w", r.Owner, r.Name, number, opts.Page, err)
 		}
 
 		for _, l := range labels {

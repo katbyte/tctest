@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	c "github.com/gookit/color" //nolint:misspell
 	"github.com/katbyte/tctest/lib/cout"
 )
 
@@ -24,6 +23,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 	}
 
 	ok := 0
+	failed := 0
 	for _, number := range prNumbers {
 		title := prs[number]
 
@@ -45,12 +45,14 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		// discover tests from PR files
 		serviceTests, err := f.GetPrTests(number, title)
 		if err != nil {
-			c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
+			cout.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
+			failed++
 			continue
 		}
 
 		if serviceTests == nil {
-			c.Printf("  <red>ERROR: service tests is nil</>\n\n")
+			cout.Printf("  <red>ERROR: service tests is nil</>\n\n")
+			failed++
 			continue
 		}
 
@@ -70,7 +72,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			testRegEx := testRegExParam
 			if testRegEx == "" {
 				if len(tests) == 0 {
-					c.Printf("  %s<red>ERROR:</> no tests found, use TestAcc or --all to run all tests\n", serviceInfo)
+					cout.Printf("  %s<red>ERROR:</> no tests found, use TestAcc or --all to run all tests\n", serviceInfo)
 					continue
 				}
 
@@ -95,6 +97,10 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 	}
 
 	cout.FlushJSON()
+
+	if failed > 0 {
+		return fmt.Errorf("%d of %d PRs failed", failed, len(prNumbers))
+	}
 
 	return nil
 }
@@ -167,7 +173,7 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 
 	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
 	if err != nil {
-		c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
+		cout.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 	} else {
 		cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
 		cout.AddResult(prNumber, service, buildID, buildURL)

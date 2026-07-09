@@ -12,8 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var HTTP = http.DefaultClient
-
 func NewHTTPClient(name string) *http.Client {
 	return &http.Client{
 		Transport: NewRetryTransport(name, NewTransport(name, http.DefaultTransport), 3),

@@ -43,6 +43,10 @@ func (f FlagData) GetFilters() ([]Filter, error) {
 		filters = append(filters, *f)
 	}
 
+	if f := GetFilterForDrafts(f.GH.FilterPRs.Drafts); f != nil {
+		filters = append(filters, *f)
+	}
+
 	titleFilter, err := GetFilterForTitleRegex(f.GH.FilterPRs.TitleRegex)
 	if err != nil {
 		return nil, err
@@ -277,4 +281,25 @@ func GetFilterForTitleRegex(pattern string) (*Filter, error) {
 			return false, nil
 		},
 	}, nil
+}
+
+func GetFilterForDrafts(filterDrafts bool) *Filter {
+	if !filterDrafts {
+		return nil
+	}
+
+	cout.Printf("  drafts: <magenta>filter out</>\n")
+
+	return &Filter{
+		Name: "drafts",
+		PR: func(pr github.PullRequest) (bool, error) {
+			if pr.GetDraft() {
+				cout.Printf("    draft: <red>true</>\n")
+				return false, nil
+			}
+
+			cout.Printf("    draft: <green>false</>\n")
+			return true, nil
+		},
+	}
 }
