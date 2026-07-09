@@ -1,3 +1,7 @@
+## v0.8.0 (2026-06-18)
+
+- add a new flag to reappend the split character ([#79](https://github.com/katbyte/tctest/pull/79))
+
 ## v0.7.0 (2026-05-01)
 
 - colour-coded output for changed and derived files ([#74](https://github.com/katbyte/tctest/pull/74))

@@ -152,6 +152,13 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 
 			// if there is nothing split on `(` to make sure we just get the full function name
 			serviceTestMap[service][strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]] = true
+			testName := strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]
+
+			if reappendSplitChar && splitTestsAt != "" {
+				testName += splitTestsAt
+			}
+
+			serviceTestMap[service][testName] = true
 		}
 	}
 
