@@ -181,7 +181,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			cout.Printf("testing <yellow>%d</> prs\n\n", len(prTitles))
 
-			return GetFlags().GetAndRunPrsTests(prTitles, testRegExParam)
+			return f.GetAndRunPrsTests(prTitles, testRegExParam)
 		},
 	})
 
@@ -206,7 +206,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		},
 	})
 
-	root.AddCommand(&cobra.Command{
+	resultsCmd := &cobra.Command{
 		Use:           "results #",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
@@ -216,16 +216,16 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			buildID, err := strconv.Atoi(args[0])
 			if err != nil {
-				return fmt.Errorf("pr should be a number: %w", err)
+				return fmt.Errorf("build ID should be a number: %w", err)
 			}
 
 			cmd.SilenceUsage = true
 
 			return GetFlags().BuildResultsCmd(buildID)
 		},
-	})
+	}
 
-	root.AddCommand(&cobra.Command{
+	resultsCmd.AddCommand(&cobra.Command{
 		Use:           "pr #",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
@@ -243,6 +243,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			return GetFlags().BuildResultsForPRCmd(pr)
 		},
 	})
+
+	root.AddCommand(resultsCmd)
 
 	if err := configureFlags(root); err != nil {
 		return nil, fmt.Errorf("unable to configure flags: %w", err)

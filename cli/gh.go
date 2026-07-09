@@ -17,12 +17,19 @@ func (f FlagData) NewRepo() GithubRepo {
 
 	parts := strings.Split(ownerrepo, "/")
 	if len(parts) != 2 {
-		panic("repo was not in the format owner/repo") // this is bad but works for now
+		panic("repo was not in the format owner/repo")
 	}
 	owner, repo := parts[0], parts[1]
 
 	token := f.GH.Token
-	clog.Log.Debugf("new gh: %s@%s/%s", token, owner, repo)
+	clog.Log.Debugf("new gh: %s@%s/%s", maskToken(token), owner, repo)
 
 	return GithubRepo{gh.NewRepo(owner, repo, token)}
+}
+
+func maskToken(token string) string {
+	if len(token) <= 4 {
+		return "****"
+	}
+	return token[:4] + "****"
 }

@@ -25,7 +25,7 @@ func NewServer(server, token, username, password string) Server {
 }
 
 func NewServerUsingTokenAuth(server, token string) Server {
-	clog.Log.Debugf("new tc: %s@%s", token, server)
+	clog.Log.Debugf("new tc: %s@%s", maskToken(token), server)
 	return Server{
 		Server: server,
 		token:  &token,
@@ -39,4 +39,11 @@ func NewServerUsingBasicAuth(server, username, password string) Server {
 		User:   &username,
 		Pass:   &password,
 	}
+}
+
+func maskToken(token string) string {
+	if len(token) <= 4 {
+		return "****"
+	}
+	return token[:4] + "****"
 }

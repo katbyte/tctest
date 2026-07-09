@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"strings"
+	"time"
 
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/sirupsen/logrus"
@@ -15,7 +16,7 @@ var HTTP = http.DefaultClient
 
 func NewHTTPClient(name string) *http.Client {
 	return &http.Client{
-		Transport: NewTransport(name, http.DefaultTransport),
+		Transport: NewRetryTransport(name, NewTransport(name, http.DefaultTransport), 3),
 	}
 }
 
@@ -53,6 +54,52 @@ func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func NewTransport(name string, t http.RoundTripper) *Transport {
 	return &Transport{name, t}
+}
+
+// RetryTransport wraps an http.RoundTripper with retry logic for transient failures.
+// It retries on connection errors, 429 (rate limited), and 5xx (server error) responses.
+type RetryTransport struct {
+	name      string
+	transport http.RoundTripper
+	maxRetry  int
+}
+
+func NewRetryTransport(name string, t http.RoundTripper, maxRetry int) *RetryTransport {
+	return &RetryTransport{name: name, transport: t, maxRetry: maxRetry}
+}
+
+func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+
+	for attempt := range t.maxRetry {
+		resp, err = t.transport.RoundTrip(req)
+
+		if err != nil {
+			if attempt < t.maxRetry-1 {
+				wait := time.Duration(1<<attempt) * time.Second
+				clog.Log.Debugf("%s request failed (attempt %d/%d), retrying in %s: %v", t.name, attempt+1, t.maxRetry, wait, err)
+				time.Sleep(wait)
+				continue
+			}
+			return nil, err
+		}
+
+		// retry on 429 (rate limited) or 5xx (server error)
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			if attempt < t.maxRetry-1 {
+				wait := time.Duration(1<<attempt) * time.Second
+				clog.Log.Debugf("%s got status %d (attempt %d/%d), retrying in %s", t.name, resp.StatusCode, attempt+1, t.maxRetry, wait)
+				_ = resp.Body.Close()
+				time.Sleep(wait)
+				continue
+			}
+		}
+
+		return resp, nil
+	}
+
+	return resp, err
 }
 
 // prettyPrintJSON iterates through a []byte line-by-line,
