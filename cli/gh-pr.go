@@ -24,7 +24,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 
 	prURL := gr.PrURL(number)
 	cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
-	serviceTests, err := gr.PrTests(number, f.GH.FileRegEx, f.GH.SplitTestsOn, f.GH.ReappendSplitCharacter)
+	serviceTests, err := gr.PrTests(number, f.DiscoveryConfig)
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
@@ -47,7 +47,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reappendSplitChar bool) (*map[string][]string, error) {
+func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
 	client, ctx := gr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
@@ -63,7 +63,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reapp
 	}
 
 	clog.Log.Tracef("listing files...")
-	filesFiltered, err := gr.GetAllPullRequestFiles(pri, filterRegExStr)
+	filesFiltered, err := gr.GetAllPullRequestFiles(pri, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
 	}
@@ -96,7 +96,7 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reapp
 		}
 
 		// todo thread ctx
-		//nolint: noctx
+		// nolint: noctx
 		resp, err := httpClient.Get(*fileContents.DownloadURL)
 		if err != nil {
 			return nil, fmt.Errorf("downloading file (%s): %w", f, err)
@@ -133,10 +133,14 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reapp
 			}
 		}
 
+		// For simplicity, we assume the service name is the parent directory of the test file. This works for both Azure and AWS.
+		// AWS: internal/service/route53/cidr_collection_test.go -> route53
+		// Azure: internal/services/apimanagement/api_management_api_resource_test.go -> apimanagement
+		// In future depending on requirements, we can modify current hard coded service name extraction logic to be configurable.
 		service := ""
-		parts := strings.Split(f, "/services/")
-		if len(parts) == 2 {
-			service = strings.Split(parts[1], "/")[0]
+		parts := strings.Split(f, "/")
+		if len(parts) >= 2 {
+			service = parts[len(parts)-2]
 		}
 
 		for _, t := range tests {
@@ -147,10 +151,11 @@ func (gr GithubRepo) PrTests(pri int, filterRegExStr, splitTestsAt string, reapp
 			}
 
 			// if there is nothing split on `(` to make sure we just get the full function name
-			testName := strings.Split(strings.Split(t, splitTestsAt)[0], "(")[0]
+			serviceTestMap[service][strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]] = true
+			testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
 
-			if reappendSplitChar && splitTestsAt != "" {
-				testName += splitTestsAt
+			if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
+				testName += cfg.SplitTestsOn
 			}
 
 			serviceTestMap[service][testName] = true
@@ -201,12 +206,16 @@ func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFi
 	return nil
 }
 
-func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*map[string]struct{}, error) {
+func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
 	result := make(map[string]struct{})
-	filterRegEx := regexp.MustCompile(filterRegExStr)
+	filterRegEx := regexp.MustCompile(cfg.FileRegExStr)
+	testFileSuffixREs := make([]*regexp.Regexp, 0, len(cfg.AccTestFileSuffixRegexes))
+	for _, p := range cfg.AccTestFileSuffixRegexes {
+		testFileSuffixREs = append(testFileSuffixREs, regexp.MustCompile(p))
+	}
 
 	// track resource files that need sibling test file discovery
-	// key: directory path, value: list of resource prefixes (e.g. "foo_resource")
+	// key: directory path, value: list of resource prefixes (e.g. "foo")
 	resourceDirs := map[string][]string{}
 
 	// track changed files and test files for output
@@ -225,6 +234,10 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 
 			name := *f.Filename
 			clog.Log.Debugf("    %v (%s)", name, f.GetStatus())
+			// for now we only care about go files, data files that acctests load/rely on will be skipped for now
+			if !strings.HasSuffix(name, ".go") {
+				continue
+			}
 
 			// skip deleted files - they won't exist at the merge commit
 			if f.GetStatus() == "removed" {
@@ -262,33 +275,13 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 
 			changedFiles = append(changedFiles, name)
 
-			// derive the primary test file
-			testFile := strings.Replace(name, ".go", "_test.go", 1)
-			result[testFile] = struct{}{}
-			derivedTestFiles[testFile] = true
-			if !testFileSeen[testFile] {
-				testFiles = append(testFiles, testFile)
-				testFileSeen[testFile] = true
-			}
-
-			// for resource files, note the directory and prefix so we can
-			// discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
-			// also derive the corresponding data source test file
-			if strings.HasSuffix(name, "_resource.go") {
-				dir := name[:strings.LastIndex(name, "/")]
-				base := name[strings.LastIndex(name, "/")+1:]
-				prefix := strings.TrimSuffix(base, ".go") // e.g. "foo_resource"
-				resourceDirs[dir] = append(resourceDirs[dir], prefix)
-
-				// data sources depend on resources, so also run their tests
-				dsTestFile := strings.Replace(name, "_resource.go", "_data_source_test.go", 1)
-				result[dsTestFile] = struct{}{}
-				derivedTestFiles[dsTestFile] = true
-				if !testFileSeen[dsTestFile] {
-					testFiles = append(testFiles, dsTestFile)
-					testFileSeen[dsTestFile] = true
-				}
-			}
+			// note the directory and probable resourceName so we can discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
+			// Azure follows "_resource" suffix convention for resource filename
+			fileNameWithOutGoExtension := strings.TrimSuffix(name, ".go")
+			dir := fileNameWithOutGoExtension[:strings.LastIndex(fileNameWithOutGoExtension, "/")]
+			base := fileNameWithOutGoExtension[strings.LastIndex(fileNameWithOutGoExtension, "/")+1:]
+			resourceName := strings.TrimSuffix(base, "_resource") // e.g. "api_management_gateway_resource" -> "api_management_gateway"
+			resourceDirs[dir] = append(resourceDirs[dir], resourceName)
 		}
 
 		return nil
@@ -297,8 +290,8 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
 	}
 
-	// for each directory containing a modified resource file, list all files
-	// and find sibling test files matching the resource prefix
+	// For each directory containing a modified file, list all files
+	// and add test files whose name matches "{resource/datasource-name}{acctest-pattern}.go".
 	if len(resourceDirs) > 0 {
 		client, ctx := gr.NewClient()
 		for dir, prefixes := range resourceDirs {
@@ -314,26 +307,44 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, filterRegExStr string) (*ma
 				if !strings.HasSuffix(entryName, "_test.go") {
 					continue
 				}
-				for _, prefix := range prefixes {
-					if strings.HasPrefix(entryName, prefix) {
-						fullPath := dir + "/" + entryName
-						if _, exists := result[fullPath]; !exists {
-							clog.Log.Debugf("    discovered related test: %s", fullPath)
-							result[fullPath] = struct{}{}
-							derivedTestFiles[fullPath] = true
-							if !testFileSeen[fullPath] {
-								testFiles = append(testFiles, fullPath)
-								testFileSeen[fullPath] = true
-							}
+				fileNameWithNoExt := strings.TrimSuffix(entryName, ".go")
+				shouldInclude := false
+				for _, resource := range prefixes {
+					if !strings.HasPrefix(fileNameWithNoExt, resource) {
+						continue
+					}
+					remainder := fileNameWithNoExt[len(resource):]
+					for _, testSuffix := range testFileSuffixREs {
+						if testSuffix.MatchString(remainder) {
+							shouldInclude = true
+							break
 						}
 					}
+					if shouldInclude {
+						break
+					}
+				}
+				if !shouldInclude {
+					continue
+				}
+				fullPath := dir + "/" + entryName
+				if _, exists := result[fullPath]; exists {
+					continue
+				}
+				clog.Log.Debugf("    discovered related test: %s", fullPath)
+				result[fullPath] = struct{}{}
+				derivedTestFiles[fullPath] = true
+				if !testFileSeen[fullPath] {
+					testFiles = append(testFiles, fullPath)
+					testFileSeen[fullPath] = true
 				}
 			}
 		}
 	}
 
 	// print file regex and changed files
-	cout.Printf("  file regex: <darkGray>%s</>\n", filterRegExStr)
+	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
+	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
 	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]

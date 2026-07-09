@@ -47,23 +47,28 @@ func resolveBuildTypeID(cmd *cobra.Command) error {
 }
 
 type FlagData struct {
-	GH            FlagsGitHub
-	TC            FlagsTeamCity
-	OpenInBrowser bool
-	RunAllTests   bool
-	Services      []string
-	Quiet         bool
-	JSON          bool
-	Silent        bool
+	GH              FlagsGitHub
+	TC              FlagsTeamCity
+	DiscoveryConfig DiscoveryConfig
+	OpenInBrowser   bool
+	RunAllTests     bool
+	Services        []string
+	Quiet           bool
+	JSON            bool
+	Silent          bool
+}
+
+type DiscoveryConfig struct {
+	FileRegExStr             string
+	SplitTestsOn             string
+	ReappendSplitCharacter   bool
+	AccTestFileSuffixRegexes []string
 }
 
 type FlagsGitHub struct {
-	Token                  string
-	Repo                   string
-	FileRegEx              string
-	SplitTestsOn           string
-	ReappendSplitCharacter bool
-	FilterPRs              FlagsGitHubPrFilter
+	Token     string
+	Repo      string
+	FilterPRs FlagsGitHubPrFilter
 }
 
 type FlagsGitHubPrFilter struct {
@@ -113,9 +118,18 @@ func configureFlags(root *cobra.Command) error {
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
-	pflags.StringVar(&flags.GH.FileRegEx, "fileregex", "(/[a-z0-9_]*_resource|/[a-z0-9_]*_data_source)|/[a-z0-9_]*_ephemeral", "the regex to filter files by`")
-	pflags.StringVar(&flags.GH.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
-	pflags.BoolVar(&flags.GH.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
+	// "services?" matches both provider layouts: AWS(`service`) and Azure(`services`).
+	pflags.StringVar(&flags.DiscoveryConfig.FileRegExStr, "fileregex", `^internal/services?/[^/]+/[a-z0-9_][^/]*$`, "the regex to filter files by")
+	pflags.StringVar(&flags.DiscoveryConfig.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
+	pflags.StringSliceVar(&flags.DiscoveryConfig.AccTestFileSuffixRegexes, "acctest-file-suffix-regexes", []string{
+		`^_resource.*_test$`,   // Azure, this will also covers test files like `linux_virtual_machine_scale_set_resource_auth_test.go`
+		`^_test$`,              // both providers
+		`^_list_test$`,         // AWS list data-source tests
+		`^_identity_gen_test$`, // AWS generated identity tests
+		`^_tags_gen_test$`,     // AWS generated tags tests
+		`^_data_source_test$`,  // data-source tests (both providers)
+	}, "comma-separated list of regex patterns to match acceptance test filenames suffix (without '.go')")
+	pflags.BoolVar(&flags.DiscoveryConfig.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
 
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.Authors, "f-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
 	pflags.StringSliceVarP(&flags.GH.FilterPRs.LabelsAnd, "f-labels-all", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
@@ -156,6 +170,7 @@ func configureFlags(root *cobra.Command) error {
 		"properties":                       "TCTEST_PROPERTIES",
 		"repo":                             "TCTEST_REPO",
 		"fileregex":                        "TCTEST_FILEREGEX",
+		"acctest-file-suffix-regexes":      "TCTEST_ACCTEST_FILE_SUFFIX_REGEXES",
 		"splitteston":                      "TCTEST_SPLIT_TESTS_ON",
 		"reappend-split-character":         "TCTEST_REAPPEND_SPLIT_CHARACTER",
 		"wait":                             "TCTEST_WAIT",
@@ -216,12 +231,15 @@ func GetFlags() FlagData {
 		Quiet:         viper.GetBool("quiet"),
 		JSON:          viper.GetBool("json"),
 		Silent:        viper.GetBool("silent"),
+		DiscoveryConfig: DiscoveryConfig{
+			FileRegExStr:             viper.GetString("fileregex"),
+			SplitTestsOn:             viper.GetString("splitteston"),
+			ReappendSplitCharacter:   viper.GetBool("reappend-split-character"),
+			AccTestFileSuffixRegexes: viper.GetStringSlice("acctest-file-suffix-regexes"),
+		},
 		GH: FlagsGitHub{
-			Repo:                   viper.GetString("repo"),
-			Token:                  viper.GetString("token-gh"),
-			FileRegEx:              viper.GetString("fileregex"),
-			SplitTestsOn:           viper.GetString("splitteston"),
-			ReappendSplitCharacter: viper.GetBool("reappend-split-character"),
+			Repo:  viper.GetString("repo"),
+			Token: viper.GetString("token-gh"),
 			FilterPRs: FlagsGitHubPrFilter{
 				Authors:      viper.GetStringSlice("f-authors"),
 				LabelsOr:     viper.GetStringSlice("f-labels-any"),
