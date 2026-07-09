@@ -166,7 +166,7 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 
 	branch := fmt.Sprintf("refs/pull/%d/merge", prNumber)
 
-	buildID, buildURL, err := GetFlags().BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
+	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
 	if err != nil {
 		c.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 	} else {
