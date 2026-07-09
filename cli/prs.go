@@ -24,6 +24,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 	}
 
 	ok := 0
+	failed := 0
 	for _, number := range prNumbers {
 		title := prs[number]
 
@@ -46,11 +47,13 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		serviceTests, err := f.GetPrTests(number, title)
 		if err != nil {
 			c.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
+			failed++
 			continue
 		}
 
 		if serviceTests == nil {
 			c.Printf("  <red>ERROR: service tests is nil</>\n\n")
+			failed++
 			continue
 		}
 
@@ -95,6 +98,10 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 	}
 
 	cout.FlushJSON()
+
+	if failed > 0 {
+		return fmt.Errorf("%d of %d PRs failed", failed, len(prNumbers))
+	}
 
 	return nil
 }

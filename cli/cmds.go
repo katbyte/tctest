@@ -169,7 +169,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 					if err != nil {
 						return fmt.Errorf("ERROR: running filter %s: %w", f.Name, err)
 					}
-					passed = passed && ok
+					if !ok {
+						passed = false
+						break
+					}
 				}
 
 				if passed {
@@ -189,7 +192,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Use:           "list #",
 		Short:         "attempts to discover what acceptance tests to run for a PR",
 		Long:          `For a given PR number, attempts to discover and list what acceptance tests would run for it, without actually triggering a build.`,
-		Args:          cobra.RangeArgs(1, 1),
+		Args:          cobra.ExactArgs(1),
 		PreRunE:       ValidateParams([]string{"repo", "fileregex", "splitteston", "acctest-file-suffix-regexes"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -210,7 +213,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Use:           "results #",
 		Short:         "shows the test results for a specified TC build ID",
 		Long:          "Shows the test results for a specified TC build ID. If the build is still in progress, it will warn the user that results may be incomplete.",
-		Args:          cobra.RangeArgs(1, 1),
+		Args:          cobra.ExactArgs(1),
 		PreRunE:       ValidateParams([]string{"server"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -229,7 +232,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Use:           "pr #",
 		Short:         "shows the test results for a specified PR #",
 		Long:          "Shows the test results for a specified PR #. If the build is still in progress, it will warn the user that results may be incomplete.",
-		Args:          cobra.RangeArgs(1, 1),
+		Args:          cobra.ExactArgs(1),
 		PreRunE:       ValidateParams([]string{"server", "build-type-id"}),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
