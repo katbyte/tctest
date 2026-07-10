@@ -65,9 +65,10 @@ type DiscoveryConfig struct {
 	ReappendSplitCharacter   bool
 	AccTestFileSuffixRegexes []string
 	Concurrency              int
-	AstTestDetectionRepoPath string
-	AstTraceDepth            int
-	AstVendorMode            string
+	LocalRepoPath            string
+	LocalTraceDepth          int
+	LocalVendorMode          string
+	LocalMode                string
 }
 
 type FlagsGitHub struct {
@@ -136,9 +137,10 @@ func configureFlags(root *cobra.Command) error {
 	}, "comma-separated list of regex patterns to match acceptance test filenames suffix (without '.go')")
 	pflags.BoolVar(&flags.DiscoveryConfig.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
 	pflags.IntVar(&flags.DiscoveryConfig.Concurrency, "concurrency", 5, "maximum number of concurrent file downloads during test discovery")
-	pflags.StringVar(&flags.DiscoveryConfig.AstTestDetectionRepoPath, "ast-test-detection-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files)")
-	pflags.IntVar(&flags.DiscoveryConfig.AstTraceDepth, "ast-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
-	pflags.StringVar(&flags.DiscoveryConfig.AstVendorMode, "ast-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
+	pflags.StringVar(&flags.DiscoveryConfig.LocalRepoPath, "local-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files)")
+	pflags.IntVar(&flags.DiscoveryConfig.LocalTraceDepth, "local-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
+	pflags.StringVar(&flags.DiscoveryConfig.LocalVendorMode, "local-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
+	pflags.StringVar(&flags.DiscoveryConfig.LocalMode, "local-mode", "AST", "mode for local test detection: 'off' (or empty, uses default web mode), 'AST' (the new ast mode). Note: 'SSA' (super slow analyse) to be added in the future")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -194,9 +196,10 @@ func configureFlags(root *cobra.Command) error {
 		"silent":                           "TCTEST_OUTPUT_SILENT",
 		"dry-run":                          "",
 		"concurrency":                      "",
-		"ast-test-detection-repo-path":     "TCTEST_AST_TEST_DETECTION_REPO_PATH",
-		"ast-trace-depth":                  "",
-		"ast-vendor-mode":                  "TCTEST_AST_VENDOR_MODE",
+		"local-repo-path":                  "TCTEST_LOCAL_REPO_PATH",
+		"local-trace-depth":                "",
+		"local-vendor-mode":                "TCTEST_LOCAL_VENDOR_MODE",
+		"local-mode":                       "TCTEST_LOCAL_MODE",
 		"queue-timeout":                    "",
 		"run-timeout":                      "",
 		"f-authors":                        "",
@@ -257,9 +260,10 @@ func GetFlags() FlagData {
 			ReappendSplitCharacter:   viper.GetBool("reappend-split-character"),
 			AccTestFileSuffixRegexes: viper.GetStringSlice("acctest-file-suffix-regexes"),
 			Concurrency:              viper.GetInt("concurrency"),
-			AstTestDetectionRepoPath: viper.GetString("ast-test-detection-repo-path"),
-			AstTraceDepth:            viper.GetInt("ast-trace-depth"),
-			AstVendorMode:            viper.GetString("ast-vendor-mode"),
+			LocalRepoPath:            viper.GetString("local-repo-path"),
+			LocalTraceDepth:          viper.GetInt("local-trace-depth"),
+			LocalVendorMode:          viper.GetString("local-vendor-mode"),
+			LocalMode:                viper.GetString("local-mode"),
 		},
 		GH: FlagsGitHub{
 			Repo:  viper.GetString("repo"),

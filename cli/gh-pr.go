@@ -29,7 +29,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	var serviceTests *map[string][]string
 	var err error
 
-	if f.DiscoveryConfig.AstTestDetectionRepoPath != "" {
+	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.LocalMode, "AST") {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
 		serviceTests, err = gr.PrTestsLocal(number, f.DiscoveryConfig)
 	} else {

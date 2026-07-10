@@ -19,13 +19,13 @@ import (
 )
 
 // PrTestsLocal performs test discovery using a local git clone of the repository.
-// When cfg.AstTestDetectionRepoPath is set, this is called instead of PrTests (the HTTP-based path).
+// When cfg.LocalMode is AST, this is called instead of PrTests (the HTTP-based path).
 //
 // It fetches the PR merge ref, checks out the code, and uses Go AST to discover
 // affected tests — including tracing imports from helper/validation files back to
 // resource files to find their tests.
 func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
-	repoPath, err := filepath.Abs(cfg.AstTestDetectionRepoPath)
+	repoPath, err := filepath.Abs(cfg.LocalRepoPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving repo path: %w", err)
 	}
@@ -34,7 +34,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	needsClone := false
 	if info, err := os.Stat(repoPath); os.IsNotExist(err) {
 		// directory doesn't exist — create it and clone
-		if err := os.MkdirAll(repoPath, 0o755); err != nil { //nolint:gosec // directory for user-provided --ast-test-detection-repo-path
+		if err := os.MkdirAll(repoPath, 0o755); err != nil { //nolint:gosec // directory for user-provided --local-repo-path
 			return nil, fmt.Errorf("creating repo path %s: %w", repoPath, err)
 		}
 		needsClone = true
@@ -64,7 +64,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	// abort if there are uncommitted changes
-	cout.Printf("  local AST detection: <darkGray>%s</> trace depth <yellow>%d</>\n", repoPath, cfg.AstTraceDepth)
+	cout.Printf("  local AST detection: <darkGray>%s</> trace depth <yellow>%d</>\n", repoPath, cfg.LocalTraceDepth)
 	if err := git.EnsureCleanWorkingTree(repoPath); err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 				// quick local read to check for TestAcc
 				hasAccTests := false
-				if content, readErr := os.ReadFile(filepath.Join(repoPath, name)); readErr == nil { //nolint:gosec // path is from user-provided --ast-test-detection-repo-path flag
+				if content, readErr := os.ReadFile(filepath.Join(repoPath, name)); readErr == nil { //nolint:gosec // path is from user-provided --local-repo-path flag
 					hasAccTests = strings.Contains(string(content), "func TestAcc")
 				}
 
@@ -236,7 +236,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	// import tracing for helper files
-	if len(helperFiles) > 0 && cfg.AstTraceDepth > 0 {
+	if len(helperFiles) > 0 && cfg.LocalTraceDepth > 0 {
 		// split helpers into same-package (dir contains resource files) and cross-package (sub-dir)
 		var crossPkgHelpers []string
 		samePkgHelpers := map[string][]string{} // dir -> helper files in that dir
@@ -358,7 +358,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				clog.Log.Debugf("    %s exports: %v", f, symbols)
 			}
 
-			tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, crossPkgHelpers, pkgSymbols, filterRegEx, cfg.AstTraceDepth)
+			tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, crossPkgHelpers, pkgSymbols, filterRegEx, cfg.LocalTraceDepth)
 
 			for dir, prefixes := range tracedDirs {
 				localDir := filepath.Join(repoPath, dir)
@@ -385,7 +385,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	// vendor file tracing — find resource files that import changed vendor packages
 	// Go requires imports to be used, so import presence = definite usage.
 	// This is already per-file precise: only resources importing the specific vendor package are flagged.
-	if len(vendorFiles) > 0 && cfg.AstTraceDepth > 0 && cfg.AstVendorMode == "basic" {
+	if len(vendorFiles) > 0 && cfg.LocalTraceDepth > 0 && cfg.LocalVendorMode == "basic" {
 		cout.Printf("  tracing imports from <yellow>%d</> vendor file(s)...\n", len(vendorFiles))
 
 		// collect unique vendor package import paths
@@ -553,7 +553,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 // getModulePath reads go.mod in the repo and returns the module import path.
 func getModulePath(repoPath string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(repoPath, "go.mod")) //nolint:gosec // path is from user-provided --ast-test-detection-repo-path flag
+	data, err := os.ReadFile(filepath.Join(repoPath, "go.mod")) //nolint:gosec // path is from user-provided --local-repo-path flag
 	if err != nil {
 		return "", fmt.Errorf("reading go.mod: %w", err)
 	}
@@ -615,7 +615,7 @@ func findLocalTestFiles(localDir, relativeDir string, resourcePrefixes []string,
 // Returns (service, testNames, error).
 func parseLocalTestFile(repoPath, filePath string, cfg DiscoveryConfig) (string, []string, error) {
 	localPath := filepath.Join(repoPath, filePath)
-	content, err := os.ReadFile(localPath) //nolint:gosec // path is from user-provided --ast-test-detection-repo-path flag
+	content, err := os.ReadFile(localPath) //nolint:gosec // path is from user-provided --local-repo-path flag
 	if err != nil {
 		return "", nil, fmt.Errorf("reading %s: %w", filePath, err)
 	}
