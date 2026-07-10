@@ -67,6 +67,7 @@ type DiscoveryConfig struct {
 	Concurrency              int
 	AstTestDetectionRepoPath string
 	AstTraceDepth            int
+	AstVendorMode            string
 }
 
 type FlagsGitHub struct {
@@ -137,6 +138,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.IntVar(&flags.DiscoveryConfig.Concurrency, "concurrency", 5, "maximum number of concurrent file downloads during test discovery")
 	pflags.StringVar(&flags.DiscoveryConfig.AstTestDetectionRepoPath, "ast-test-detection-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files)")
 	pflags.IntVar(&flags.DiscoveryConfig.AstTraceDepth, "ast-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
+	pflags.StringVar(&flags.DiscoveryConfig.AstVendorMode, "ast-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -194,6 +196,7 @@ func configureFlags(root *cobra.Command) error {
 		"concurrency":                      "",
 		"ast-test-detection-repo-path":     "TCTEST_AST_TEST_DETECTION_REPO_PATH",
 		"ast-trace-depth":                  "",
+		"ast-vendor-mode":                  "TCTEST_AST_VENDOR_MODE",
 		"queue-timeout":                    "",
 		"run-timeout":                      "",
 		"f-authors":                        "",
@@ -256,6 +259,7 @@ func GetFlags() FlagData {
 			Concurrency:              viper.GetInt("concurrency"),
 			AstTestDetectionRepoPath: viper.GetString("ast-test-detection-repo-path"),
 			AstTraceDepth:            viper.GetInt("ast-trace-depth"),
+			AstVendorMode:            viper.GetString("ast-vendor-mode"),
 		},
 		GH: FlagsGitHub{
 			Repo:  viper.GetString("repo"),
