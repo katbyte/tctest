@@ -143,7 +143,6 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			dir := name[:strings.LastIndex(name, "/")+1]
 			base := name[strings.LastIndex(name, "/")+1:]
 
-
 			// skip registration/resourceids in service directories
 			if (strings.Contains(name, "/services/") || strings.Contains(name, "/service/")) &&
 				(strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go")) {
@@ -383,19 +382,36 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		}
 	}
 
-	// vendor file tracing — find service files that import changed vendor packages
+	// vendor file tracing — find resource files that use changed vendor symbols
 	if len(vendorFiles) > 0 && cfg.AstTraceDepth > 0 {
-		cout.Printf("  tracing imports from <yellow>%d</> vendor file(s)...\n", len(vendorFiles))
+		cout.Printf("  tracing symbols from <yellow>%d</> vendor file(s)...\n", len(vendorFiles))
 
-		// collect unique vendor package import paths
-		vendorPkgs := map[string]bool{}
+		// extract symbols from vendor files, grouped by package import path
+		// pkgSymbols: types, funcs, vars — matched via pkg.Symbol SelectorExpr
+		// methodNames: method names — matched via *.MethodName SelectorExpr (any receiver)
+		vendorPkgSymbols := map[string]map[string]bool{}
+		vendorMethodNames := map[string]map[string]bool{}
 		for _, f := range vendorFiles {
+			localPath := filepath.Join(repoPath, f)
 			pkgImportPath := filepath.ToSlash(filepath.Dir(strings.TrimPrefix(f, "vendor/")))
-			vendorPkgs[pkgImportPath] = true
-			clog.Log.Debugf("    vendor package: %s", pkgImportPath)
+
+			pkgSyms, methods := extractVendorSymbols(localPath)
+			if vendorPkgSymbols[pkgImportPath] == nil {
+				vendorPkgSymbols[pkgImportPath] = map[string]bool{}
+			}
+			for _, s := range pkgSyms {
+				vendorPkgSymbols[pkgImportPath][s] = true
+			}
+			if vendorMethodNames[pkgImportPath] == nil {
+				vendorMethodNames[pkgImportPath] = map[string]bool{}
+			}
+			for _, m := range methods {
+				vendorMethodNames[pkgImportPath][m] = true
+			}
+			clog.Log.Debugf("    vendor %s: symbols=%v methods=%v", pkgImportPath, pkgSyms, methods)
 		}
 
-		// walk all service directories looking for files that import these vendor packages
+		// walk all service directories looking for resource files that use these vendor symbols
 		servicesDir := filepath.Join(repoPath, "internal", "services")
 		_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil || d.IsDir() {
@@ -415,39 +431,96 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				return nil // only interested in resource files
 			}
 
-			// quick scan imports without full AST parse
 			fset := token.NewFileSet()
-			parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+			parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
 			if parseErr != nil {
 				return nil
 			}
 
+			// build map of import alias -> vendor package path, and collect method names to check
+			aliasToVendorPkg := map[string]string{}
+			methodsToCheck := map[string]bool{}
+			hasSymbols := false
 			for _, imp := range parsed.Imports {
 				impPath := strings.Trim(imp.Path.Value, `"`)
-				if !vendorPkgs[impPath] {
+				pkgSyms := vendorPkgSymbols[impPath]
+				pkgMethods := vendorMethodNames[impPath]
+				if pkgSyms == nil && pkgMethods == nil {
 					continue
 				}
+				alias := filepath.Base(impPath)
+				if imp.Name != nil {
+					alias = imp.Name.Name
+				}
+				aliasToVendorPkg[alias] = impPath
+				if len(pkgSyms) > 0 {
+					hasSymbols = true
+				}
+				for m := range pkgMethods {
+					methodsToCheck[m] = true
+				}
+			}
 
-				dir := filepath.ToSlash(filepath.Dir(relPath))
-				nameNoExt := strings.TrimSuffix(filepath.Base(relPath), ".go")
-				resourceName := strings.TrimSuffix(nameNoExt, "_resource")
-				clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
+			if len(aliasToVendorPkg) == 0 {
+				return nil
+			}
 
-				localDir := filepath.Join(repoPath, dir)
-				discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
-				if findErr != nil {
+			// if no symbols AND no methods were extractable, fall back to import-level match
+			if !hasSymbols && len(methodsToCheck) == 0 {
+				clog.Log.Debugf("    vendor traced (import-level): %s", relPath)
+			} else {
+				// check AST for symbol/method usage
+				matched := false
+				ast.Inspect(parsed, func(n ast.Node) bool {
+					sel, ok := n.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+
+					// check method names: *.MethodName (any receiver)
+					if methodsToCheck[sel.Sel.Name] {
+						matched = true
+						clog.Log.Debugf("    vendor traced: %s calls .%s()", relPath, sel.Sel.Name)
+						return false
+					}
+
+					// check package-level symbols: pkg.Symbol
+					xIdent, ok := sel.X.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					if pkgPath, found := aliasToVendorPkg[xIdent.Name]; found {
+						if vendorPkgSymbols[pkgPath][sel.Sel.Name] {
+							matched = true
+							clog.Log.Debugf("    vendor traced: %s uses %s.%s", relPath, xIdent.Name, sel.Sel.Name)
+							return false
+						}
+					}
+					return true
+				})
+
+				if !matched {
 					return nil
 				}
-				for _, tf := range discovered {
-					vendorTestFiles[tf] = true
-					if testFileSeen[tf] {
-						continue
-					}
-					testFilesToParse[tf] = struct{}{}
-					testFilesList = append(testFilesList, tf)
-					testFileSeen[tf] = true
+			}
+
+			dir := filepath.ToSlash(filepath.Dir(relPath))
+			nameNoExt := strings.TrimSuffix(filepath.Base(relPath), ".go")
+			resourceName := strings.TrimSuffix(nameNoExt, "_resource")
+
+			localDir := filepath.Join(repoPath, dir)
+			discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
+			if findErr != nil {
+				return nil
+			}
+			for _, tf := range discovered {
+				vendorTestFiles[tf] = true
+				if testFileSeen[tf] {
+					continue
 				}
-				break // found a matching import, no need to check others
+				testFilesToParse[tf] = struct{}{}
+				testFilesList = append(testFilesList, tf)
+				testFileSeen[tf] = true
 			}
 
 			return nil
@@ -880,4 +953,52 @@ func extractSymbols(filePath string, exportedOnly bool) []string {
 		}
 	}
 	return symbols
+}
+
+// extractVendorSymbols parses a Go file and returns two sets of symbols:
+//   - pkgSymbols: types, package-level funcs, vars, constants — matched via pkg.Symbol SelectorExpr
+//   - methodNames: method names on receiver types — matched via *.MethodName SelectorExpr (any receiver)
+func extractVendorSymbols(filePath string) (pkgSymbols []string, methodNames []string) {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, filePath, nil, 0)
+	if err != nil {
+		return nil, nil
+	}
+
+	seenPkg := map[string]bool{}
+	seenMethod := map[string]bool{}
+	for _, decl := range parsed.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Recv != nil && len(d.Recv.List) > 0 {
+				// method — extract method name
+				if d.Name.IsExported() && !seenMethod[d.Name.Name] {
+					methodNames = append(methodNames, d.Name.Name)
+					seenMethod[d.Name.Name] = true
+				}
+			} else if d.Name.IsExported() && !seenPkg[d.Name.Name] {
+				// package-level function
+				pkgSymbols = append(pkgSymbols, d.Name.Name)
+				seenPkg[d.Name.Name] = true
+			}
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					if s.Name.IsExported() && !seenPkg[s.Name.Name] {
+						pkgSymbols = append(pkgSymbols, s.Name.Name)
+						seenPkg[s.Name.Name] = true
+					}
+				case *ast.ValueSpec:
+					for _, name := range s.Names {
+						if name.IsExported() && !seenPkg[name.Name] {
+							pkgSymbols = append(pkgSymbols, name.Name)
+							seenPkg[name.Name] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return pkgSymbols, methodNames
 }
