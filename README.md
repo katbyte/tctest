@@ -46,6 +46,7 @@ All options can be passed as command-line flags but most can also be set via env
 | `TCTEST_OUTPUT_QUIET` | `--quiet` | Minimal machine-readable output |
 | `TCTEST_OUTPUT_JSON` | `--json` | Output build results as a JSON array |
 | `TCTEST_OUTPUT_SILENT` | `--silent` | Suppress all output |
+| `TCTEST_AST_TEST_DETECTION_REPO_PATH` | `--ast-test-detection-repo-path` | Path to a local git clone for AST-based test detection (enables import tracing) |
 
 ## Commands
 
@@ -288,3 +289,28 @@ When no test regex is provided, `tctest` automatically discovers tests by:
 6. Grouping tests by service and triggering a separate build per service
 
 Files in `/client/`, `/parse/`, `/validate/` subdirectories and `registration.go`/`resourceids.go` are automatically skipped. Deleted files are also excluded.
+
+### Local AST Detection (`--ast-test-detection-repo-path`)
+
+For more accurate test discovery — especially when helper, validation, or client files are modified — point `tctest` at a local clone of the repository:
+
+```bash
+tctest list 3232 --ast-test-detection-repo-path /path/to/local/clone
+tctest pr 3232 --ast-test-detection-repo-path /path/to/local/clone
+```
+
+When `--ast-test-detection-repo-path` is set, tctest:
+
+1. Fetches the PR merge ref (`git fetch origin pull/{N}/merge`) and checks out `FETCH_HEAD`
+2. Uses the **local filesystem** instead of HTTP downloads (no API rate limits, no 1000-file directory cap)
+3. **Traces imports** from helper files back to resource files to discover affected tests
+
+For example, if a PR modifies `internal/services/network/parse/helpers.go`, tctest will:
+- Parse the Go imports of all files in the `network` service directory
+- Find resource files that import the `parse` package
+- Discover test files for those resources
+- Label these tests as `[TRACED]` in the output
+
+The import trace depth is configurable via `--ast-trace-depth` (default: 1). Set to 0 to disable import tracing.
+
+> **Note:** The `--ast-test-detection-repo-path` clone will have its working tree modified (checkout of FETCH_HEAD). Use a **dedicated clone** for tctest, not your active working directory. tctest will abort if the clone has uncommitted changes.

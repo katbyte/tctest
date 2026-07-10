@@ -27,7 +27,14 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 
 	prURL := gr.PrURL(number)
 	cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
-	serviceTests, err := gr.PrTests(number, f.DiscoveryConfig)
+	var serviceTests *map[string][]string
+	var err error
+
+	if f.DiscoveryConfig.AstTestDetectionRepoPath != "" {
+		serviceTests, err = gr.PrTestsLocal(number, f.DiscoveryConfig)
+	} else {
+		serviceTests, err = gr.PrTests(number, f.DiscoveryConfig)
+	}
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
