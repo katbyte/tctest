@@ -108,11 +108,13 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	changedTestFiles := map[string]bool{}
 	derivedTestFiles := map[string]bool{}
 	tracedTestFiles := map[string]bool{}
+	vendorTestFiles := map[string]bool{}
 	testFileSeen := map[string]bool{}
 	var testFilesList []string
 	resourceDirs := map[string][]string{} // dir -> resource prefixes
 	var helperFiles []string
 	helperFileSet := map[string]bool{}
+	var vendorFiles []string
 	unitTestFiles := map[string]bool{}
 	changedFileCount := 0
 
@@ -138,6 +140,10 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				continue
 			}
 
+			dir := name[:strings.LastIndex(name, "/")+1]
+			base := name[strings.LastIndex(name, "/")+1:]
+
+
 			// skip registration/resourceids in service directories
 			if (strings.Contains(name, "/services/") || strings.Contains(name, "/service/")) &&
 				(strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go")) {
@@ -154,8 +160,6 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					hasAccTests = strings.Contains(string(content), "func TestAcc")
 				}
 
-				dir := name[:strings.LastIndex(name, "/")+1]
-				base := name[strings.LastIndex(name, "/")+1:]
 				if hasAccTests {
 					if !testFileSeen[name] {
 						testFilesList = append(testFilesList, name)
@@ -176,11 +180,11 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			if filterRegEx.MatchString(name) {
 				changedFileCount++
 				nameNoExt := strings.TrimSuffix(name, ".go")
-				dir := nameNoExt[:strings.LastIndex(nameNoExt, "/")]
-				base := nameNoExt[strings.LastIndex(nameNoExt, "/")+1:]
-				resourceName := strings.TrimSuffix(base, "_resource")
-				resourceDirs[dir] = append(resourceDirs[dir], resourceName)
-				cout.Printf("    <darkGray>%s/</><fg=36>%s.go</> <darkGray>[RESOURCE]</>\n", dir, base)
+				rDir := nameNoExt[:strings.LastIndex(nameNoExt, "/")]
+				rBase := nameNoExt[strings.LastIndex(nameNoExt, "/")+1:]
+				resourceName := strings.TrimSuffix(rBase, "_resource")
+				resourceDirs[rDir] = append(resourceDirs[rDir], resourceName)
+				cout.Printf("    <darkGray>%s/</><fg=36>%s.go</> <darkGray>[RESOURCE]</>\n", rDir, rBase)
 				continue
 			}
 
@@ -189,13 +193,21 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				changedFileCount++
 				helperFiles = append(helperFiles, name)
 				helperFileSet[name] = true
-				dir := name[:strings.LastIndex(name, "/")+1]
-				base := name[strings.LastIndex(name, "/")+1:]
 				cout.Printf("    <darkGray>%s</><fg=117>%s</> <darkGray>[HELPER]</>\n", dir, base)
 				continue
 			}
 
-			// file outside service directories — skip
+			// vendor file
+			if strings.HasPrefix(name, "vendor/") {
+				changedFileCount++
+				vendorFiles = append(vendorFiles, name)
+				cout.Printf("    <darkGray>%s</><fg=177>%s</> <darkGray>[VENDOR]</>\n", dir, base)
+				continue
+			}
+
+			// file outside service directories
+			changedFileCount++
+			cout.Printf("    <darkGray>%s</><darkGray>%s</> <darkGray>[OTHER]</>\n", dir, base)
 		}
 		return nil
 	})
@@ -371,6 +383,77 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		}
 	}
 
+	// vendor file tracing — find service files that import changed vendor packages
+	if len(vendorFiles) > 0 && cfg.AstTraceDepth > 0 {
+		cout.Printf("  tracing imports from <yellow>%d</> vendor file(s)...\n", len(vendorFiles))
+
+		// collect unique vendor package import paths
+		vendorPkgs := map[string]bool{}
+		for _, f := range vendorFiles {
+			pkgImportPath := filepath.ToSlash(filepath.Dir(strings.TrimPrefix(f, "vendor/")))
+			vendorPkgs[pkgImportPath] = true
+			clog.Log.Debugf("    vendor package: %s", pkgImportPath)
+		}
+
+		// walk all service directories looking for files that import these vendor packages
+		servicesDir := filepath.Join(repoPath, "internal", "services")
+		_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil || d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
+				return nil
+			}
+
+			relPath, relErr := filepath.Rel(repoPath, path)
+			if relErr != nil {
+				return nil
+			}
+			relPath = filepath.ToSlash(relPath)
+
+			if !filterRegEx.MatchString(relPath) {
+				return nil // only interested in resource files
+			}
+
+			// quick scan imports without full AST parse
+			fset := token.NewFileSet()
+			parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+			if parseErr != nil {
+				return nil
+			}
+
+			for _, imp := range parsed.Imports {
+				impPath := strings.Trim(imp.Path.Value, `"`)
+				if !vendorPkgs[impPath] {
+					continue
+				}
+
+				dir := filepath.ToSlash(filepath.Dir(relPath))
+				nameNoExt := strings.TrimSuffix(filepath.Base(relPath), ".go")
+				resourceName := strings.TrimSuffix(nameNoExt, "_resource")
+				clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
+
+				localDir := filepath.Join(repoPath, dir)
+				discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
+				if findErr != nil {
+					return nil
+				}
+				for _, tf := range discovered {
+					vendorTestFiles[tf] = true
+					if testFileSeen[tf] {
+						continue
+					}
+					testFilesToParse[tf] = struct{}{}
+					testFilesList = append(testFilesList, tf)
+					testFileSeen[tf] = true
+				}
+				break // found a matching import, no need to check others
+			}
+
+			return nil
+		})
+	}
+
 	// print all test files with combined labels
 	cout.Printf("  test files:\n")
 	for _, tf := range testFilesList {
@@ -387,12 +470,17 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		if tracedTestFiles[tf] {
 			labels = append(labels, "TRACED")
 		}
+		if vendorTestFiles[tf] {
+			labels = append(labels, "VENDOR")
+		}
 		label := strings.Join(labels, "+")
 
-		// changed = green, traced = yellow, derived = cyan
+		// changed = green, vendor = light purple, traced = light blue, derived = cyan
 		fileColor := "<fg=36>"
 		if changedTestFiles[tf] {
 			fileColor = "<fg=28>"
+		} else if vendorTestFiles[tf] {
+			fileColor = "<fg=177>"
 		} else if tracedTestFiles[tf] {
 			fileColor = "<fg=117>"
 		}
