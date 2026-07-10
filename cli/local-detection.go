@@ -64,7 +64,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	// abort if there are uncommitted changes
-	cout.Printf("  local AST detection: <darkGray>%s</>\n", repoPath)
+	cout.Printf("  local AST detection: <darkGray>%s</> trace depth <yellow>%d</>\n", repoPath, cfg.AstTraceDepth)
 	if err := git.EnsureCleanWorkingTree(repoPath); err != nil {
 		return nil, err
 	}
@@ -119,9 +119,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	// print config
 	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
 	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
-	if cfg.AstTraceDepth > 0 {
-		cout.Printf("  import trace depth: <yellow>%d</>\n", cfg.AstTraceDepth)
-	}
+
 	cout.Printf("  changed files:\n")
 
 	err = gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {

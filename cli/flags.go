@@ -106,6 +106,7 @@ type FlagsTeamCityBuild struct {
 	AddServiceSuffix bool
 	QueueTimeout     int
 	RunTimeout       int
+	MaxBuildsPerPR   int
 	Tags             []string
 }
 
@@ -135,7 +136,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVar(&flags.DiscoveryConfig.ReappendSplitCharacter, "reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
 	pflags.IntVar(&flags.DiscoveryConfig.Concurrency, "concurrency", 5, "maximum number of concurrent file downloads during test discovery")
 	pflags.StringVar(&flags.DiscoveryConfig.AstTestDetectionRepoPath, "ast-test-detection-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files)")
-	pflags.IntVar(&flags.DiscoveryConfig.AstTraceDepth, "ast-trace-depth", 1, "how many levels of import tracing to perform for helper file changes (0 to disable)")
+	pflags.IntVar(&flags.DiscoveryConfig.AstTraceDepth, "ast-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -165,6 +166,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVarP(&flags.TC.Build.Comment, "comment", "c", false, "Post a GitHub comment on the PR with test results (adds POST_GITHUB_COMMENT=true property)")
 	pflags.BoolVar(&flags.TC.Build.ForceOldUI, "build-link-force-old-ui", false, "Append &fromSakuraUI=true to build URLs to force the classic TeamCity UI")
 	pflags.StringSliceVarP(&flags.TC.Build.Tags, "tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
+	pflags.IntVar(&flags.TC.Build.MaxBuildsPerPR, "max-builds-per-pr", 0, "maximum number of service builds to trigger per PR (0 = no limit, errors if exceeded)")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{ //nolint:gosec // G101: these are env var names, not credentials
@@ -208,6 +210,7 @@ func configureFlags(root *cobra.Command) error {
 		"comment":                          "TCTEST_COMMENT",
 		"build-link-force-old-ui":          "TCTEST_FORCE_OLD_UI",
 		"tag":                              "TCTEST_BUILD_TAGS",
+		"max-builds-per-pr":                "",
 	}
 
 	for name, env := range m {
@@ -284,6 +287,7 @@ func GetFlags() FlagData {
 				AddServiceSuffix: viper.GetBool("build-type-id-add-service-suffix"),
 				QueueTimeout:     viper.GetInt("queue-timeout"),
 				RunTimeout:       viper.GetInt("run-timeout"),
+				MaxBuildsPerPR:   viper.GetInt("max-builds-per-pr"),
 				Tags:             viper.GetStringSlice("tag"),
 			},
 		},
