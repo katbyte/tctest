@@ -26,13 +26,14 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	gr := f.NewRepo()
 
 	prURL := gr.PrURL(number)
-	cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 	var serviceTests *map[string][]string
 	var err error
 
 	if f.DiscoveryConfig.AstTestDetectionRepoPath != "" {
+		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
 		serviceTests, err = gr.PrTestsLocal(number, f.DiscoveryConfig)
 	} else {
+		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 		serviceTests, err = gr.PrTests(number, f.DiscoveryConfig)
 	}
 

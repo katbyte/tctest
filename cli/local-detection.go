@@ -52,7 +52,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 	if needsClone {
 		cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", gr.Owner, gr.Name)
-		cout.Printf("  cloning <cyan>%s/%s</cyan> into <darkGray>%s</darkGray>...\n", gr.Owner, gr.Name, repoPath)
+		cout.Printf("  cloning <cyan>%s/%s</> into <darkGray>%s</>...\n", gr.Owner, gr.Name, repoPath)
 		if err := git.Clone(filepath.Dir(repoPath), cloneURL, repoPath); err != nil {
 			return nil, fmt.Errorf("cloning repo: %w", err)
 		}
@@ -64,13 +64,13 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	// abort if there are uncommitted changes
-	cout.Printf("  local AST detection: <darkGray>%s</darkGray>\n", repoPath)
+	cout.Printf("  local AST detection: <darkGray>%s</>\n", repoPath)
 	if err := git.EnsureCleanWorkingTree(repoPath); err != nil {
 		return nil, err
 	}
 
 	// fetch PR merge ref + checkout
-	cout.Printf("  fetching PR <cyan>#%d</cyan> merge ref...\n", pri)
+	cout.Printf("  fetching PR <cyan>#%d</> merge ref...\n", pri)
 	if err := git.FetchPRMergeRef(repoPath, pri); err != nil {
 		return nil, fmt.Errorf("failed to fetch PR merge ref: %w", err)
 	}
@@ -114,6 +114,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	resourceDirs := map[string][]string{} // dir -> resource prefixes
 	var helperFiles []string
 	helperFileSet := map[string]bool{}
+	unitTestFiles := map[string]bool{}
 
 	err = gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
@@ -137,15 +138,27 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				continue
 			}
 
-			// test file — parse directly
+			// test file — check if it contains TestAcc functions
 			if strings.HasSuffix(name, "_test.go") {
 				changedFiles = append(changedFiles, name)
-				if !testFileSeen[name] {
-					testFilesList = append(testFilesList, name)
-					testFileSeen[name] = true
+
+				// quick local read to check for TestAcc
+				hasAccTests := false
+				if content, readErr := os.ReadFile(filepath.Join(repoPath, name)); readErr == nil { //nolint:gosec // path is from user-provided --ast-test-detection-repo-path flag
+					hasAccTests = strings.Contains(string(content), "func TestAcc")
 				}
-				changedTestFiles[name] = true
-				testFilesToParse[name] = struct{}{}
+
+				if hasAccTests {
+					if !testFileSeen[name] {
+						testFilesList = append(testFilesList, name)
+						testFileSeen[name] = true
+					}
+					changedTestFiles[name] = true
+					testFilesToParse[name] = struct{}{}
+				} else {
+					unitTestFiles[name] = true
+					clog.Log.Debugf("    %s: no TestAcc functions, skipping", name)
+				}
 				continue
 			}
 
@@ -197,9 +210,29 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 	// import tracing for helper files
 	if len(helperFiles) > 0 && cfg.AstTraceDepth > 0 {
-		cout.Printf("  tracing imports from <yellow>%d</yellow> helper file(s) (depth %d)...\n", len(helperFiles), cfg.AstTraceDepth)
+		cout.Printf("  tracing imports from <yellow>%d</> helper file(s) (depth %d)...\n", len(helperFiles), cfg.AstTraceDepth)
 
-		tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, helperFiles, filterRegEx, cfg.AstTraceDepth)
+		// parse each helper file to extract exported symbols
+		pkgSymbols := map[string]map[string]bool{} // package import path -> set of exported symbol names
+		for _, f := range helperFiles {
+			localPath := filepath.Join(repoPath, f)
+			dir := filepath.ToSlash(filepath.Dir(f))
+			pkgPath := modulePath + "/" + dir
+
+			symbols := extractExportedSymbols(localPath)
+			if len(symbols) == 0 {
+				continue
+			}
+			if pkgSymbols[pkgPath] == nil {
+				pkgSymbols[pkgPath] = map[string]bool{}
+			}
+			for _, s := range symbols {
+				pkgSymbols[pkgPath][s] = true
+			}
+			clog.Log.Debugf("    %s exports: %v", f, symbols)
+		}
+
+		tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, helperFiles, pkgSymbols, filterRegEx, cfg.AstTraceDepth)
 
 		for dir, prefixes := range tracedDirs {
 			localDir := filepath.Join(repoPath, dir)
@@ -221,7 +254,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	// print output
-	printLocalDetectionOutput(cfg, changedFiles, testFilesList, helperFileSet, changedTestFiles, derivedTestFiles, tracedTestFiles)
+	printLocalDetectionOutput(cfg, changedFiles, testFilesList, helperFileSet, unitTestFiles, changedTestFiles, derivedTestFiles, tracedTestFiles)
 
 	// parse test files concurrently
 	clog.Log.Debugf("  parsing %d test files locally (max %d concurrent):", len(testFilesToParse), cfg.Concurrency)
@@ -285,28 +318,30 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 // --- Output ---
 
-func printLocalDetectionOutput(cfg DiscoveryConfig, changedFiles, testFilesList []string, helperFileSet, changedTestFiles, derivedTestFiles, tracedTestFiles map[string]bool) {
-	cout.Printf("  file regex: <darkGray>%s</darkGray>\n", cfg.FileRegExStr)
-	cout.Printf("  acctest file suffix patterns: <darkGray>%s</darkGray>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
+func printLocalDetectionOutput(cfg DiscoveryConfig, changedFiles, testFilesList []string, helperFileSet, unitTestFiles, changedTestFiles, derivedTestFiles, tracedTestFiles map[string]bool) {
+	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
+	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
 	if cfg.AstTraceDepth > 0 {
-		cout.Printf("  import trace depth: <yellow>%d</yellow>\n", cfg.AstTraceDepth)
+		cout.Printf("  import trace depth: <yellow>%d</>\n", cfg.AstTraceDepth)
 	}
 
-	cout.Printf("  changed files (<yellow>%d</yellow>):\n", len(changedFiles))
+	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
 		switch {
+		case strings.HasSuffix(f, "_test.go") && unitTestFiles[f]:
+			cout.Printf("    <darkGray>%s</><darkGray>%s</> <darkGray>[UNIT TEST]</>\n", dir, base)
 		case strings.HasSuffix(f, "_test.go"):
-			cout.Printf("    <darkGray>%s</darkGray><fg=28>%s</fg>\n", dir, base)
+			cout.Printf("    <darkGray>%s</><fg=28>%s</> <darkGray>[TEST]</>\n", dir, base)
 		case helperFileSet[f]:
-			cout.Printf("    <darkGray>%s</darkGray><yellow>%s</yellow> <darkGray>[HELPER]</darkGray>\n", dir, base)
+			cout.Printf("    <darkGray>%s</><fg=117>%s</> <darkGray>[HELPER]</>\n", dir, base)
 		default:
-			cout.Printf("    <darkGray>%s</darkGray><fg=36>%s</fg>\n", dir, base)
+			cout.Printf("    <darkGray>%s</><fg=36>%s</> <darkGray>[RESOURCE]</>\n", dir, base)
 		}
 	}
 
-	cout.Printf("  test files (<yellow>%d</yellow>):\n", len(testFilesList))
+	cout.Printf("  test files (<yellow>%d</>):\n", len(testFilesList))
 	for _, f := range testFilesList {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
@@ -330,7 +365,7 @@ func printLocalDetectionOutput(cfg DiscoveryConfig, changedFiles, testFilesList 
 		} else if tracedTestFiles[f] {
 			fileColor = "<yellow>"
 		}
-		cout.Printf("    <darkGray>%s</darkGray>%s%s</> <darkGray>[%s]</darkGray>\n", dir, fileColor, base, label)
+		cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
 	}
 }
 
@@ -461,12 +496,12 @@ func parseLocalTestFile(repoPath, filePath string, cfg DiscoveryConfig) (string,
 // For each helper file (e.g., internal/services/network/parse/helper.go), it:
 //  1. Determines the helper's Go package import path
 //  2. Walks the parent service directory
-//  3. Parses imports of each .go file (using parser.ImportsOnly for speed)
-//  4. If a file imports the helper's package AND matches the fileregex, it's an affected resource
-//  5. If it imports the helper but doesn't match fileregex, it's queued for the next depth level
+//  3. Full-parses each .go file and checks for SelectorExpr usage of specific exported symbols
+//  4. If a file uses a changed symbol AND matches the fileregex, it's an affected resource
+//  5. If it uses a changed symbol but doesn't match fileregex, it's queued for the next depth level
 //
 // Returns map[dir][]resourcePrefix (same format as resourceDirs in GetAllPullRequestFiles).
-func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []string, filterRegEx *regexp.Regexp, maxDepth int) map[string][]string {
+func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []string, pkgSymbols map[string]map[string]bool, filterRegEx *regexp.Regexp, maxDepth int) map[string][]string {
 	result := map[string][]string{}
 
 	// collect unique packages of helper files
@@ -508,6 +543,7 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 
 		for pkgPath, serviceDir := range currentLevel {
 			localServiceDir := filepath.Join(repoPath, serviceDir)
+			symbols := pkgSymbols[pkgPath] // may be nil if no exported symbols tracked
 
 			err := filepath.WalkDir(localServiceDir, func(path string, d os.DirEntry, walkErr error) error {
 				if walkErr != nil {
@@ -529,38 +565,92 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 				}
 				relPath = filepath.ToSlash(relPath)
 
-				// parse only imports (fast — doesn't parse function bodies)
+				// full parse to check both imports and symbol usage
 				fset := token.NewFileSet()
-				parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+				parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
 				if parseErr != nil {
 					//nolint:nilerr // parse failure is non-fatal, skip this file
 					return nil
 				}
 
+				// find the import alias for the target package
+				importAlias := ""
 				for _, imp := range parsed.Imports {
 					importPath := strings.Trim(imp.Path.Value, `"`)
 					if importPath != pkgPath {
 						continue
 					}
+					if imp.Name != nil {
+						importAlias = imp.Name.Name // explicit alias
+					} else {
+						// default alias is last path segment
+						parts := strings.Split(importPath, "/")
+						importAlias = parts[len(parts)-1]
+					}
+					break
+				}
+				if importAlias == "" {
+					return nil // doesn't import the target package
+				}
 
-					// this file imports the changed package
+				// if we have no symbol info, fall back to package-level matching
+				if len(symbols) == 0 {
 					if filterRegEx.MatchString(relPath) {
-						// it's a resource file — add to results
 						dir := filepath.ToSlash(filepath.Dir(relPath))
 						base := strings.TrimSuffix(filepath.Base(relPath), ".go")
 						resourceName := strings.TrimSuffix(base, "_resource")
 						result[dir] = append(result[dir], resourceName)
-						clog.Log.Debugf("    traced: %s imports %s (depth %d)", relPath, pkgPath, depth+1)
+						clog.Log.Debugf("    traced: %s imports %s (depth %d, package-level)", relPath, pkgPath, depth+1)
 					} else {
-						// it's another helper — queue for next depth
 						helperPkg := modulePath + "/" + filepath.ToSlash(filepath.Dir(relPath))
 						if !visited[helperPkg] {
 							nextLevel[helperPkg] = serviceDir
 							visited[helperPkg] = true
-							clog.Log.Debugf("    intermediate: %s imports %s, queuing for depth %d", relPath, pkgPath, depth+2)
 						}
 					}
-					break // found the import, no need to check remaining imports
+					return nil
+				}
+
+				// walk the AST looking for SelectorExpr: alias.Symbol
+				usesSymbol := false
+				var usedSymbols []string
+				ast.Inspect(parsed, func(n ast.Node) bool {
+					sel, ok := n.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+					ident, ok := sel.X.(*ast.Ident)
+					if !ok || ident.Name != importAlias {
+						return true
+					}
+					if symbols[sel.Sel.Name] {
+						usesSymbol = true
+						usedSymbols = append(usedSymbols, sel.Sel.Name)
+					}
+					return true
+				})
+
+				if !usesSymbol {
+					clog.Log.Debugf("    skipped: %s imports %s but doesn't use changed symbols", relPath, pkgPath)
+					return nil
+				}
+
+				// this file uses a changed symbol
+				if filterRegEx.MatchString(relPath) {
+					// it's a resource file — add to results
+					dir := filepath.ToSlash(filepath.Dir(relPath))
+					base := strings.TrimSuffix(filepath.Base(relPath), ".go")
+					resourceName := strings.TrimSuffix(base, "_resource")
+					result[dir] = append(result[dir], resourceName)
+					clog.Log.Debugf("    traced: %s uses %v from %s (depth %d)", relPath, usedSymbols, pkgPath, depth+1)
+				} else {
+					// it's another helper — queue for next depth
+					helperPkg := modulePath + "/" + filepath.ToSlash(filepath.Dir(relPath))
+					if !visited[helperPkg] {
+						nextLevel[helperPkg] = serviceDir
+						visited[helperPkg] = true
+						clog.Log.Debugf("    intermediate: %s uses %v from %s, queuing for depth %d", relPath, usedSymbols, pkgPath, depth+2)
+					}
 				}
 
 				return nil
@@ -574,4 +664,40 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 	}
 
 	return result
+}
+
+// extractExportedSymbols parses a Go file and returns all exported symbol names
+// (functions, types, variables, constants).
+func extractExportedSymbols(filePath string) []string {
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, filePath, nil, 0)
+	if err != nil {
+		return nil
+	}
+
+	var symbols []string
+	for _, decl := range parsed.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Name.IsExported() {
+				symbols = append(symbols, d.Name.Name)
+			}
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.TypeSpec:
+					if s.Name.IsExported() {
+						symbols = append(symbols, s.Name.Name)
+					}
+				case *ast.ValueSpec:
+					for _, name := range s.Names {
+						if name.IsExported() {
+							symbols = append(symbols, name.Name)
+						}
+					}
+				}
+			}
+		}
+	}
+	return symbols
 }
