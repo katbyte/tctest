@@ -406,24 +406,24 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 	}
 
 	// print file regex and changed files
-	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
-	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
-	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
+	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
+	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
+	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
 		switch {
 		case skippedFiles[f]:
-			cout.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
+			cout.Verbosef("    <darkGray>%s</><red>%s</>\n", dir, base)
 		case strings.HasSuffix(f, "_test.go"):
-			cout.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
+			cout.Verbosef("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
 		default:
-			cout.Printf("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
+			cout.Verbosef("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
 		}
 	}
 
 	// print test files
-	cout.Printf("  test files (<yellow>%d</>):\n", len(testFiles))
+	cout.Verbosef("  test files:\n")
 	for _, f := range testFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
@@ -443,8 +443,9 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 		if changedTestFiles[f] {
 			fileColor = "<fg=28>" // dark green for changed
 		}
-		cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+		cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
 	}
+	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
 
 	clog.Log.Debugf("  FOUND %d", len(result))
 	for f := range result {

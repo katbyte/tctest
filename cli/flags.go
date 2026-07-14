@@ -57,6 +57,7 @@ type FlagData struct {
 	JSON            bool
 	Silent          bool
 	DryRun          bool
+	Verbose         bool
 }
 
 type DiscoveryConfig struct {
@@ -123,6 +124,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVar(&flags.JSON, "json", false, "output build results as JSON array")
 	pflags.BoolVar(&flags.Silent, "silent", false, "suppress all output")
 	pflags.BoolVar(&flags.DryRun, "dry-run", false, "show what builds would be triggered without actually triggering them")
+	pflags.BoolVarP(&flags.Verbose, "verbose", "v", false, "show detailed file listings and trace output")
 
 	// "services?" matches both provider layouts: AWS(`service`) and Azure(`services`).
 	pflags.StringVar(&flags.DiscoveryConfig.FileRegExStr, "fileregex", `^internal/services?/[^/]+/[a-z0-9_][^/]*$`, "the regex to filter files by")
@@ -195,6 +197,7 @@ func configureFlags(root *cobra.Command) error {
 		"json":                             "TCTEST_OUTPUT_JSON",
 		"silent":                           "TCTEST_OUTPUT_SILENT",
 		"dry-run":                          "",
+		"verbose":                          "",
 		"concurrency":                      "",
 		"local-repo-path":                  "TCTEST_LOCAL_REPO_PATH",
 		"local-trace-depth":                "",
@@ -254,6 +257,7 @@ func GetFlags() FlagData {
 		JSON:          viper.GetBool("json"),
 		Silent:        viper.GetBool("silent"),
 		DryRun:        viper.GetBool("dry-run"),
+		Verbose:       viper.GetBool("verbose"),
 		DiscoveryConfig: DiscoveryConfig{
 			FileRegExStr:             viper.GetString("fileregex"),
 			SplitTestsOn:             viper.GetString("splitteston"),
