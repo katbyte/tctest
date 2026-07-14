@@ -284,7 +284,9 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			}
 			if len(symbols) == 0 {
 				for _, f := range helpers {
-					cout.Verbosef("    <darkGray>%s</> → <darkGray>no symbols found</>\n", f)
+					fDir := f[:strings.LastIndex(f, "/")+1]
+					fBase := f[strings.LastIndex(f, "/")+1:]
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no symbols found</>\n", fDir, fBase)
 				}
 				continue
 			}
@@ -356,14 +358,18 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			for _, f := range helpers {
 				traced := helperTraced[f]
 				if len(traced) > 0 {
-					cout.Verbosef("    <darkGray>%s</> →\n", f)
+					fDir := f[:strings.LastIndex(f, "/")+1]
+					fBase := f[strings.LastIndex(f, "/")+1:]
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", fDir, fBase)
 					for _, t := range traced {
 						tDir := t[:strings.LastIndex(t, "/")+1]
 						tBase := t[strings.LastIndex(t, "/")+1:]
 						cout.Verbosef("      <darkGray>%s</><fg=117>%s</>\n", tDir, tBase)
 					}
 				} else {
-					cout.Verbosef("    <darkGray>%s</> → <darkGray>no resource files traced</>\n", f)
+					fDir := f[:strings.LastIndex(f, "/")+1]
+					fBase := f[strings.LastIndex(f, "/")+1:]
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", fDir, fBase)
 				}
 			}
 		}
@@ -381,7 +387,9 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 				symbols := extractSymbols(localPath, true)
 				if len(symbols) == 0 {
-					cout.Verbosef("    <darkGray>%s</> → <darkGray>no exported symbols</>\n", f)
+					fDir := f[:strings.LastIndex(f, "/")+1]
+					fBase := f[strings.LastIndex(f, "/")+1:]
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no exported symbols</>\n", fDir, fBase)
 					continue
 				}
 				if pkgSymbols[pkgPath] == nil {
@@ -422,14 +430,18 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					}
 				}
 				if len(tracedFiles) > 0 {
-					cout.Verbosef("    <darkGray>%s</> →\n", f)
+					fDir := f[:strings.LastIndex(f, "/")+1]
+					fBase := f[strings.LastIndex(f, "/")+1:]
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", fDir, fBase)
 					for _, t := range tracedFiles {
 						tDir := t[:strings.LastIndex(t, "/")+1]
 						tBase := t[strings.LastIndex(t, "/")+1:]
 						cout.Verbosef("      <darkGray>%s</><fg=117>%s</>\n", tDir, tBase)
 					}
 				} else {
-					cout.Verbosef("    <darkGray>%s</> → <darkGray>no resource files traced</>\n", f)
+					fDir := f[:strings.LastIndex(f, "/")+1]
+					fBase := f[strings.LastIndex(f, "/")+1:]
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", fDir, fBase)
 				}
 			}
 		}
