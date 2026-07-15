@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/katbyte/tctest/lib/tc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -319,4 +320,8 @@ func GetFlags() FlagData {
 	}
 
 	return f
+}
+
+func (f FlagData) NewServer() tc.Server {
+	return tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)
 }

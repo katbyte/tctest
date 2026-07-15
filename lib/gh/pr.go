@@ -91,3 +91,30 @@ func (r Repo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
 
 	return &allPRs, nil
 }
+
+func (r Repo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
+	client, ctx := r.NewClient()
+
+	opts := &github.ListOptions{
+		Page:    1,
+		PerPage: 100,
+	}
+
+	for {
+		files, resp, err := client.PullRequests.ListFiles(ctx, r.Owner, r.Name, pri, opts)
+		if err != nil {
+			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", r.Owner, r.Name, pri, opts.Page, err)
+		}
+
+		if err = cb(files, resp); err != nil {
+			return fmt.Errorf("callback failed for %s/%s/pull/%d (Page %d): %w", r.Owner, r.Name, pri, opts.Page, err)
+		}
+
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
+	}
+
+	return nil
+}

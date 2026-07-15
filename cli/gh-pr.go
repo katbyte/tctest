@@ -148,79 +148,6 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	return &serviceTests, nil
 }
 
-// downloadAndParseTestFile downloads a single file from GitHub using the raw content URL
-// and parses it for acceptance test function names. Returns (service, testNames, nil) on
-// success, ("", nil, nil) when the file should be skipped (e.g. not found at merge commit),
-// or ("", nil, err) on failure.
-//
-// This uses raw.githubusercontent.com directly instead of the GitHub Contents API
-// (client.Repositories.GetContents) to avoid two issues with that approach:
-//  1. GetContents has a 1MB file size limit
-//  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
-func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, f provider.File, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
-	clog.Log.Debugf("    download %s", f.Path)
-
-	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", ghr.Owner, ghr.Name, mergeCommitSHA, f.Path)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
-	if err != nil {
-		return "", nil, fmt.Errorf("creating request for %s: %w", f.Path, err)
-	}
-
-	if ghr.Token.Token != nil {
-		req.Header.Set("Authorization", "token "+*ghr.Token.Token)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", nil, fmt.Errorf("downloading file (%s): %w", f.Path, err)
-	}
-
-	content, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if err != nil {
-		return "", nil, fmt.Errorf("reading file (%s): %w", f.Path, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.Path, resp.StatusCode)
-		return "", nil, nil
-	}
-
-	tests := f.ExtractTests(content, cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
-	service := f.ExtractService()
-
-	return service, tests, nil
-}
-
-func (ghr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
-	client, ctx := ghr.NewClient()
-
-	opts := &github.ListOptions{
-		Page:    1,
-		PerPage: 100,
-	}
-
-	for {
-		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", ghr.Owner, ghr.Name, pri, opts.Page)
-		files, resp, err := client.PullRequests.ListFiles(ctx, ghr.Owner, ghr.Name, pri, opts)
-		if err != nil {
-			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", ghr.Owner, ghr.Name, pri, opts.Page, err)
-		}
-
-		if err = cb(files, resp); err != nil {
-			return fmt.Errorf("callback failed for %s/%s/pull/%d (Page %d): %w", ghr.Owner, ghr.Name, pri, opts.Page, err)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-
-	return nil
-}
-
 func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
 	result := make(map[string]struct{})
 
@@ -421,4 +348,46 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 		files = append(files, provider.NewFile(f, provider.FileTypeTest))
 	}
 	return files, nil
+}
+
+// downloadAndParseTestFile downloads a single file from GitHub using the raw content URL
+// and parses it for acceptance test function names. Returns (service, testNames, nil) on
+// success, ("", nil, nil) when the file should be skipped (e.g. not found at merge commit),
+// or ("", nil, err) on failure.
+//
+// This uses raw.githubusercontent.com directly instead of the GitHub Contents API
+// (client.Repositories.GetContents) to avoid two issues with that approach:
+//  1. GetContents has a 1MB file size limit
+//  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
+func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, f provider.File, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
+	clog.Log.Debugf("    download %s", f.Path)
+
+	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", ghr.Owner, ghr.Name, mergeCommitSHA, f.Path)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	if err != nil {
+		return "", nil, fmt.Errorf("creating request for %s: %w", f.Path, err)
+	}
+
+	if ghr.Token.Token != nil {
+		req.Header.Set("Authorization", "token "+*ghr.Token.Token)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("downloading file (%s): %w", f.Path, err)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil {
+		return "", nil, fmt.Errorf("reading file (%s): %w", f.Path, err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.Path, resp.StatusCode)
+		return "", nil, nil
+	}
+
+	return f.ExtractService(), f.ExtractTests(content, cfg.SplitTestsOn, cfg.ReappendSplitCharacter), nil
 }
