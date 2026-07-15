@@ -9,7 +9,6 @@ import (
 	"go/token"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -23,18 +22,18 @@ import (
 // TODO reorg this file
 
 func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
-	gr := f.NewRepo()
+	ghr := f.NewRepo()
 
-	prURL := gr.PrURL(number)
+	prURL := ghr.PrURL(number)
 	var serviceTests *map[string][]string
 	var err error
 
 	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.LocalMode, "AST") {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
-		serviceTests, err = gr.PrTestsLocal(number, f.DiscoveryConfig)
+		serviceTests, err = ghr.PrTestsLocal(number, f.DiscoveryConfig)
 	} else {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
-		serviceTests, err = gr.PrTests(number, f.DiscoveryConfig)
+		serviceTests, err = ghr.PrTests(number, f.DiscoveryConfig)
 	}
 
 	if f.OpenInBrowser {
@@ -62,12 +61,12 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 }
 
 // todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
-	client, ctx := gr.NewClient()
+func (ghr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+	client, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
-	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
-	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
+	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", ghr.Owner, ghr.Name, pri)
+	pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, pri)
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +77,9 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 	}
 
 	clog.Log.Tracef("listing files...")
-	filesFiltered, err := gr.GetAllPullRequestFiles(pri, cfg)
+	filesFiltered, err := ghr.GetAllPullRequestFiles(pri, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
+		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
 	}
 
 	if pr.MergeCommitSHA == nil {
@@ -108,7 +107,7 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore
 
-			service, tests, err := gr.downloadAndParseTestFile(ctx, httpClient, f, *pr.MergeCommitSHA, cfg)
+			service, tests, err := ghr.downloadAndParseTestFile(ctx, httpClient, f, *pr.MergeCommitSHA, cfg)
 			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
@@ -167,18 +166,18 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 // (client.Repositories.GetContents) to avoid two issues with that approach:
 //  1. GetContents has a 1MB file size limit
 //  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
-func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, filePath, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
+func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, filePath, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
 	clog.Log.Debugf("    download %s", filePath)
 
-	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", gr.Owner, gr.Name, mergeCommitSHA, filePath)
+	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", ghr.Owner, ghr.Name, mergeCommitSHA, filePath)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("creating request for %s: %w", filePath, err)
 	}
 
-	if gr.Token.Token != nil {
-		req.Header.Set("Authorization", "token "+*gr.Token.Token)
+	if ghr.Token.Token != nil {
+		req.Header.Set("Authorization", "token "+*ghr.Token.Token)
 	}
 
 	resp, err := httpClient.Do(req)
@@ -245,8 +244,8 @@ func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *h
 	return service, processedTests, nil
 }
 
-func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
-	client, ctx := gr.NewClient()
+func (ghr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
+	client, ctx := ghr.NewClient()
 
 	opts := &github.ListOptions{
 		Page:    1,
@@ -254,14 +253,14 @@ func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFi
 	}
 
 	for {
-		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", gr.Owner, gr.Name, pri, opts.Page)
-		files, resp, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, opts)
+		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", ghr.Owner, ghr.Name, pri, opts.Page)
+		files, resp, err := client.PullRequests.ListFiles(ctx, ghr.Owner, ghr.Name, pri, opts)
 		if err != nil {
-			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", gr.Owner, gr.Name, pri, opts.Page, err)
+			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", ghr.Owner, ghr.Name, pri, opts.Page, err)
 		}
 
 		if err = cb(files, resp); err != nil {
-			return fmt.Errorf("callback failed for %s/%s/pull/%d (Page %d): %w", gr.Owner, gr.Name, pri, opts.Page, err)
+			return fmt.Errorf("callback failed for %s/%s/pull/%d (Page %d): %w", ghr.Owner, ghr.Name, pri, opts.Page, err)
 		}
 
 		if resp.NextPage == 0 {
@@ -273,13 +272,8 @@ func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFi
 	return nil
 }
 
-func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
+func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
 	result := make(map[string]struct{})
-	filterRegEx := regexp.MustCompile(cfg.FileRegExStr)
-	testFileSuffixREs := make([]*regexp.Regexp, 0, len(cfg.AccTestFileSuffixRegexes))
-	for _, p := range cfg.AccTestFileSuffixRegexes {
-		testFileSuffixREs = append(testFileSuffixREs, regexp.MustCompile(p))
-	}
 
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
@@ -293,7 +287,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 	derivedTestFiles := map[string]bool{} // tracks which test files were derived
 	testFileSeen := map[string]bool{}     // dedup test files
 
-	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
+	err := ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
@@ -331,7 +325,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 				continue
 			}
 
-			if !filterRegEx.MatchString(name) {
+			if !cfg.FileRegEx.MatchString(name) {
 				// track service files that don't match the regex
 				if strings.Contains(name, "/services/") {
 					changedFiles = append(changedFiles, name)
@@ -354,16 +348,16 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
+		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
 	}
 
 	// For each directory containing a modified file, list all files
 	// and add test files whose name matches "{resource/datasource-name}{acctest-pattern}.go".
 	if len(resourceDirs) > 0 {
-		client, ctx := gr.NewClient()
+		client, ctx := ghr.NewClient()
 		for dir, prefixes := range resourceDirs {
 			clog.Log.Debugf("  listing directory %s for related test files...", dir)
-			_, dirContents, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, dir, nil)
+			_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, dir, nil)
 			if err != nil {
 				clog.Log.Debugf("  failed to list directory %s: %v", dir, err)
 				continue
@@ -381,7 +375,7 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 						continue
 					}
 					remainder := fileNameWithNoExt[len(resource):]
-					for _, testSuffix := range testFileSuffixREs {
+					for _, testSuffix := range cfg.AccTestFileSuffixREs {
 						if testSuffix.MatchString(remainder) {
 							shouldInclude = true
 							break

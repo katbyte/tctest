@@ -133,10 +133,10 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 		return nil, nil
 	}
 
-	gr := f.NewRepo()
+	ghr := f.NewRepo()
 
-	cout.Printf("Fetching service list from <cyan>%s/%s</>...\n", gr.Owner, gr.Name)
-	validServices, err := gr.ListServices()
+	cout.Printf("Fetching service list from <cyan>%s/%s</>...\n", ghr.Owner, ghr.Name)
+	validServices, err := ghr.ListServices()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}

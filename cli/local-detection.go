@@ -24,64 +24,28 @@ import (
 // It fetches the PR merge ref, checks out the code, and uses Go AST to discover
 // affected tests — including tracing imports from helper/validation files back to
 // resource files to find their tests.
-func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
 	repoPath, err := filepath.Abs(cfg.LocalRepoPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving repo path: %w", err)
 	}
 
-	// ensure repo path exists, cloning if the directory is empty or doesn't exist
-	needsClone := false
-	if info, err := os.Stat(repoPath); os.IsNotExist(err) {
-		// directory doesn't exist — create it and clone
-		if err := os.MkdirAll(repoPath, 0o755); err != nil { //nolint:gosec // directory for user-provided --local-repo-path
-			return nil, fmt.Errorf("creating repo path %s: %w", repoPath, err)
-		}
-		needsClone = true
-	} else if err != nil {
-		return nil, fmt.Errorf("checking repo path %s: %w", repoPath, err)
-	} else if info.IsDir() {
-		entries, err := os.ReadDir(repoPath)
-		if err != nil {
-			return nil, fmt.Errorf("reading repo path %s: %w", repoPath, err)
-		}
-		if len(entries) == 0 {
-			needsClone = true
-		}
-	}
-
-	if needsClone {
-		cloneURL := fmt.Sprintf("https://github.com/%s/%s.git", gr.Owner, gr.Name)
-		cout.Printf("  cloning <cyan>%s/%s</> into <darkGray>%s</>...\n", gr.Owner, gr.Name, repoPath)
-		if err := git.Clone(filepath.Dir(repoPath), cloneURL, repoPath); err != nil {
-			return nil, fmt.Errorf("cloning repo: %w", err)
-		}
-	}
-
-	// verify repo path is a git repo
-	if _, err := os.Stat(filepath.Join(repoPath, ".git")); err != nil {
-		return nil, fmt.Errorf("repo path %s is not a git repository: %w", repoPath, err)
-	}
-
-	// abort if there are uncommitted changes
+	// ensure repo path is a clean git clone (cloning if needed)
 	cout.Printf("  local AST detection: <darkGray>%s</> trace depth <yellow>%d</>\n", repoPath, cfg.LocalTraceDepth)
-	if err := git.EnsureCleanWorkingTree(repoPath); err != nil {
+	if err := git.EnsurePathIsRepo(repoPath, ghr.CloneURL()); err != nil {
 		return nil, err
 	}
 
-	// fetch PR merge ref + checkout
+	// fetch PR merge ref and checkout
 	cout.Printf("  fetching PR <cyan>#%d</> merge ref...\n", pri)
-	if err := git.FetchPRMergeRef(repoPath, pri); err != nil {
-		return nil, fmt.Errorf("failed to fetch PR merge ref: %w", err)
-	}
-	if err := git.CheckoutFetchHead(repoPath); err != nil {
-		return nil, fmt.Errorf("failed to checkout merge commit: %w", err)
+	if err := ghr.CheckoutPR(repoPath, pri); err != nil {
+		return nil, err
 	}
 
 	// check PR state via GitHub API
-	client, ctx := gr.NewClient()
-	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
-	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
+	client, ctx := ghr.NewClient()
+	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", ghr.Owner, ghr.Name, pri)
+	pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, pri)
 	if err != nil {
 		return nil, err
 	}
@@ -95,13 +59,6 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		return nil, fmt.Errorf("failed to read module path: %w", err)
 	}
 	clog.Log.Debugf("  module path: %s", modulePath)
-
-	// compile regexes
-	filterRegEx := regexp.MustCompile(cfg.FileRegExStr)
-	testFileSuffixREs := make([]*regexp.Regexp, 0, len(cfg.AccTestFileSuffixRegexes))
-	for _, p := range cfg.AccTestFileSuffixRegexes {
-		testFileSuffixREs = append(testFileSuffixREs, regexp.MustCompile(p))
-	}
 
 	// categorise changed files from GitHub API
 	testFilesToParse := map[string]struct{}{}
@@ -125,7 +82,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	// buffer changed file output lines — we don't know the total count until after the callback
 	var changedFileLines []string
 
-	err = gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
+	err = ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
@@ -177,7 +134,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			}
 
 			// resource file — matches fileregex
-			if filterRegEx.MatchString(name) {
+			if cfg.FileRegEx.MatchString(name) {
 				changedFileCount++
 				nameNoExt := strings.TrimSuffix(name, ".go")
 				rDir := nameNoExt[:strings.LastIndex(nameNoExt, "/")]
@@ -231,7 +188,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	// find sibling test files for resource files (local FS walk)
 	for dir, prefixes := range resourceDirs {
 		localDir := filepath.Join(repoPath, dir)
-		discovered, err := findLocalTestFiles(localDir, dir, prefixes, testFileSuffixREs)
+		discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixREs)
 		if err != nil {
 			clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
 			continue
@@ -260,7 +217,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			if entries, err := os.ReadDir(filepath.Join(repoPath, dir)); err == nil {
 				for _, entry := range entries {
 					if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
-						if filterRegEx.MatchString(filepath.ToSlash(filepath.Join(dir, entry.Name()))) {
+						if cfg.FileRegEx.MatchString(filepath.ToSlash(filepath.Join(dir, entry.Name()))) {
 							isSamePkg = true
 							break
 						}
@@ -312,7 +269,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					continue
 				}
 				relPath := filepath.ToSlash(filepath.Join(dir, entry.Name()))
-				if !filterRegEx.MatchString(relPath) {
+				if !cfg.FileRegEx.MatchString(relPath) {
 					continue // not a resource file
 				}
 
@@ -346,7 +303,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					samePkgTracedFiles[relPath] = true
 
 					// find test files for this resource
-					discovered, err := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
+					discovered, err := findLocalTestFiles(localDir, dir, []string{resourceName}, cfg.AccTestFileSuffixREs)
 					if err != nil {
 						continue
 					}
@@ -418,7 +375,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				clog.Log.Debugf("    %s exports: %v", f, symbols)
 			}
 
-			tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, crossPkgHelpers, pkgSymbols, filterRegEx, cfg.LocalTraceDepth)
+			tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, crossPkgHelpers, pkgSymbols, cfg.FileRegEx, cfg.LocalTraceDepth)
 
 			for dir, files := range tracedDirs {
 				localDir := filepath.Join(repoPath, dir)
@@ -429,7 +386,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					prefix := strings.TrimSuffix(base, "_resource")
 					prefixes = append(prefixes, prefix)
 				}
-				discovered, err := findLocalTestFiles(localDir, dir, prefixes, testFileSuffixREs)
+				discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixREs)
 				if err != nil {
 					clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
 					continue
@@ -525,7 +482,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			}
 			relPath = filepath.ToSlash(relPath)
 
-			if !filterRegEx.MatchString(relPath) {
+			if !cfg.FileRegEx.MatchString(relPath) {
 				return nil // only interested in resource files
 			}
 
@@ -551,7 +508,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				pkgToResources[impPath] = append(pkgToResources[impPath], relPath)
 
 				localDir := filepath.Join(repoPath, dir)
-				discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
+				discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, cfg.AccTestFileSuffixREs)
 				if findErr != nil {
 					//nolint:nilerr // test file discovery failure is non-fatal
 					return nil
@@ -830,7 +787,7 @@ func parseLocalTestFile(repoPath, filePath string, cfg DiscoveryConfig) (string,
 //  5. If it uses a changed symbol but doesn't match fileregex, it's queued for the next depth level
 //
 // Returns map[dir][]resourcePrefix (same format as resourceDirs in GetAllPullRequestFiles).
-func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []string, pkgSymbols map[string]map[string]bool, filterRegEx *regexp.Regexp, maxDepth int) map[string][]string {
+func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []string, pkgSymbols map[string]map[string]bool, fileRegEx *regexp.Regexp, maxDepth int) map[string][]string {
 	result := map[string][]string{}
 
 	// collect unique packages of helper files
@@ -924,7 +881,7 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 
 				// if we have no symbol info, fall back to package-level matching
 				if len(symbols) == 0 {
-					if filterRegEx.MatchString(relPath) {
+					if fileRegEx.MatchString(relPath) {
 						dir := filepath.ToSlash(filepath.Dir(relPath))
 						result[dir] = append(result[dir], relPath)
 						clog.Log.Debugf("    traced: %s imports %s (depth %d, package-level)", relPath, pkgPath, depth+1)
@@ -963,7 +920,7 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 				}
 
 				// this file uses a changed symbol
-				if filterRegEx.MatchString(relPath) {
+				if fileRegEx.MatchString(relPath) {
 					// it's a resource file — add to results
 					dir := filepath.ToSlash(filepath.Dir(relPath))
 					result[dir] = append(result[dir], relPath)

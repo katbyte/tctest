@@ -8,13 +8,13 @@ import (
 )
 
 // ListServices lists all service directory names under internal/services/ in the repo
-func (gr GithubRepo) ListServices() ([]string, error) {
-	client, ctx := gr.NewClient()
+func (ghr GithubRepo) ListServices() ([]string, error) {
+	client, ctx := ghr.NewClient()
 
-	clog.Log.Debugf("listing services for %s/%s...", gr.Owner, gr.Name)
-	_, dirContents, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, "internal/services", nil)
+	clog.Log.Debugf("listing services for %s/%s...", ghr.Owner, ghr.Name)
+	_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, "internal/services", nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list services directory for %s/%s: %w", gr.Owner, gr.Name, err)
+		return nil, fmt.Errorf("failed to list services directory for %s/%s: %w", ghr.Owner, ghr.Name, err)
 	}
 
 	var services []string

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -62,9 +63,11 @@ type FlagData struct {
 
 type DiscoveryConfig struct {
 	FileRegExStr             string
+	FileRegEx                *regexp.Regexp
 	SplitTestsOn             string
 	ReappendSplitCharacter   bool
 	AccTestFileSuffixRegexes []string
+	AccTestFileSuffixREs     []*regexp.Regexp
 	Concurrency              int
 	LocalRepoPath            string
 	LocalTraceDepth          int
@@ -252,7 +255,7 @@ func configureFlags(root *cobra.Command) error {
 
 func GetFlags() FlagData {
 	// there has to be an easier way....
-	return FlagData{
+	f := FlagData{
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
 		Services:      viper.GetStringSlice("service"),
@@ -308,4 +311,12 @@ func GetFlags() FlagData {
 			},
 		},
 	}
+
+	// compile regexes once
+	f.DiscoveryConfig.FileRegEx = regexp.MustCompile(f.DiscoveryConfig.FileRegExStr)
+	for _, p := range f.DiscoveryConfig.AccTestFileSuffixRegexes {
+		f.DiscoveryConfig.AccTestFileSuffixREs = append(f.DiscoveryConfig.AccTestFileSuffixREs, regexp.MustCompile(p))
+	}
+
+	return f
 }
