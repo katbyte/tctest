@@ -47,11 +47,15 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 		return nil, fmt.Errorf("pr list failed: %w", err)
 	}
 
-	for service, tests := range *serviceTests {
-		cout.Printf("  <yellow>%s</>:\n", service)
-		for _, t := range tests {
-			cout.Printf("    %s\n", t)
+	maxLen := 0
+	for service := range *serviceTests {
+		if len(service) > maxLen {
+			maxLen = len(service)
 		}
+	}
+
+	for service, tests := range *serviceTests {
+		cout.Printf("  <yellow>%-*s</>: %s\n", maxLen, service, strings.Join(tests, ", "))
 	}
 
 	return serviceTests, nil
@@ -408,22 +412,39 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 	// print file regex and changed files
 	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
 	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
+	showFiles := cfg.CollapseFilesAfter == 0 || len(changedFiles) <= cfg.CollapseFilesAfter
 	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
 		switch {
 		case skippedFiles[f]:
-			cout.Verbosef("    <darkGray>%s</><red>%s</>\n", dir, base)
+			if showFiles {
+				cout.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
+			} else {
+				cout.Verbosef("    <darkGray>%s</><red>%s</>\n", dir, base)
+			}
 		case strings.HasSuffix(f, "_test.go"):
-			cout.Verbosef("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
+			if showFiles {
+				cout.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
+			} else {
+				cout.Verbosef("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
+			}
 		default:
-			cout.Verbosef("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
+			if showFiles {
+				cout.Printf("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
+			} else {
+				cout.Verbosef("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
+			}
 		}
+	}
+	if !showFiles && cout.Level < cout.VerbosityVerbose {
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(changedFiles), cfg.CollapseFilesAfter)
 	}
 
 	// print test files
-	cout.Verbosef("  test files:\n")
+	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
+	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFiles) <= cfg.CollapseFilesAfter
 	for _, f := range testFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
 		base := f[strings.LastIndex(f, "/")+1:]
@@ -443,9 +464,15 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 		if changedTestFiles[f] {
 			fileColor = "<fg=28>" // dark green for changed
 		}
-		cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+		if showTestFiles {
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+		} else {
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+		}
 	}
-	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
+	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(testFiles), cfg.CollapseFilesAfter)
+	}
 
 	clog.Log.Debugf("  FOUND %d", len(result))
 	for f := range result {

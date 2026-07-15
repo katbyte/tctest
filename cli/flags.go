@@ -70,6 +70,7 @@ type DiscoveryConfig struct {
 	LocalTraceDepth          int
 	LocalVendorMode          string
 	LocalMode                string
+	CollapseFilesAfter       int
 }
 
 type FlagsGitHub struct {
@@ -143,6 +144,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.IntVar(&flags.DiscoveryConfig.LocalTraceDepth, "local-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
 	pflags.StringVar(&flags.DiscoveryConfig.LocalVendorMode, "local-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
 	pflags.StringVar(&flags.DiscoveryConfig.LocalMode, "local-mode", "AST", "mode for local test detection: 'off' (or empty, uses default web mode), 'AST' (the new ast mode). Note: 'SSA' (super slow analyse) to be added in the future")
+	pflags.IntVar(&flags.DiscoveryConfig.CollapseFilesAfter, "collapse-files-after", 20, "collapse file listings to a count when there are more than this many files (0 to always show)")
 
 	pflags.StringVar(&flags.GH.Token, "token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringVarP(&flags.GH.Repo, "repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
@@ -220,6 +222,7 @@ func configureFlags(root *cobra.Command) error {
 		"build-link-force-old-ui":          "TCTEST_FORCE_OLD_UI",
 		"tag":                              "TCTEST_BUILD_TAGS",
 		"max-builds-per-pr":                "",
+		"collapse-files-after":             "",
 	}
 
 	for name, env := range m {
@@ -268,6 +271,7 @@ func GetFlags() FlagData {
 			LocalTraceDepth:          viper.GetInt("local-trace-depth"),
 			LocalVendorMode:          viper.GetString("local-vendor-mode"),
 			LocalMode:                viper.GetString("local-mode"),
+			CollapseFilesAfter:       viper.GetInt("collapse-files-after"),
 		},
 		GH: FlagsGitHub{
 			Repo:  viper.GetString("repo"),

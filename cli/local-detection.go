@@ -122,7 +122,8 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
 	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
 
-	cout.Verbosef("  changed files:\n")
+	// buffer changed file output lines — we don't know the total count until after the callback
+	var changedFileLines []string
 
 	err = gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
@@ -166,11 +167,11 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					}
 					changedTestFiles[name] = true
 					testFilesToParse[name] = struct{}{}
-					cout.Verbosef("    <darkGray>%s</><fg=28>%s</> <darkGray>[TEST]</>\n", dir, base)
+					changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><fg=28>%s</> <darkGray>[TEST]</>\n", dir, base))
 				} else {
 					unitTestFiles[name] = true
 					clog.Log.Debugf("    %s: no TestAcc functions, skipping", name)
-					cout.Verbosef("    <darkGray>%s</><darkGray>%s</> <darkGray>[UNIT]</>\n", dir, base)
+					changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><darkGray>%s</> <darkGray>[UNIT]</>\n", dir, base))
 				}
 				continue
 			}
@@ -183,7 +184,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				rBase := nameNoExt[strings.LastIndex(nameNoExt, "/")+1:]
 				resourceName := strings.TrimSuffix(rBase, "_resource")
 				resourceDirs[rDir] = append(resourceDirs[rDir], resourceName)
-				cout.Verbosef("    <darkGray>%s/</><fg=36>%s.go</> <darkGray>[RESOURCE]</>\n", rDir, rBase)
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s/</><fg=36>%s.go</> <darkGray>[RESOURCE]</>\n", rDir, rBase))
 				continue
 			}
 
@@ -192,7 +193,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				changedFileCount++
 				helperFiles = append(helperFiles, name)
 				helperFileSet[name] = true
-				cout.Verbosef("    <darkGray>%s</><fg=117>%s</> <darkGray>[HELPER]</>\n", dir, base)
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><fg=117>%s</> <darkGray>[HELPER]</>\n", dir, base))
 				continue
 			}
 
@@ -200,13 +201,13 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			if strings.HasPrefix(name, "vendor/") {
 				changedFileCount++
 				vendorFiles = append(vendorFiles, name)
-				cout.Verbosef("    <darkGray>%s</><fg=177>%s</> <darkGray>[VENDOR]</>\n", dir, base)
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><fg=177>%s</> <darkGray>[VENDOR]</>\n", dir, base))
 				continue
 			}
 
 			// file outside service directories
 			changedFileCount++
-			cout.Verbosef("    <darkGray>%s</><darkGray>%s</> <darkGray>[OTHER]</>\n", dir, base)
+			changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><darkGray>%s</> <darkGray>[OTHER]</>\n", dir, base))
 		}
 		return nil
 	})
@@ -215,6 +216,17 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	cout.Printf("  changed files: <yellow>%d</>\n", changedFileCount)
+	showChangedFiles := cfg.CollapseFilesAfter == 0 || changedFileCount <= cfg.CollapseFilesAfter
+	for _, line := range changedFileLines {
+		if showChangedFiles {
+			cout.Printf("%s", line)
+		} else {
+			cout.Verbosef("%s", line)
+		}
+	}
+	if !showChangedFiles && cout.Level < cout.VerbosityVerbose {
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", changedFileCount, cfg.CollapseFilesAfter)
+	}
 
 	// find sibling test files for resource files (local FS walk)
 	for dir, prefixes := range resourceDirs {
@@ -264,15 +276,12 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		}
 
 		// same-package tracing: check resource files for direct symbol references
-		if len(samePkgHelpers) > 0 {
-			cout.Printf("  tracing symbols from <yellow>%d</> same-package helper file(s)...\n", func() int {
-				n := 0
-				for _, h := range samePkgHelpers {
-					n += len(h)
-				}
-				return n
-			}())
+		samePkgHelperCount := 0
+		for _, h := range samePkgHelpers {
+			samePkgHelperCount += len(h)
 		}
+		samePkgTracedFiles := map[string]bool{}
+		allHelperTraced := map[string][]string{} // helper file -> traced resource files (across all dirs)
 		for dir, helpers := range samePkgHelpers {
 			// extract all symbols (including unexported) from each helper
 			symbols := map[string]bool{}
@@ -298,8 +307,6 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				continue
 			}
 
-			// collect traced resource files per helper
-			helperTraced := map[string][]string{} // helper file -> traced resource files
 			for _, entry := range entries {
 				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
 					continue
@@ -334,8 +341,9 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					clog.Log.Debugf("    same-pkg traced: %s uses %v", relPath, usedSymbols)
 
 					for _, f := range helpers {
-						helperTraced[f] = append(helperTraced[f], relPath)
+						allHelperTraced[f] = append(allHelperTraced[f], relPath)
 					}
+					samePkgTracedFiles[relPath] = true
 
 					// find test files for this resource
 					discovered, err := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
@@ -353,10 +361,21 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					}
 				}
 			}
+		}
 
-			// print results: helper file →, then indented traced files
+		// print same-package tracing summary before verbose details
+		if samePkgHelperCount > 0 {
+			if cout.Level >= cout.VerbosityVerbose {
+				cout.Printf("  tracing symbols from <yellow>%d</> same-package helper file(s)...\n", samePkgHelperCount)
+			} else {
+				cout.Printf("  tracing symbols from <yellow>%d</> same-package helper file(s)... <cyan>%d</> resource file(s)\n", samePkgHelperCount, len(samePkgTracedFiles))
+			}
+		}
+
+		// print results: helper file →, then indented traced files
+		for _, helpers := range samePkgHelpers {
 			for _, f := range helpers {
-				traced := helperTraced[f]
+				traced := allHelperTraced[f]
 				if len(traced) > 0 {
 					fDir := f[:strings.LastIndex(f, "/")+1]
 					fBase := f[strings.LastIndex(f, "/")+1:]
@@ -376,7 +395,6 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 		// cross-package tracing (sub-directory helpers)
 		if len(crossPkgHelpers) > 0 {
-			cout.Printf("  tracing symbols from <yellow>%d</> cross-package helper file(s)...\n", len(crossPkgHelpers))
 
 			// parse each cross-package helper file to extract exported symbols
 			pkgSymbols := map[string]map[string]bool{}
@@ -421,6 +439,19 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				}
 			}
 
+			// count unique traced resource files from cross-package helpers
+			crossPkgTracedFiles := map[string]bool{}
+			for _, prefixes := range tracedDirs {
+				for _, p := range prefixes {
+					crossPkgTracedFiles[p] = true
+				}
+			}
+			if cout.Level >= cout.VerbosityVerbose {
+				cout.Printf("  tracing symbols from <yellow>%d</> cross-package helper file(s)...\n", len(crossPkgHelpers))
+			} else {
+				cout.Printf("  tracing symbols from <yellow>%d</> cross-package helper file(s)... <cyan>%d</> resource file(s)\n", len(crossPkgHelpers), len(crossPkgTracedFiles))
+			}
+
 			// print cross-package trace results: helper file →, then indented traced files
 			for _, f := range crossPkgHelpers {
 				var tracedFiles []string
@@ -451,7 +482,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	// Go requires imports to be used, so import presence = definite usage.
 	// This is already per-file precise: only resources importing the specific vendor package are flagged.
 	if len(vendorFiles) > 0 && cfg.LocalTraceDepth > 0 && cfg.LocalVendorMode == "basic" {
-		cout.Printf("  tracing imports from <yellow>%d</> vendor file(s)...\n", len(vendorFiles))
+		// (count printed after tracing completes)
 
 		// collect unique vendor package import paths, tracking which files belong to each package
 		vendorPkgs := map[string]bool{}
@@ -532,6 +563,17 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			return nil
 		})
 
+		// count unique traced resource files from vendor tracing
+		vendorTracedCount := 0
+		for _, resources := range pkgToResources {
+			vendorTracedCount += len(resources)
+		}
+		if cout.Level >= cout.VerbosityVerbose {
+			cout.Printf("  tracing imports from <yellow>%d</> vendor file(s)...\n", len(vendorFiles))
+		} else {
+			cout.Printf("  tracing imports from <yellow>%d</> vendor file(s)... <cyan>%d</> resource file(s)\n", len(vendorFiles), vendorTracedCount)
+		}
+
 		// print which packages traced to which resource files
 		for pkg, resources := range pkgToResources {
 			cout.Verbosef("    <fg=177>%s</> →\n", pkg)
@@ -547,7 +589,8 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 	}
 
 	// print all test files with combined labels
-	cout.Verbosef("  test files:\n")
+	cout.Printf("  test files: <yellow>%d</>\n", len(testFilesList))
+	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFilesList) <= cfg.CollapseFilesAfter
 	for _, tf := range testFilesList {
 		tfDir := tf[:strings.LastIndex(tf, "/")+1]
 		tfBase := tf[strings.LastIndex(tf, "/")+1:]
@@ -576,9 +619,15 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		} else if tracedTestFiles[tf] {
 			fileColor = "<fg=117>"
 		}
-		cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", tfDir, fileColor, tfBase, label)
+		if showTestFiles {
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", tfDir, fileColor, tfBase, label)
+		} else {
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", tfDir, fileColor, tfBase, label)
+		}
 	}
-	cout.Printf("  test files: <yellow>%d</>\n", len(testFilesList))
+	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(testFilesList), cfg.CollapseFilesAfter)
+	}
 
 	// parse test files concurrently
 	clog.Log.Debugf("  parsing %d test files locally (max %d concurrent):", len(testFilesToParse), cfg.Concurrency)
