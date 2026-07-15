@@ -86,7 +86,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	clog.Log.Debugf("  downloading & parsing %d files concurrently (max %d):", len(filesFiltered), cfg.Concurrency)
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
-	firstErr := error(nil)
+	var errs []error
 	sem := make(chan struct{}, cfg.Concurrency)
 
 	for _, f := range filesFiltered {
@@ -99,9 +99,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 			content, status, err := ghr.DownloadFile(ctx, httpClient, f.RelPath, *pr.MergeCommitSHA)
 			if err != nil {
 				mu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
+				errs = append(errs, err)
 				mu.Unlock()
 				return
 			}
@@ -115,9 +113,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 			tests, err := pfile.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			if err != nil {
 				mu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
+				errs = append(errs, err)
 				mu.Unlock()
 				return
 			}
@@ -139,8 +135,8 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 
 	wg.Wait()
 
-	if firstErr != nil {
-		return nil, firstErr
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 
 	serviceTests := map[string][]string{}

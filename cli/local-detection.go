@@ -577,7 +577,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 	serviceTestMap := map[string]map[string]bool{}
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
-	firstErr := error(nil)
+	var errs []error
 	sem := make(chan struct{}, cfg.Concurrency)
 
 	for tf := range testFilesToParse {
@@ -591,9 +591,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			tests, err := pfile.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			if err != nil {
 				mu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
+				errs = append(errs, err)
 				mu.Unlock()
 				return
 			}
@@ -612,8 +610,8 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 	}
 
 	wg.Wait()
-	if firstErr != nil {
-		return nil, firstErr
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 
 	// convert to result format
