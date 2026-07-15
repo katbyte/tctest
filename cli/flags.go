@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/tc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -51,71 +52,71 @@ func resolveBuildTypeID(cmd *cobra.Command) error {
 }
 
 type FlagData struct {
-	GH              FlagsGitHub
-	TC              FlagsTeamCity
-	DiscoveryConfig DiscoveryConfig
-	OpenInBrowser   bool
-	RunAllTests     bool
-	Services        []string
-	Quiet           bool
-	JSON            bool
-	Silent          bool
-	DryRun          bool
-	Verbose         bool
+	GH              FlagsGitHub     `mapstructure:",squash"`
+	TC              FlagsTeamCity   `mapstructure:",squash"`
+	DiscoveryConfig DiscoveryConfig `mapstructure:",squash"`
+	OpenInBrowser   bool            `mapstructure:"open"`
+	RunAllTests     bool            `mapstructure:"all"`
+	Services        []string        `mapstructure:"service"`
+	Quiet           bool            `mapstructure:"quiet"`
+	JSON            bool            `mapstructure:"json"`
+	Silent          bool            `mapstructure:"silent"`
+	DryRun          bool            `mapstructure:"dry-run"`
+	Verbose         bool            `mapstructure:"verbose"`
 }
 
 type DiscoveryConfig struct {
-	FileRegEx                *regexp.Regexp
-	SplitTestsOn             string
-	ReappendSplitCharacter   bool
-	AccTestFileSuffixRegexes []*regexp.Regexp
-	Concurrency              int
-	LocalRepoPath            string
-	LocalTraceDepth          int
-	LocalVendorMode          string
-	LocalMode                string
-	CollapseFilesAfter       int
+	FileRegEx                *regexp.Regexp   `mapstructure:"-"`
+	SplitTestsOn             string           `mapstructure:"splitteston"`
+	ReappendSplitCharacter   bool             `mapstructure:"reappend-split-character"`
+	AccTestFileSuffixRegexes []*regexp.Regexp `mapstructure:"-"`
+	Concurrency              int              `mapstructure:"concurrency"`
+	LocalRepoPath            string           `mapstructure:"local-repo-path"`
+	LocalTraceDepth          int              `mapstructure:"local-trace-depth"`
+	LocalVendorMode          string           `mapstructure:"local-vendor-mode"`
+	LocalMode                string           `mapstructure:"local-mode"`
+	CollapseFilesAfter       int              `mapstructure:"collapse-files-after"`
 }
 
 type FlagsGitHub struct {
-	Token     string
-	Repo      string
-	FilterPRs FlagsGitHubPrFilter
+	Token     string              `mapstructure:"token-gh"`
+	Repo      string              `mapstructure:"repo"`
+	FilterPRs FlagsGitHubPrFilter `mapstructure:",squash"`
 }
 
 type FlagsGitHubPrFilter struct {
-	Authors      []string
-	LabelsOr     []string
-	LabelsAnd    []string
-	Milestone    string
-	TitleRegex   string
-	Drafts       bool
-	CreationTime time.Duration
-	UpdatedTime  time.Duration
+	Authors      []string      `mapstructure:"f-authors"`
+	LabelsOr     []string      `mapstructure:"f-labels-any"`
+	LabelsAnd    []string      `mapstructure:"f-labels-all"`
+	Milestone    string        `mapstructure:"f-milestone"`
+	TitleRegex   string        `mapstructure:"f-title-regex"`
+	Drafts       bool          `mapstructure:"f-drafts"`
+	CreationTime time.Duration `mapstructure:"f-created-time"`
+	UpdatedTime  time.Duration `mapstructure:"f-updated-time"`
 }
 
 type FlagsTeamCity struct {
-	Build     FlagsTeamCityBuild
-	ServerURL string
-	Token     string
-	User      string
-	Pass      string
+	Build     FlagsTeamCityBuild `mapstructure:",squash"`
+	ServerURL string             `mapstructure:"server"`
+	Token     string             `mapstructure:"token-tc"`
+	User      string             `mapstructure:"username"`
+	Pass      string             `mapstructure:"password"`
 }
 
 type FlagsTeamCityBuild struct {
-	TypeID           string
-	LegacyTypeID     string // deprecated --buildtypeid, resolved in resolveBuildTypeID()
-	Parameters       string
-	SkipQueue        bool
-	Wait             bool
-	Latest           bool
-	Comment          bool
-	ForceOldUI       bool
-	AddServiceSuffix bool
-	QueueTimeout     int
-	RunTimeout       int
-	MaxBuildsPerPR   int
-	Tags             []string
+	TypeID           string   `mapstructure:"build-type-id"`
+	LegacyTypeID     string   `mapstructure:"buildtypeid"`
+	Parameters       string   `mapstructure:"properties"`
+	SkipQueue        bool     `mapstructure:"skip-queue"`
+	Wait             bool     `mapstructure:"wait"`
+	Latest           bool     `mapstructure:"latest"`
+	Comment          bool     `mapstructure:"comment"`
+	ForceOldUI       bool     `mapstructure:"build-link-force-old-ui"`
+	AddServiceSuffix bool     `mapstructure:"build-type-id-add-service-suffix"`
+	QueueTimeout     int      `mapstructure:"queue-timeout"`
+	RunTimeout       int      `mapstructure:"run-timeout"`
+	MaxBuildsPerPR   int      `mapstructure:"max-builds-per-pr"`
+	Tags             []string `mapstructure:"tag"`
 }
 
 func configureFlags(root *cobra.Command) error {
@@ -254,75 +255,24 @@ func configureFlags(root *cobra.Command) error {
 	return nil
 }
 
+// GetFlags returns the fully populated FlagData.
+// We must unmarshal from Viper instead of using the globally bound pflags variables
+// because pflags only parses command-line arguments. Viper merges environment variables
+// (and config files) on top of the CLI flags. By unmarshaling from Viper, we ensure
+// that environment variable overrides (e.g. TCTEST_GH_TOKEN) are properly applied.
 func GetFlags() FlagData {
-	// We construct the struct manually from Viper instead of using the globally bound
-	// pflags variables because pflags only knows about command-line arguments. Viper merges
-	// environment variables (and config files) on top of the flags. If we just read the
-	// bound flag variable, we would completely lose any environment variable overrides!
-	//
-	// Alternatively, we could add `mapstructure` tags to the struct fields and use
-	// `viper.Unmarshal(&flags)` to automatically populate everything cleanly.
-	suffixStrs := viper.GetStringSlice("acctest-file-suffix-regexes")
-	accTestSuffixREs := make([]*regexp.Regexp, 0, len(suffixStrs))
-	for _, p := range suffixStrs {
-		accTestSuffixREs = append(accTestSuffixREs, regexp.MustCompile(p))
+	var f FlagData
+	if err := viper.Unmarshal(&f); err != nil {
+		clog.Log.Fatalf("failed to unmarshal configuration: %v", err)
 	}
 
-	f := FlagData{
-		OpenInBrowser: viper.GetBool("open"),
-		RunAllTests:   viper.GetBool("all"),
-		Services:      viper.GetStringSlice("service"),
-		Quiet:         viper.GetBool("quiet"),
-		JSON:          viper.GetBool("json"),
-		Silent:        viper.GetBool("silent"),
-		DryRun:        viper.GetBool("dry-run"),
-		Verbose:       viper.GetBool("verbose"),
-		DiscoveryConfig: DiscoveryConfig{
-			FileRegEx:                regexp.MustCompile(viper.GetString("fileregex")),
-			SplitTestsOn:             viper.GetString("splitteston"),
-			ReappendSplitCharacter:   viper.GetBool("reappend-split-character"),
-			AccTestFileSuffixRegexes: accTestSuffixREs,
-			Concurrency:              viper.GetInt("concurrency"),
-			LocalRepoPath:            viper.GetString("local-repo-path"),
-			LocalTraceDepth:          viper.GetInt("local-trace-depth"),
-			LocalVendorMode:          viper.GetString("local-vendor-mode"),
-			LocalMode:                viper.GetString("local-mode"),
-			CollapseFilesAfter:       viper.GetInt("collapse-files-after"),
-		},
-		GH: FlagsGitHub{
-			Repo:  viper.GetString("repo"),
-			Token: viper.GetString("token-gh"),
-			FilterPRs: FlagsGitHubPrFilter{
-				Authors:      viper.GetStringSlice("f-authors"),
-				LabelsOr:     viper.GetStringSlice("f-labels-any"),
-				LabelsAnd:    viper.GetStringSlice("f-labels-all"),
-				Milestone:    viper.GetString("f-milestone"),
-				TitleRegex:   viper.GetString("f-title-regex"),
-				CreationTime: viper.GetDuration("f-created-time"),
-				UpdatedTime:  viper.GetDuration("f-updated-time"),
-				Drafts:       viper.GetBool("f-drafts"),
-			},
-		},
-		TC: FlagsTeamCity{
-			ServerURL: viper.GetString("server"),
-			Token:     viper.GetString("token-tc"),
-			User:      viper.GetString("username"),
-			Pass:      viper.GetString("password"),
-			Build: FlagsTeamCityBuild{
-				TypeID:           viper.GetString("build-type-id"),
-				Parameters:       viper.GetString("properties"),
-				SkipQueue:        viper.GetBool("skip-queue"),
-				Wait:             viper.GetBool("wait"),
-				Latest:           viper.GetBool("latest"),
-				Comment:          viper.GetBool("comment"),
-				ForceOldUI:       viper.GetBool("build-link-force-old-ui"),
-				AddServiceSuffix: viper.GetBool("build-type-id-add-service-suffix"),
-				QueueTimeout:     viper.GetInt("queue-timeout"),
-				RunTimeout:       viper.GetInt("run-timeout"),
-				MaxBuildsPerPR:   viper.GetInt("max-builds-per-pr"),
-				Tags:             viper.GetStringSlice("tag"),
-			},
-		},
+	// Manually compile Regex fields since Viper doesn't know how to unmarshal strings into *regexp.Regexp natively
+	f.DiscoveryConfig.FileRegEx = regexp.MustCompile(viper.GetString("fileregex"))
+
+	suffixStrs := viper.GetStringSlice("acctest-file-suffix-regexes")
+	f.DiscoveryConfig.AccTestFileSuffixRegexes = make([]*regexp.Regexp, 0, len(suffixStrs))
+	for _, p := range suffixStrs {
+		f.DiscoveryConfig.AccTestFileSuffixRegexes = append(f.DiscoveryConfig.AccTestFileSuffixRegexes, regexp.MustCompile(p))
 	}
 
 	return f
