@@ -16,10 +16,11 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/git"
+	"github.com/katbyte/tctest/lib/provider"
 )
 
 // PrTestsLocal performs test discovery using a local git clone of the repository.
-// When cfg.LocalMode is AST, this is called instead of PrTests (the HTTP-based path).
+// When cfg.LocalMode is AST, this is called instead of PrTestsFromAPI (the HTTP-based path).
 //
 // It fetches the PR merge ref, checks out the code, and uses Go AST to discover
 // affected tests — including tracing imports from helper/validation files back to
@@ -98,18 +99,23 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				continue
 			}
 
-			dir := name[:strings.LastIndex(name, "/")+1]
-			base := name[strings.LastIndex(name, "/")+1:]
-
-			// skip registration/resourceids in service directories
-			if (strings.Contains(name, "/services/") || strings.Contains(name, "/service/")) &&
-				(strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go")) {
+			fileType := provider.ClassifyFile(name, cfg.FileRegEx)
+			if fileType == provider.FileTypeOther && !strings.HasPrefix(name, "vendor/") &&
+				!strings.Contains(name, "/services/") && !strings.Contains(name, "/service/") {
+				changedFileCount++
+				pf := provider.NewFile(name, fileType)
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s %s\n", pf.ColouredOutput(), pf.TypeLabel()))
 				continue
 			}
 
-			// test file — check if it contains TestAcc functions
-			if strings.HasSuffix(name, "_test.go") {
+			switch fileType {
+			case provider.FileTypeOther:
+				// registration.go, resourceids.go — skip silently
+				continue
+
+			case provider.FileTypeTest:
 				changedFileCount++
+				pf := provider.NewFile(name, fileType)
 
 				// quick local read to check for TestAcc
 				hasAccTests := false
@@ -124,47 +130,36 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 					}
 					changedTestFiles[name] = true
 					testFilesToParse[name] = struct{}{}
-					changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><fg=28>%s</> <darkGray>[TEST]</>\n", dir, base))
+					changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[TEST]</>\n", pf.ColouredOutput()))
 				} else {
+					pf.Type = provider.FileTypeUnitTest
 					unitTestFiles[name] = true
 					clog.Log.Debugf("    %s: no TestAcc functions, skipping", name)
-					changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><darkGray>%s</> <darkGray>[UNIT]</>\n", dir, base))
+					changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[UNIT]</>\n", pf.ColouredOutput()))
 				}
-				continue
-			}
 
-			// resource file — matches fileregex
-			if cfg.FileRegEx.MatchString(name) {
+			case provider.FileTypeResource:
 				changedFileCount++
-				nameNoExt := strings.TrimSuffix(name, ".go")
-				rDir := nameNoExt[:strings.LastIndex(nameNoExt, "/")]
-				rBase := nameNoExt[strings.LastIndex(nameNoExt, "/")+1:]
-				resourceName := strings.TrimSuffix(rBase, "_resource")
-				resourceDirs[rDir] = append(resourceDirs[rDir], resourceName)
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s/</><fg=36>%s.go</> <darkGray>[RESOURCE]</>\n", rDir, rBase))
-				continue
-			}
+				pf := provider.NewFile(name, fileType)
+				resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[RESOURCE]</>\n", pf.ColouredOutput()))
 
-			// helper file — in service dir but doesn't match fileregex
-			if strings.Contains(name, "/services/") || strings.Contains(name, "/service/") {
+			case provider.FileTypeHelper:
 				changedFileCount++
+				pf := provider.NewFile(name, fileType)
 				helperFiles = append(helperFiles, name)
 				helperFileSet[name] = true
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><fg=117>%s</> <darkGray>[HELPER]</>\n", dir, base))
-				continue
-			}
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[HELPER]</>\n", pf.ColouredOutput()))
 
-			// vendor file
-			if strings.HasPrefix(name, "vendor/") {
+			case provider.FileTypeVendor:
 				changedFileCount++
+				pf := provider.NewFile(name, fileType)
 				vendorFiles = append(vendorFiles, name)
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><fg=177>%s</> <darkGray>[VENDOR]</>\n", dir, base))
-				continue
-			}
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[VENDOR]</>\n", pf.ColouredOutput()))
 
-			// file outside service directories
-			changedFileCount++
-			changedFileLines = append(changedFileLines, fmt.Sprintf("    <darkGray>%s</><darkGray>%s</> <darkGray>[OTHER]</>\n", dir, base))
+			case provider.FileTypeUnitTest:
+				// ClassifyFile never returns UnitTest; handled in FileTypeTest case above
+			}
 		}
 		return nil
 	})
@@ -243,16 +238,16 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			// extract all symbols (including unexported) from each helper
 			symbols := map[string]bool{}
 			for _, f := range helpers {
-				for _, s := range extractSymbols(filepath.Join(repoPath, f), false) {
+				pf := provider.NewFile(f, provider.FileTypeHelper)
+				for _, s := range pf.Symbols(repoPath, false) {
 					symbols[s] = true
 				}
 				clog.Log.Debugf("    same-pkg helper %s symbols: %v", f, symbols)
 			}
 			if len(symbols) == 0 {
 				for _, f := range helpers {
-					fDir := f[:strings.LastIndex(f, "/")+1]
-					fBase := f[strings.LastIndex(f, "/")+1:]
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no symbols found</>\n", fDir, fBase)
+					pf := provider.NewFile(f, provider.FileTypeHelper)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no symbols found</>\n", pf.Dir, pf.Base)
 				}
 				continue
 			}
@@ -293,8 +288,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				})
 
 				if len(usedSymbols) > 0 {
-					base := strings.TrimSuffix(entry.Name(), ".go")
-					resourceName := strings.TrimSuffix(base, "_resource")
+					tracedFile := provider.NewFile(relPath, provider.FileTypeResource)
 					clog.Log.Debugf("    same-pkg traced: %s uses %v", relPath, usedSymbols)
 
 					for _, f := range helpers {
@@ -303,7 +297,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 					samePkgTracedFiles[relPath] = true
 
 					// find test files for this resource
-					discovered, err := findLocalTestFiles(localDir, dir, []string{resourceName}, cfg.AccTestFileSuffixREs)
+					discovered, err := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixREs)
 					if err != nil {
 						continue
 					}
@@ -332,20 +326,16 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		// print results: helper file →, then indented traced files
 		for _, helpers := range samePkgHelpers {
 			for _, f := range helpers {
+				pf := provider.NewFile(f, provider.FileTypeHelper)
 				traced := allHelperTraced[f]
 				if len(traced) > 0 {
-					fDir := f[:strings.LastIndex(f, "/")+1]
-					fBase := f[strings.LastIndex(f, "/")+1:]
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", fDir, fBase)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Base)
 					for _, t := range traced {
-						tDir := t[:strings.LastIndex(t, "/")+1]
-						tBase := t[strings.LastIndex(t, "/")+1:]
-						cout.Verbosef("      <darkGray>%s</><fg=36>%s</>\n", tDir, tBase)
+						tpf := provider.NewFile(t, provider.FileTypeResource)
+						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
-					fDir := f[:strings.LastIndex(f, "/")+1]
-					fBase := f[strings.LastIndex(f, "/")+1:]
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", fDir, fBase)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Base)
 				}
 			}
 		}
@@ -355,15 +345,13 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			// parse each cross-package helper file to extract exported symbols
 			pkgSymbols := map[string]map[string]bool{}
 			for _, f := range crossPkgHelpers {
-				localPath := filepath.Join(repoPath, f)
+				pf := provider.NewFile(f, provider.FileTypeHelper)
 				dir := filepath.ToSlash(filepath.Dir(f))
 				pkgPath := modulePath + "/" + dir
 
-				symbols := extractSymbols(localPath, true)
+				symbols := pf.Symbols(repoPath, true)
 				if len(symbols) == 0 {
-					fDir := f[:strings.LastIndex(f, "/")+1]
-					fBase := f[strings.LastIndex(f, "/")+1:]
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no exported symbols</>\n", fDir, fBase)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no exported symbols</>\n", pf.Dir, pf.Base)
 					continue
 				}
 				if pkgSymbols[pkgPath] == nil {
@@ -382,9 +370,8 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				// derive test prefixes from actual filenames
 				var prefixes []string
 				for _, f := range files {
-					base := strings.TrimSuffix(filepath.Base(f), ".go")
-					prefix := strings.TrimSuffix(base, "_resource")
-					prefixes = append(prefixes, prefix)
+					tpf := provider.NewFile(f, provider.FileTypeResource)
+					prefixes = append(prefixes, tpf.ResourcePrefix())
 				}
 				discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixREs)
 				if err != nil {
@@ -417,23 +404,19 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 			// print cross-package trace results: helper file →, then indented traced files
 			for _, f := range crossPkgHelpers {
+				pf := provider.NewFile(f, provider.FileTypeHelper)
 				var tracedFiles []string
 				for _, files := range tracedDirs {
 					tracedFiles = append(tracedFiles, files...)
 				}
 				if len(tracedFiles) > 0 {
-					fDir := f[:strings.LastIndex(f, "/")+1]
-					fBase := f[strings.LastIndex(f, "/")+1:]
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", fDir, fBase)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Base)
 					for _, t := range tracedFiles {
-						tDir := t[:strings.LastIndex(t, "/")+1]
-						tBase := t[strings.LastIndex(t, "/")+1:]
-						cout.Verbosef("      <darkGray>%s</><fg=36>%s</>\n", tDir, tBase)
+						tpf := provider.NewFile(t, provider.FileTypeResource)
+						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
-					fDir := f[:strings.LastIndex(f, "/")+1]
-					fBase := f[strings.LastIndex(f, "/")+1:]
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", fDir, fBase)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Base)
 				}
 			}
 		}
@@ -457,9 +440,9 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 		// print vendor file -> package mapping
 		for _, f := range vendorFiles {
-			base := f[strings.LastIndex(f, "/")+1:]
+			pf := provider.NewFile(f, provider.FileTypeVendor)
 			cout.Verbosef("    <darkGray>%s</><fg=177>%s</> → package <fg=177>%s</>\n",
-				f[:strings.LastIndex(f, "/")+1], base, vendorFileToPkg[f])
+				pf.Dir, pf.Base, vendorFileToPkg[f])
 		}
 
 		// walk all service directories looking for resource files that import these vendor packages
@@ -501,14 +484,13 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				}
 
 				dir := filepath.ToSlash(filepath.Dir(relPath))
-				nameNoExt := strings.TrimSuffix(filepath.Base(relPath), ".go")
-				resourceName := strings.TrimSuffix(nameNoExt, "_resource")
+				tracedFile := provider.NewFile(relPath, provider.FileTypeResource)
 				clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
 
 				pkgToResources[impPath] = append(pkgToResources[impPath], relPath)
 
 				localDir := filepath.Join(repoPath, dir)
-				discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, cfg.AccTestFileSuffixREs)
+				discovered, findErr := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixREs)
 				if findErr != nil {
 					//nolint:nilerr // test file discovery failure is non-fatal
 					return nil
@@ -543,9 +525,8 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		for pkg, resources := range pkgToResources {
 			cout.Verbosef("    <fg=177>%s</> →\n", pkg)
 			for _, res := range resources {
-				resDir := res[:strings.LastIndex(res, "/")+1]
-				resBase := res[strings.LastIndex(res, "/")+1:]
-				cout.Verbosef("      <darkGray>%s</><fg=36>%s</>\n", resDir, resBase)
+				rpf := provider.NewFile(res, provider.FileTypeResource)
+				cout.Verbosef("      %s\n", rpf.ColouredOutput())
 			}
 		}
 		if len(pkgToResources) == 0 {
@@ -557,8 +538,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 	cout.Printf("  test files: <yellow>%d</>\n", len(testFilesList))
 	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFilesList) <= cfg.CollapseFilesAfter
 	for _, tf := range testFilesList {
-		tfDir := tf[:strings.LastIndex(tf, "/")+1]
-		tfBase := tf[strings.LastIndex(tf, "/")+1:]
+		pfile := provider.NewFile(tf, provider.FileTypeTest)
 
 		var labels []string
 		if changedTestFiles[tf] {
@@ -586,9 +566,9 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			fileColor = "<fg=117>"
 		}
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", tfDir, fileColor, tfBase, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", tfDir, fileColor, tfBase, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
@@ -751,15 +731,7 @@ func parseLocalTestFile(repoPath, filePath string, cfg DiscoveryConfig) (string,
 		}
 	}
 
-	// extract service name from path (handles both /services/ and /service/)
-	service := ""
-	for _, sep := range []string{"/services/", "/service/"} {
-		parts := strings.Split(filePath, sep)
-		if len(parts) == 2 {
-			service = strings.Split(parts[1], "/")[0]
-			break
-		}
-	}
+	service := provider.ExtractService(filePath)
 
 	// process test names: split and optionally reappend split character
 	processedTests := make([]string, 0, len(tests))
@@ -946,41 +918,4 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 	}
 
 	return result
-}
-
-// extractSymbols parses a Go file and returns symbol names (functions, types, variables, constants).
-// If exportedOnly is true, only exported (uppercase) symbols are returned.
-// If exportedOnly is false, all symbols are returned (for same-package tracing).
-func extractSymbols(filePath string, exportedOnly bool) []string {
-	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, filePath, nil, 0)
-	if err != nil {
-		return nil
-	}
-
-	var symbols []string
-	for _, decl := range parsed.Decls {
-		switch d := decl.(type) {
-		case *ast.FuncDecl:
-			if !exportedOnly || d.Name.IsExported() {
-				symbols = append(symbols, d.Name.Name)
-			}
-		case *ast.GenDecl:
-			for _, spec := range d.Specs {
-				switch s := spec.(type) {
-				case *ast.TypeSpec:
-					if !exportedOnly || s.Name.IsExported() {
-						symbols = append(symbols, s.Name.Name)
-					}
-				case *ast.ValueSpec:
-					for _, name := range s.Names {
-						if !exportedOnly || name.IsExported() {
-							symbols = append(symbols, name.Name)
-						}
-					}
-				}
-			}
-		}
-	}
-	return symbols
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/katbyte/tctest/lib/chttp"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
+	"github.com/katbyte/tctest/lib/provider"
 	"github.com/pkg/browser"
 )
 
@@ -33,7 +34,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 		serviceTests, err = ghr.PrTestsLocal(number, f.DiscoveryConfig)
 	} else {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
-		serviceTests, err = ghr.PrTests(number, f.DiscoveryConfig)
+		serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
 	}
 
 	if f.OpenInBrowser {
@@ -60,8 +61,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	return serviceTests, nil
 }
 
-// todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (ghr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
 	client, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
@@ -75,15 +75,14 @@ func (ghr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]strin
 	if pr.GetState() == "closed" {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
+	if pr.MergeCommitSHA == nil {
+		return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
+	}
 
 	clog.Log.Tracef("listing files...")
 	filesFiltered, err := ghr.GetAllPullRequestFiles(pri, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
-	}
-
-	if pr.MergeCommitSHA == nil {
-		return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
 	}
 
 	// for each file get content and parse out test files & services
@@ -336,13 +335,9 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 
 			changedFiles = append(changedFiles, name)
 
-			// note the directory and probable resourceName so we can discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
-			// Azure follows "_resource" suffix convention for resource filename
-			fileNameWithOutGoExtension := strings.TrimSuffix(name, ".go")
-			dir := fileNameWithOutGoExtension[:strings.LastIndex(fileNameWithOutGoExtension, "/")]
-			base := fileNameWithOutGoExtension[strings.LastIndex(fileNameWithOutGoExtension, "/")+1:]
-			resourceName := strings.TrimSuffix(base, "_resource") // e.g. "api_management_gateway_resource" -> "api_management_gateway"
-			resourceDirs[dir] = append(resourceDirs[dir], resourceName)
+			// note the directory and probable resourceName so we can discover all related test files
+			pf := provider.NewFile(name, provider.FileTypeResource)
+			resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
 		}
 
 		return nil
@@ -409,27 +404,26 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 	showFiles := cfg.CollapseFilesAfter == 0 || len(changedFiles) <= cfg.CollapseFilesAfter
 	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
 	for _, f := range changedFiles {
-		dir := f[:strings.LastIndex(f, "/")+1]
-		base := f[strings.LastIndex(f, "/")+1:]
+		var fileType provider.FileType
 		switch {
 		case skippedFiles[f]:
-			if showFiles {
-				cout.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
-			} else {
-				cout.Verbosef("    <darkGray>%s</><red>%s</>\n", dir, base)
-			}
+			fileType = provider.FileTypeHelper
 		case strings.HasSuffix(f, "_test.go"):
-			if showFiles {
-				cout.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
-			} else {
-				cout.Verbosef("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
-			}
+			fileType = provider.FileTypeTest
 		default:
-			if showFiles {
-				cout.Printf("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
-			} else {
-				cout.Verbosef("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
-			}
+			fileType = provider.FileTypeResource
+		}
+		pf := provider.NewFile(f, fileType)
+
+		// skipped files in red, test files in green, resource files in teal
+		colour := pf.Colour()
+		if skippedFiles[f] {
+			colour = "<red>"
+		}
+		if showFiles {
+			cout.Printf("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Base)
+		} else {
+			cout.Verbosef("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Base)
 		}
 	}
 	if !showFiles && cout.Level < cout.VerbosityVerbose {
@@ -440,8 +434,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
 	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFiles) <= cfg.CollapseFilesAfter
 	for _, f := range testFiles {
-		dir := f[:strings.LastIndex(f, "/")+1]
-		base := f[strings.LastIndex(f, "/")+1:]
+		pfile := provider.NewFile(f, provider.FileTypeTest)
 
 		// build label based on whether file is changed, derived, or both
 		var labels []string
@@ -459,9 +452,9 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 			fileColor = "<fg=28>" // dark green for changed
 		}
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
