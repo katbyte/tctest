@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io"
 	"net/http"
 	"strings"
@@ -88,20 +85,15 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	// for each file get content and parse out test files & services
 	serviceTestMap := map[string]map[string]bool{}
 
-	files := make([]string, 0, len(*filesFiltered))
-	for f := range *filesFiltered {
-		files = append(files, f)
-	}
-
-	clog.Log.Debugf("  downloading & parsing %d files concurrently (max %d):", len(files), cfg.Concurrency)
+	clog.Log.Debugf("  downloading & parsing %d files concurrently (max %d):", len(filesFiltered), cfg.Concurrency)
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
 	firstErr := error(nil)
 	sem := make(chan struct{}, cfg.Concurrency)
 
-	for _, f := range files {
+	for _, f := range filesFiltered {
 		wg.Add(1)
-		go func(f string) {
+		go func(f provider.File) {
 			defer wg.Done()
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore
@@ -165,14 +157,14 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 // (client.Repositories.GetContents) to avoid two issues with that approach:
 //  1. GetContents has a 1MB file size limit
 //  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
-func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, filePath, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
-	clog.Log.Debugf("    download %s", filePath)
+func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, f provider.File, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
+	clog.Log.Debugf("    download %s", f.Path)
 
-	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", ghr.Owner, ghr.Name, mergeCommitSHA, filePath)
+	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", ghr.Owner, ghr.Name, mergeCommitSHA, f.Path)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("creating request for %s: %w", filePath, err)
+		return "", nil, fmt.Errorf("creating request for %s: %w", f.Path, err)
 	}
 
 	if ghr.Token.Token != nil {
@@ -181,66 +173,24 @@ func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", nil, fmt.Errorf("downloading file (%s): %w", filePath, err)
+		return "", nil, fmt.Errorf("downloading file (%s): %w", f.Path, err)
 	}
 
 	content, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil {
-		return "", nil, fmt.Errorf("reading file (%s): %w", filePath, err)
+		return "", nil, fmt.Errorf("reading file (%s): %w", f.Path, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", filePath, resp.StatusCode)
+		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.Path, resp.StatusCode)
 		return "", nil, nil
 	}
 
-	// use go/ast to extract test function names
-	var tests []string
-	fset := token.NewFileSet()
-	parsed, parseErr := parser.ParseFile(fset, filePath, content, 0)
-	if parseErr != nil {
-		clog.Log.Debugf("    failed to parse %s, falling back to regex: %v", filePath, parseErr)
-		// fallback: scan lines for "func TestAcc" if AST parsing fails
-		for _, line := range strings.Split(string(content), "\n") {
-			if strings.Contains(line, "func TestAcc") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					tests = append(tests, strings.Split(parts[1], "(")[0])
-				}
-			}
-		}
-	} else {
-		for _, decl := range parsed.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if ok && strings.HasPrefix(fn.Name.Name, "TestAcc") {
-				clog.Log.Tracef("found test function: %s", fn.Name.Name)
-				tests = append(tests, fn.Name.Name)
-			}
-		}
-	}
+	tests := f.ExtractTests(content, cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
+	service := f.ExtractService()
 
-	// extract service name from path
-	service := ""
-	parts := strings.Split(filePath, "/services/")
-	if len(parts) == 2 {
-		service = strings.Split(parts[1], "/")[0]
-	}
-
-	// process test names: split and optionally reappend split character
-	processedTests := make([]string, 0, len(tests))
-	for _, t := range tests {
-		// split on `(` to make sure we just get the full function name
-		testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
-
-		if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
-			testName += cfg.SplitTestsOn
-		}
-
-		processedTests = append(processedTests, testName)
-	}
-
-	return service, processedTests, nil
+	return service, tests, nil
 }
 
 func (ghr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
@@ -271,7 +221,7 @@ func (ghr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitF
 	return nil
 }
 
-func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
+func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
 	result := make(map[string]struct{})
 
 	// track resource files that need sibling test file discovery
@@ -421,9 +371,9 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 			colour = "<red>"
 		}
 		if showFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Base)
+			cout.Printf("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Name)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Base)
+			cout.Verbosef("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Name)
 		}
 	}
 	if !showFiles && cout.Level < cout.VerbosityVerbose {
@@ -452,9 +402,9 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 			fileColor = "<fg=28>" // dark green for changed
 		}
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Name, label)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Name, label)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
@@ -466,5 +416,9 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map
 		clog.Log.Debugf("     %s", f)
 	}
 
-	return &result, nil
+	files := make([]provider.File, 0, len(result))
+	for f := range result {
+		files = append(files, provider.NewFile(f, provider.FileTypeTest))
+	}
+	return files, nil
 }

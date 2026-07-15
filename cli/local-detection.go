@@ -99,11 +99,12 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				continue
 			}
 
-			fileType := provider.ClassifyFile(name, cfg.FileRegEx)
+			pf := provider.NewFile(name, provider.FileTypeOther)
+			fileType := pf.Classify(cfg.FileRegEx)
+			pf.Type = fileType
 			if fileType == provider.FileTypeOther && !strings.HasPrefix(name, "vendor/") &&
 				!strings.Contains(name, "/services/") && !strings.Contains(name, "/service/") {
 				changedFileCount++
-				pf := provider.NewFile(name, fileType)
 				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s %s\n", pf.ColouredOutput(), pf.TypeLabel()))
 				continue
 			}
@@ -115,7 +116,6 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 			case provider.FileTypeTest:
 				changedFileCount++
-				pf := provider.NewFile(name, fileType)
 
 				// quick local read to check for TestAcc
 				hasAccTests := false
@@ -140,20 +140,17 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 			case provider.FileTypeResource:
 				changedFileCount++
-				pf := provider.NewFile(name, fileType)
 				resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
 				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[RESOURCE]</>\n", pf.ColouredOutput()))
 
 			case provider.FileTypeHelper:
 				changedFileCount++
-				pf := provider.NewFile(name, fileType)
 				helperFiles = append(helperFiles, name)
 				helperFileSet[name] = true
 				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[HELPER]</>\n", pf.ColouredOutput()))
 
 			case provider.FileTypeVendor:
 				changedFileCount++
-				pf := provider.NewFile(name, fileType)
 				vendorFiles = append(vendorFiles, name)
 				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[VENDOR]</>\n", pf.ColouredOutput()))
 
@@ -247,7 +244,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			if len(symbols) == 0 {
 				for _, f := range helpers {
 					pf := provider.NewFile(f, provider.FileTypeHelper)
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no symbols found</>\n", pf.Dir, pf.Base)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no symbols found</>\n", pf.Dir, pf.Name)
 				}
 				continue
 			}
@@ -329,13 +326,13 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				pf := provider.NewFile(f, provider.FileTypeHelper)
 				traced := allHelperTraced[f]
 				if len(traced) > 0 {
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Base)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, t := range traced {
 						tpf := provider.NewFile(t, provider.FileTypeResource)
 						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Base)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Name)
 				}
 			}
 		}
@@ -351,7 +348,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 				symbols := pf.Symbols(repoPath, true)
 				if len(symbols) == 0 {
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no exported symbols</>\n", pf.Dir, pf.Base)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no exported symbols</>\n", pf.Dir, pf.Name)
 					continue
 				}
 				if pkgSymbols[pkgPath] == nil {
@@ -410,13 +407,13 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 					tracedFiles = append(tracedFiles, files...)
 				}
 				if len(tracedFiles) > 0 {
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Base)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, t := range tracedFiles {
 						tpf := provider.NewFile(t, provider.FileTypeResource)
 						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
-					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Base)
+					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Name)
 				}
 			}
 		}
@@ -442,7 +439,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		for _, f := range vendorFiles {
 			pf := provider.NewFile(f, provider.FileTypeVendor)
 			cout.Verbosef("    <darkGray>%s</><fg=177>%s</> → package <fg=177>%s</>\n",
-				pf.Dir, pf.Base, vendorFileToPkg[f])
+				pf.Dir, pf.Name, vendorFileToPkg[f])
 		}
 
 		// walk all service directories looking for resource files that import these vendor packages
@@ -566,9 +563,9 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			fileColor = "<fg=117>"
 		}
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Name, label)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Base, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Name, label)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
@@ -590,15 +587,20 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			service, tests, err := parseLocalTestFile(repoPath, f, cfg)
+			localPath := filepath.Join(repoPath, f)
+			content, err := os.ReadFile(localPath) //nolint:gosec // path is from user-provided --local-repo-path flag
 			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
-					firstErr = err
+					firstErr = fmt.Errorf("reading %s: %w", f, err)
 				}
 				mu.Unlock()
 				return
 			}
+
+			pfile := provider.NewFile(f, provider.FileTypeTest)
+			tests := pfile.ExtractTests(content, cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
+			service := pfile.ExtractService()
 
 			mu.Lock()
 			for _, t := range tests {
@@ -692,58 +694,6 @@ func findLocalTestFiles(localDir, relativeDir string, resourcePrefixes []string,
 	}
 
 	return testFiles, nil
-}
-
-// --- Local test file parsing ---
-
-// parseLocalTestFile reads a test file from the local filesystem and extracts
-// TestAcc* function names using Go AST. Falls back to regex if AST parsing fails.
-// Returns (service, testNames, error).
-func parseLocalTestFile(repoPath, filePath string, cfg DiscoveryConfig) (string, []string, error) {
-	localPath := filepath.Join(repoPath, filePath)
-	content, err := os.ReadFile(localPath) //nolint:gosec // path is from user-provided --local-repo-path flag
-	if err != nil {
-		return "", nil, fmt.Errorf("reading %s: %w", filePath, err)
-	}
-
-	// extract test function names via AST
-	var tests []string
-	fset := token.NewFileSet()
-	parsed, parseErr := parser.ParseFile(fset, filePath, content, 0)
-	if parseErr != nil {
-		clog.Log.Debugf("    failed to parse %s, falling back to regex: %v", filePath, parseErr)
-		// fallback: scan lines for "func TestAcc" if AST parsing fails
-		for _, line := range strings.Split(string(content), "\n") {
-			if strings.Contains(line, "func TestAcc") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					tests = append(tests, strings.Split(parts[1], "(")[0])
-				}
-			}
-		}
-	} else {
-		for _, decl := range parsed.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if ok && strings.HasPrefix(fn.Name.Name, "TestAcc") {
-				clog.Log.Tracef("found test function: %s", fn.Name.Name)
-				tests = append(tests, fn.Name.Name)
-			}
-		}
-	}
-
-	service := provider.ExtractService(filePath)
-
-	// process test names: split and optionally reappend split character
-	processedTests := make([]string, 0, len(tests))
-	for _, t := range tests {
-		testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
-		if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
-			testName += cfg.SplitTestsOn
-		}
-		processedTests = append(processedTests, testName)
-	}
-
-	return service, processedTests, nil
 }
 
 // --- Import tracing ---
