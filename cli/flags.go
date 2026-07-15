@@ -17,6 +17,7 @@ import (
 // It errors if both are set. When only the old flag is used, it copies the value to
 // build-type-id and enables build-type-id-add-service-suffix to maintain the old behaviour.
 // Called from PersistentPreRunE before ValidateParams so the resolved value is available for validation.
+// TODO remove this at some point in the future.
 func resolveBuildTypeID(cmd *cobra.Command) error {
 	oldFlagSet := cmd.Flags().Changed("buildtypeid")
 	newFlagSet := cmd.Flags().Changed("build-type-id")
@@ -254,7 +255,13 @@ func configureFlags(root *cobra.Command) error {
 }
 
 func GetFlags() FlagData {
-	// there has to be an easier way....
+	// We construct the struct manually from Viper instead of using the globally bound
+	// pflags variables because pflags only knows about command-line arguments. Viper merges
+	// environment variables (and config files) on top of the flags. If we just read the
+	// bound flag variable, we would completely lose any environment variable overrides!
+	//
+	// Alternatively, we could add `mapstructure` tags to the struct fields and use
+	// `viper.Unmarshal(&flags)` to automatically populate everything cleanly.
 	suffixStrs := viper.GetStringSlice("acctest-file-suffix-regexes")
 	accTestSuffixREs := make([]*regexp.Regexp, 0, len(suffixStrs))
 	for _, p := range suffixStrs {
