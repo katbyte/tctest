@@ -383,7 +383,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					for _, t := range traced {
 						tDir := t[:strings.LastIndex(t, "/")+1]
 						tBase := t[strings.LastIndex(t, "/")+1:]
-						cout.Verbosef("      <darkGray>%s</><fg=117>%s</>\n", tDir, tBase)
+						cout.Verbosef("      <darkGray>%s</><fg=36>%s</>\n", tDir, tBase)
 					}
 				} else {
 					fDir := f[:strings.LastIndex(f, "/")+1]
@@ -395,7 +395,6 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 		// cross-package tracing (sub-directory helpers)
 		if len(crossPkgHelpers) > 0 {
-
 			// parse each cross-package helper file to extract exported symbols
 			pkgSymbols := map[string]map[string]bool{}
 			for _, f := range crossPkgHelpers {
@@ -421,8 +420,15 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 			tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, crossPkgHelpers, pkgSymbols, filterRegEx, cfg.LocalTraceDepth)
 
-			for dir, prefixes := range tracedDirs {
+			for dir, files := range tracedDirs {
 				localDir := filepath.Join(repoPath, dir)
+				// derive test prefixes from actual filenames
+				var prefixes []string
+				for _, f := range files {
+					base := strings.TrimSuffix(filepath.Base(f), ".go")
+					prefix := strings.TrimSuffix(base, "_resource")
+					prefixes = append(prefixes, prefix)
+				}
 				discovered, err := findLocalTestFiles(localDir, dir, prefixes, testFileSuffixREs)
 				if err != nil {
 					clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
@@ -455,10 +461,8 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			// print cross-package trace results: helper file →, then indented traced files
 			for _, f := range crossPkgHelpers {
 				var tracedFiles []string
-				for tracedDir, prefixes := range tracedDirs {
-					for _, p := range prefixes {
-						tracedFiles = append(tracedFiles, tracedDir+"/"+p)
-					}
+				for _, files := range tracedDirs {
+					tracedFiles = append(tracedFiles, files...)
 				}
 				if len(tracedFiles) > 0 {
 					fDir := f[:strings.LastIndex(f, "/")+1]
@@ -467,7 +471,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 					for _, t := range tracedFiles {
 						tDir := t[:strings.LastIndex(t, "/")+1]
 						tBase := t[strings.LastIndex(t, "/")+1:]
-						cout.Verbosef("      <darkGray>%s</><fg=117>%s</>\n", tDir, tBase)
+						cout.Verbosef("      <darkGray>%s</><fg=36>%s</>\n", tDir, tBase)
 					}
 				} else {
 					fDir := f[:strings.LastIndex(f, "/")+1]
@@ -507,6 +511,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 		servicesDir := filepath.Join(repoPath, "internal", "services")
 		_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil || d.IsDir() {
+				//nolint:nilerr // WalkDir: skip dirs and errors, continue walking
 				return nil
 			}
 			if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
@@ -515,6 +520,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 			relPath, relErr := filepath.Rel(repoPath, path)
 			if relErr != nil {
+				//nolint:nilerr // filepath.Rel failure is non-fatal, skip this file
 				return nil
 			}
 			relPath = filepath.ToSlash(relPath)
@@ -527,6 +533,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			fset := token.NewFileSet()
 			parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 			if parseErr != nil {
+				//nolint:nilerr // parse failure is non-fatal, skip this file
 				return nil
 			}
 
@@ -546,6 +553,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 				localDir := filepath.Join(repoPath, dir)
 				discovered, findErr := findLocalTestFiles(localDir, dir, []string{resourceName}, testFileSuffixREs)
 				if findErr != nil {
+					//nolint:nilerr // test file discovery failure is non-fatal
 					return nil
 				}
 				for _, tf := range discovered {
@@ -580,7 +588,7 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 			for _, res := range resources {
 				resDir := res[:strings.LastIndex(res, "/")+1]
 				resBase := res[strings.LastIndex(res, "/")+1:]
-				cout.Verbosef("      <darkGray>%s</><fg=117>%s</>\n", resDir, resBase)
+				cout.Verbosef("      <darkGray>%s</><fg=36>%s</>\n", resDir, resBase)
 			}
 		}
 		if len(pkgToResources) == 0 {
@@ -612,11 +620,12 @@ func (gr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]s
 
 		// changed = green, vendor = light purple, traced = light blue, derived = cyan
 		fileColor := "<fg=36>"
-		if changedTestFiles[tf] {
+		switch {
+		case changedTestFiles[tf]:
 			fileColor = "<fg=28>"
-		} else if vendorTestFiles[tf] {
+		case vendorTestFiles[tf]:
 			fileColor = "<fg=177>"
-		} else if tracedTestFiles[tf] {
+		case tracedTestFiles[tf]:
 			fileColor = "<fg=117>"
 		}
 		if showTestFiles {
@@ -917,9 +926,7 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 				if len(symbols) == 0 {
 					if filterRegEx.MatchString(relPath) {
 						dir := filepath.ToSlash(filepath.Dir(relPath))
-						base := strings.TrimSuffix(filepath.Base(relPath), ".go")
-						resourceName := strings.TrimSuffix(base, "_resource")
-						result[dir] = append(result[dir], resourceName)
+						result[dir] = append(result[dir], relPath)
 						clog.Log.Debugf("    traced: %s imports %s (depth %d, package-level)", relPath, pkgPath, depth+1)
 					} else {
 						helperPkg := modulePath + "/" + filepath.ToSlash(filepath.Dir(relPath))
@@ -959,9 +966,7 @@ func traceImportsToResourceFiles(repoPath, modulePath string, helperFiles []stri
 				if filterRegEx.MatchString(relPath) {
 					// it's a resource file — add to results
 					dir := filepath.ToSlash(filepath.Dir(relPath))
-					base := strings.TrimSuffix(filepath.Base(relPath), ".go")
-					resourceName := strings.TrimSuffix(base, "_resource")
-					result[dir] = append(result[dir], resourceName)
+					result[dir] = append(result[dir], relPath)
 					clog.Log.Debugf("    traced: %s uses %v from %s (depth %d)", relPath, usedSymbols, pkgPath, depth+1)
 				} else {
 					// it's another helper — queue for next depth
