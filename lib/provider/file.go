@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -20,30 +21,42 @@ const (
 
 // File represents a Go source file in a Terraform provider repository.
 type File struct {
-	Path     string // full relative path: "internal/services/batch/batch_account_resource.go"
+	RelPath  string // full relative path: "internal/services/batch/batch_account_resource.go"
+	Path     string // absolute local path (or empty if using Content buffer)
 	Dir      string // directory with trailing slash: "internal/services/batch/"
 	Name     string // filename: "batch_account_resource.go"
 	BaseName string // filename without .go: "batch_account_resource"
 	Type     FileType
+	Content  []byte // optional file content for self-reading methods
 }
 
-// NewFile creates a File from a relative path and type.
-func NewFile(path string, fileType FileType) File {
-	lastSlash := strings.LastIndex(path, "/")
+// NewFileWithPath creates a File from a relative path, an absolute repository path, and a type.
+func NewFileWithPath(relPath, repoPath string, fileType FileType) File {
+	lastSlash := strings.LastIndex(relPath, "/")
 	dir := ""
-	base := path
+	base := relPath
 	if lastSlash >= 0 {
-		dir = path[:lastSlash+1]
-		base = path[lastSlash+1:]
+		dir = relPath[:lastSlash+1]
+		base = relPath[lastSlash+1:]
 	}
 
 	return File{
-		Path:     path,
+		RelPath:  relPath,
+		Path:     filepath.Join(repoPath, relPath),
 		Dir:      dir,
 		Name:     base,
 		BaseName: strings.TrimSuffix(base, ".go"),
 		Type:     fileType,
+		Content:  nil,
 	}
+}
+
+// NewFileWithContent creates a File and initialises its Content.
+func NewFileWithContent(relPath string, fileType FileType, content []byte) File {
+	f := NewFileWithPath(relPath, "", fileType)
+	f.Path = "" // no local disk path
+	f.Content = content
+	return f
 }
 
 // ResourcePrefix returns the prefix used for test file discovery.
@@ -103,7 +116,7 @@ func (f File) ColouredOutput() string {
 // Note: for test files, this always returns FileTypeTest. Use ClassifyTestFile
 // to distinguish between acceptance tests and unit tests (requires file contents).
 func (f File) Classify(fileRegEx *regexp.Regexp) FileType {
-	if !strings.HasSuffix(f.Path, ".go") {
+	if !strings.HasSuffix(f.RelPath, ".go") {
 		return FileTypeOther
 	}
 
@@ -113,15 +126,15 @@ func (f File) Classify(fileRegEx *regexp.Regexp) FileType {
 		}
 	}
 
-	if strings.HasSuffix(f.Path, "_test.go") {
+	if strings.HasSuffix(f.RelPath, "_test.go") {
+		// unit test vs acceptance test determination is handled later during ast parsing
 		return FileTypeTest
 	}
-
-	if strings.HasPrefix(f.Path, "vendor/") {
+	if strings.HasPrefix(f.RelPath, "vendor/") {
 		return FileTypeVendor
 	}
 
-	if fileRegEx.MatchString(f.Path) {
+	if fileRegEx.MatchString(f.RelPath) {
 		return FileTypeResource
 	}
 

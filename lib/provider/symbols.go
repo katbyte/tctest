@@ -4,19 +4,27 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"path/filepath"
+
+	"github.com/katbyte/tctest/lib/clog"
 )
 
-// Symbols parses the Go file and returns symbol names (functions, types, variables, constants).
-// repoPath is the root of the repository; the full path is constructed as repoPath/f.Path.
-// If exportedOnly is true, only exported (uppercase) symbols are returned.
-// If exportedOnly is false, all symbols are returned (for same-package tracing).
-func (f File) Symbols(repoPath string, exportedOnly bool) []string {
-	fullPath := filepath.Join(repoPath, f.Path)
-
+// Symbols extracts all globally declared function/type/variable/constant names from the file.
+// If exportedOnly is true, it only returns symbols starting with an uppercase letter.
+func (f File) Symbols(exportedOnly bool) []string {
 	fset := token.NewFileSet()
-	parsed, err := parser.ParseFile(fset, fullPath, nil, 0)
+	// parse file from f.Path (or use content if available, though parser can read directly)
+	// if we wanted to support memory-only files, we would pass content like in ExtractTests.
+	var parsed *ast.File
+	var err error
+
+	if f.Content != nil {
+		parsed, err = parser.ParseFile(fset, f.Path, f.Content, 0)
+	} else {
+		parsed, err = parser.ParseFile(fset, f.Path, nil, 0)
+	}
+
 	if err != nil {
+		clog.Log.Debugf("    failed to parse %s for symbols: %v", f.RelPath, err)
 		return nil
 	}
 

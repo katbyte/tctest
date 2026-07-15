@@ -77,8 +77,8 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 	changedFileCount := 0
 
 	// print config
-	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
-	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
+	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
+	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
 
 	// buffer changed file output lines — we don't know the total count until after the callback
 	var changedFileLines []string
@@ -99,7 +99,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				continue
 			}
 
-			pf := provider.NewFile(name, provider.FileTypeOther)
+			pf := provider.NewFileWithPath(f.GetFilename(), repoPath, provider.FileTypeOther)
 			fileType := pf.Classify(cfg.FileRegEx)
 			pf.Type = fileType
 			if fileType == provider.FileTypeOther && !strings.HasPrefix(name, "vendor/") &&
@@ -180,7 +180,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 	// find sibling test files for resource files (local FS walk)
 	for dir, prefixes := range resourceDirs {
 		localDir := filepath.Join(repoPath, dir)
-		discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixREs)
+		discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixRegexes)
 		if err != nil {
 			clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
 			continue
@@ -235,15 +235,15 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			// extract all symbols (including unexported) from each helper
 			symbols := map[string]bool{}
 			for _, f := range helpers {
-				pf := provider.NewFile(f, provider.FileTypeHelper)
-				for _, s := range pf.Symbols(repoPath, false) {
+				pf := provider.NewFileWithPath(f, repoPath, provider.FileTypeHelper)
+				for _, s := range pf.Symbols(false) {
 					symbols[s] = true
 				}
 				clog.Log.Debugf("    same-pkg helper %s symbols: %v", f, symbols)
 			}
 			if len(symbols) == 0 {
 				for _, f := range helpers {
-					pf := provider.NewFile(f, provider.FileTypeHelper)
+					pf := provider.NewFileWithPath(f, repoPath, provider.FileTypeHelper)
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no symbols found</>\n", pf.Dir, pf.Name)
 				}
 				continue
@@ -285,7 +285,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				})
 
 				if len(usedSymbols) > 0 {
-					tracedFile := provider.NewFile(relPath, provider.FileTypeResource)
+					tracedFile := provider.NewFileWithPath(relPath, repoPath, provider.FileTypeResource)
 					clog.Log.Debugf("    same-pkg traced: %s uses %v", relPath, usedSymbols)
 
 					for _, f := range helpers {
@@ -294,7 +294,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 					samePkgTracedFiles[relPath] = true
 
 					// find test files for this resource
-					discovered, err := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixREs)
+					discovered, err := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
 					if err != nil {
 						continue
 					}
@@ -323,12 +323,12 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		// print results: helper file →, then indented traced files
 		for _, helpers := range samePkgHelpers {
 			for _, f := range helpers {
-				pf := provider.NewFile(f, provider.FileTypeHelper)
+				pf := provider.NewFileWithPath(f, repoPath, provider.FileTypeHelper)
 				traced := allHelperTraced[f]
 				if len(traced) > 0 {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, t := range traced {
-						tpf := provider.NewFile(t, provider.FileTypeResource)
+						tpf := provider.NewFileWithPath(t, repoPath, provider.FileTypeResource)
 						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
@@ -342,11 +342,11 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			// parse each cross-package helper file to extract exported symbols
 			pkgSymbols := map[string]map[string]bool{}
 			for _, f := range crossPkgHelpers {
-				pf := provider.NewFile(f, provider.FileTypeHelper)
+				pf := provider.NewFileWithPath(f, repoPath, provider.FileTypeHelper)
 				dir := filepath.ToSlash(filepath.Dir(f))
 				pkgPath := modulePath + "/" + dir
 
-				symbols := pf.Symbols(repoPath, true)
+				symbols := pf.Symbols(true)
 				if len(symbols) == 0 {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no exported symbols</>\n", pf.Dir, pf.Name)
 					continue
@@ -367,10 +367,10 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				// derive test prefixes from actual filenames
 				var prefixes []string
 				for _, f := range files {
-					tpf := provider.NewFile(f, provider.FileTypeResource)
+					tpf := provider.NewFileWithPath(f, repoPath, provider.FileTypeResource)
 					prefixes = append(prefixes, tpf.ResourcePrefix())
 				}
-				discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixREs)
+				discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixRegexes)
 				if err != nil {
 					clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
 					continue
@@ -401,7 +401,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 			// print cross-package trace results: helper file →, then indented traced files
 			for _, f := range crossPkgHelpers {
-				pf := provider.NewFile(f, provider.FileTypeHelper)
+				pf := provider.NewFileWithPath(f, repoPath, provider.FileTypeHelper)
 				var tracedFiles []string
 				for _, files := range tracedDirs {
 					tracedFiles = append(tracedFiles, files...)
@@ -409,7 +409,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				if len(tracedFiles) > 0 {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, t := range tracedFiles {
-						tpf := provider.NewFile(t, provider.FileTypeResource)
+						tpf := provider.NewFileWithPath(t, repoPath, provider.FileTypeResource)
 						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
@@ -437,7 +437,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 		// print vendor file -> package mapping
 		for _, f := range vendorFiles {
-			pf := provider.NewFile(f, provider.FileTypeVendor)
+			pf := provider.NewFileWithPath(f, repoPath, provider.FileTypeVendor)
 			cout.Verbosef("    <darkGray>%s</><fg=177>%s</> → package <fg=177>%s</>\n",
 				pf.Dir, pf.Name, vendorFileToPkg[f])
 		}
@@ -481,13 +481,13 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				}
 
 				dir := filepath.ToSlash(filepath.Dir(relPath))
-				tracedFile := provider.NewFile(relPath, provider.FileTypeResource)
+				tracedFile := provider.NewFileWithPath(relPath, repoPath, provider.FileTypeResource)
 				clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
 
 				pkgToResources[impPath] = append(pkgToResources[impPath], relPath)
 
 				localDir := filepath.Join(repoPath, dir)
-				discovered, findErr := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixREs)
+				discovered, findErr := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
 				if findErr != nil {
 					//nolint:nilerr // test file discovery failure is non-fatal
 					return nil
@@ -522,7 +522,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		for pkg, resources := range pkgToResources {
 			cout.Verbosef("    <fg=177>%s</> →\n", pkg)
 			for _, res := range resources {
-				rpf := provider.NewFile(res, provider.FileTypeResource)
+				rpf := provider.NewFileWithPath(res, repoPath, provider.FileTypeResource)
 				cout.Verbosef("      %s\n", rpf.ColouredOutput())
 			}
 		}
@@ -535,7 +535,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 	cout.Printf("  test files: <yellow>%d</>\n", len(testFilesList))
 	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFilesList) <= cfg.CollapseFilesAfter
 	for _, tf := range testFilesList {
-		pfile := provider.NewFile(tf, provider.FileTypeTest)
+		pfile := provider.NewFileWithPath(tf, repoPath, provider.FileTypeTest)
 
 		var labels []string
 		if changedTestFiles[tf] {
@@ -587,19 +587,16 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			localPath := filepath.Join(repoPath, f)
-			content, err := os.ReadFile(localPath) //nolint:gosec // path is from user-provided --local-repo-path flag
+			pfile := provider.NewFileWithPath(f, repoPath, provider.FileTypeTest)
+			tests, err := pfile.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
-					firstErr = fmt.Errorf("reading %s: %w", f, err)
+					firstErr = err
 				}
 				mu.Unlock()
 				return
 			}
-
-			pfile := provider.NewFile(f, provider.FileTypeTest)
-			tests := pfile.ExtractTests(content, cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			service := pfile.ExtractService()
 
 			mu.Lock()

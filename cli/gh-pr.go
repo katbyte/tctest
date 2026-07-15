@@ -1,10 +1,8 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -98,7 +96,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore
 
-			service, tests, err := ghr.downloadAndParseTestFile(ctx, httpClient, f, *pr.MergeCommitSHA, cfg)
+			content, status, err := ghr.DownloadFile(ctx, httpClient, f.RelPath, *pr.MergeCommitSHA)
 			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
@@ -108,9 +106,22 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 				return
 			}
 
-			if tests == nil {
-				return // file was skipped (e.g. not found at merge commit)
+			if status != http.StatusOK {
+				clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.RelPath, status)
+				return // file was skipped
 			}
+
+			pfile := provider.NewFileWithContent(f.RelPath, provider.FileTypeTest, content)
+			tests, err := pfile.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+				return
+			}
+			service := pfile.ExtractService()
 
 			mu.Lock()
 			for _, t := range tests {
@@ -213,7 +224,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 			changedFiles = append(changedFiles, name)
 
 			// note the directory and probable resourceName so we can discover all related test files
-			pf := provider.NewFile(name, provider.FileTypeResource)
+			pf := provider.NewFileWithPath(name, "", provider.FileTypeResource)
 			resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
 		}
 
@@ -247,7 +258,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 						continue
 					}
 					remainder := fileNameWithNoExt[len(resource):]
-					for _, testSuffix := range cfg.AccTestFileSuffixREs {
+					for _, testSuffix := range cfg.AccTestFileSuffixRegexes {
 						if testSuffix.MatchString(remainder) {
 							shouldInclude = true
 							break
@@ -276,8 +287,8 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 	}
 
 	// print file regex and changed files
-	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
-	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
+	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
+	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
 	showFiles := cfg.CollapseFilesAfter == 0 || len(changedFiles) <= cfg.CollapseFilesAfter
 	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
 	for _, f := range changedFiles {
@@ -290,7 +301,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 		default:
 			fileType = provider.FileTypeResource
 		}
-		pf := provider.NewFile(f, fileType)
+		pf := provider.NewFileWithPath(f, "", fileType)
 
 		// skipped files in red, test files in green, resource files in teal
 		colour := pf.Colour()
@@ -311,7 +322,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
 	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFiles) <= cfg.CollapseFilesAfter
 	for _, f := range testFiles {
-		pfile := provider.NewFile(f, provider.FileTypeTest)
+		pfile := provider.NewFileWithPath(f, "", provider.FileTypeTest)
 
 		// build label based on whether file is changed, derived, or both
 		var labels []string
@@ -345,49 +356,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 
 	files := make([]provider.File, 0, len(result))
 	for f := range result {
-		files = append(files, provider.NewFile(f, provider.FileTypeTest))
+		files = append(files, provider.NewFileWithPath(f, "", provider.FileTypeTest))
 	}
 	return files, nil
-}
-
-// downloadAndParseTestFile downloads a single file from GitHub using the raw content URL
-// and parses it for acceptance test function names. Returns (service, testNames, nil) on
-// success, ("", nil, nil) when the file should be skipped (e.g. not found at merge commit),
-// or ("", nil, err) on failure.
-//
-// This uses raw.githubusercontent.com directly instead of the GitHub Contents API
-// (client.Repositories.GetContents) to avoid two issues with that approach:
-//  1. GetContents has a 1MB file size limit
-//  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
-func (ghr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, f provider.File, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
-	clog.Log.Debugf("    download %s", f.Path)
-
-	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", ghr.Owner, ghr.Name, mergeCommitSHA, f.Path)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
-	if err != nil {
-		return "", nil, fmt.Errorf("creating request for %s: %w", f.Path, err)
-	}
-
-	if ghr.Token.Token != nil {
-		req.Header.Set("Authorization", "token "+*ghr.Token.Token)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", nil, fmt.Errorf("downloading file (%s): %w", f.Path, err)
-	}
-
-	content, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if err != nil {
-		return "", nil, fmt.Errorf("reading file (%s): %w", f.Path, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.Path, resp.StatusCode)
-		return "", nil, nil
-	}
-
-	return f.ExtractService(), f.ExtractTests(content, cfg.SplitTestsOn, cfg.ReappendSplitCharacter), nil
 }

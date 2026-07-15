@@ -12,7 +12,7 @@ import (
 )
 
 func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
-	tc := f.NewServer()
+	tc := f.NewTCServer()
 
 	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
 
@@ -74,7 +74,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int,
 }
 
 func (f FlagData) BuildResultsCmd(buildID int) error {
-	tc := f.NewServer()
+	tc := f.NewTCServer()
 
 	statusCode, buildStatus, err := tc.BuildState(buildID)
 	if err != nil {
@@ -114,7 +114,7 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 }
 
 func (f FlagData) BuildResultsForPRCmd(pr int) error {
-	tc := f.NewServer()
+	tc := f.NewTCServer()
 
 	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
 	if err != nil {

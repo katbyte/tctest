@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/katbyte/tctest/lib/tc"
@@ -63,12 +64,10 @@ type FlagData struct {
 }
 
 type DiscoveryConfig struct {
-	FileRegExStr             string
 	FileRegEx                *regexp.Regexp
 	SplitTestsOn             string
 	ReappendSplitCharacter   bool
-	AccTestFileSuffixRegexes []string
-	AccTestFileSuffixREs     []*regexp.Regexp
+	AccTestFileSuffixRegexes []*regexp.Regexp
 	Concurrency              int
 	LocalRepoPath            string
 	LocalTraceDepth          int
@@ -132,9 +131,9 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolVarP(&flags.Verbose, "verbose", "v", false, "show detailed file listings and trace output")
 
 	// "services?" matches both provider layouts: AWS(`service`) and Azure(`services`).
-	pflags.StringVar(&flags.DiscoveryConfig.FileRegExStr, "fileregex", `^internal/services?/[^/]+/[a-z0-9_][^/]*$`, "the regex to filter files by")
+	pflags.String("fileregex", `^internal/services?/[^/]+/[a-z0-9_][^/]*$`, "the regex to filter files by")
 	pflags.StringVar(&flags.DiscoveryConfig.SplitTestsOn, "splitteston", "_", "the character to split tests on and use the value on the left")
-	pflags.StringSliceVar(&flags.DiscoveryConfig.AccTestFileSuffixRegexes, "acctest-file-suffix-regexes", []string{
+	pflags.StringSlice("acctest-file-suffix-regexes", []string{
 		`^_resource.*_test$`,   // Azure, this will also covers test files like `linux_virtual_machine_scale_set_resource_auth_test.go`
 		`^_test$`,              // both providers
 		`^_list_test$`,         // AWS list data-source tests
@@ -256,6 +255,12 @@ func configureFlags(root *cobra.Command) error {
 
 func GetFlags() FlagData {
 	// there has to be an easier way....
+	suffixStrs := viper.GetStringSlice("acctest-file-suffix-regexes")
+	accTestSuffixREs := make([]*regexp.Regexp, 0, len(suffixStrs))
+	for _, p := range suffixStrs {
+		accTestSuffixREs = append(accTestSuffixREs, regexp.MustCompile(p))
+	}
+
 	f := FlagData{
 		OpenInBrowser: viper.GetBool("open"),
 		RunAllTests:   viper.GetBool("all"),
@@ -266,10 +271,10 @@ func GetFlags() FlagData {
 		DryRun:        viper.GetBool("dry-run"),
 		Verbose:       viper.GetBool("verbose"),
 		DiscoveryConfig: DiscoveryConfig{
-			FileRegExStr:             viper.GetString("fileregex"),
+			FileRegEx:                regexp.MustCompile(viper.GetString("fileregex")),
 			SplitTestsOn:             viper.GetString("splitteston"),
 			ReappendSplitCharacter:   viper.GetBool("reappend-split-character"),
-			AccTestFileSuffixRegexes: viper.GetStringSlice("acctest-file-suffix-regexes"),
+			AccTestFileSuffixRegexes: accTestSuffixREs,
 			Concurrency:              viper.GetInt("concurrency"),
 			LocalRepoPath:            viper.GetString("local-repo-path"),
 			LocalTraceDepth:          viper.GetInt("local-trace-depth"),
@@ -313,15 +318,17 @@ func GetFlags() FlagData {
 		},
 	}
 
-	// compile regexes once
-	f.DiscoveryConfig.FileRegEx = regexp.MustCompile(f.DiscoveryConfig.FileRegExStr)
-	for _, p := range f.DiscoveryConfig.AccTestFileSuffixRegexes {
-		f.DiscoveryConfig.AccTestFileSuffixREs = append(f.DiscoveryConfig.AccTestFileSuffixREs, regexp.MustCompile(p))
-	}
-
 	return f
 }
 
-func (f FlagData) NewServer() tc.Server {
+func (cfg DiscoveryConfig) AccTestFileSuffixRegexStrings() string {
+	s := make([]string, 0, len(cfg.AccTestFileSuffixRegexes))
+	for _, r := range cfg.AccTestFileSuffixRegexes {
+		s = append(s, r.String())
+	}
+	return strings.Join(s, ", ")
+}
+
+func (f FlagData) NewTCServer() tc.Server {
 	return tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)
 }

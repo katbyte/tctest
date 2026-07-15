@@ -7,7 +7,7 @@ import "strings"
 // Returns empty string for non-service paths.
 func (f File) ExtractService() string {
 	for _, sep := range []string{"/services/", "/service/"} {
-		parts := strings.Split(f.Path, sep)
+		parts := strings.Split(f.RelPath, sep)
 		if len(parts) == 2 {
 			return strings.Split(parts[1], "/")[0]
 		}
@@ -17,5 +17,5 @@ func (f File) ExtractService() string {
 
 // IsServicePath returns true if the path is within a service directory.
 func (f File) IsServicePath() bool {
-	return strings.Contains(f.Path, "/services/") || strings.Contains(f.Path, "/service/")
+	return strings.Contains(f.RelPath, "/services/") || strings.Contains(f.RelPath, "/service/")
 }
