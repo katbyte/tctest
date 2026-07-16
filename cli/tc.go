@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/katbyte/tctest/lib/clog"
 	"fmt"
 	"net/http"
 	"regexp"

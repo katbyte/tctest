@@ -101,6 +101,7 @@ func (r Repo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *gi
 	}
 
 	for {
+		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", r.Owner, r.Name, pri, opts.Page)
 		files, resp, err := client.PullRequests.ListFiles(ctx, r.Owner, r.Name, pri, opts)
 		if err != nil {
 			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", r.Owner, r.Name, pri, opts.Page, err)
