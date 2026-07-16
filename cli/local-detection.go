@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -139,7 +140,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 			case provider.FileTypeResource:
 				changedFileCount++
-				resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
+				resourceDirs[path.Dir(pf.RelPath)] = append(resourceDirs[path.Dir(pf.RelPath)], pf.ResourcePrefix())
 				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[RESOURCE]</>\n", pf.ColouredOutput()))
 
 			case provider.FileTypeHelper:

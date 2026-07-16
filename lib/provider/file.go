@@ -33,21 +33,14 @@ type File struct {
 
 // NewFileWithPath creates a File from a relative path and a local repository root.
 func NewFileWithPath(relPath, repoPath string) File {
-	f := newFile(relPath)
+	f := NewFile(relPath)
 	f.Path = filepath.Join(repoPath, relPath)
 	return f
 }
 
-// NewFileWithContent creates a File with pre-loaded content (e.g. downloaded from GitHub).
-func NewFileWithContent(relPath string, content []byte) File {
-	f := newFile(relPath)
-	// no local disk path — content is already in memory
-	f.Content = content
-	return f
-}
-
-// newFile creates a File with only the path-derived fields populated.
-func newFile(relPath string) File {
+// NewFile creates a File with only the path-derived fields populated.
+// Use this for files in a remote environment where a local disk path isn't applicable.
+func NewFile(relPath string) File {
 	lastSlash := strings.LastIndex(relPath, "/")
 	dir := ""
 	base := relPath

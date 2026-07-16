@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path"
 	"strings"
 	"sync"
 
@@ -109,15 +110,15 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 				return // file was skipped
 			}
 
-			pfile := provider.NewFileWithContent(f.RelPath, content)
-			tests, err := pfile.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
+			f.Content = content
+			tests, err := f.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
 				return
 			}
-			service := pfile.ExtractService()
+			service := f.ExtractService()
 
 			mu.Lock()
 			for _, t := range tests {
@@ -156,16 +157,16 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 }
 
 func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
-	result := make(map[string]struct{})
+	result := make(map[string]provider.File)
 
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
 	resourceDirs := map[string][]string{}
 
 	// track changed files and test files for output
-	var changedFiles []string
+	var changedFiles []provider.File
 	skippedFiles := map[string]bool{} // service files that didn't match the regex
-	var testFiles []string
+	var testFiles []provider.File
 	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
 	derivedTestFiles := map[string]bool{} // tracks which test files were derived
 	testFileSeen := map[string]bool{}     // dedup test files
@@ -178,6 +179,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 
 			name := *f.Filename
 			clog.Log.Debugf("    %v (%s)", name, f.GetStatus())
+
 			// for now we only care about go files, data files that acctests load/rely on will be skipped for now
 			if !strings.HasSuffix(name, ".go") {
 				continue
@@ -189,39 +191,36 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 				continue
 			}
 
-			// if in service package mode skip some files
-			if strings.Contains(name, "/services/") {
-				// skip files that don't have meaningful test counterparts
-				if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
-					continue
-				}
+			pf := provider.NewFile(name)
+			pf.Classify(cfg.FileRegEx)
+
+			if pf.Type == provider.FileTypeHelper {
+				// track service files that don't match the regex (e.g. client helpers)
+				changedFiles = append(changedFiles, pf)
+				skippedFiles[name] = true
+				continue
 			}
 
-			if strings.HasSuffix(name, "_test.go") {
-				changedFiles = append(changedFiles, name)
+			if pf.Type == provider.FileTypeTest {
+				changedFiles = append(changedFiles, pf)
 				if !testFileSeen[name] {
-					testFiles = append(testFiles, name)
+					testFiles = append(testFiles, pf)
 					testFileSeen[name] = true
 				}
 				changedTestFiles[name] = true
-				result[name] = struct{}{}
+				result[name] = pf
 				continue
 			}
 
-			if !cfg.FileRegEx.MatchString(name) {
-				// track service files that don't match the regex
-				if strings.Contains(name, "/services/") {
-					changedFiles = append(changedFiles, name)
-					skippedFiles[name] = true
-				}
+			if pf.Type == provider.FileTypeOther || pf.Type == provider.FileTypeVendor {
+				// skip registration.go, resourceids.go, vendor files, and non-service files that don't match the regex
 				continue
 			}
 
-			changedFiles = append(changedFiles, name)
+			changedFiles = append(changedFiles, pf)
 
 			// note the directory and probable resourceName so we can discover all related test files
-			pf := provider.NewFileWithPath(name, "")
-			resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
+			resourceDirs[path.Dir(pf.RelPath)] = append(resourceDirs[path.Dir(pf.RelPath)], pf.ResourcePrefix())
 		}
 
 		return nil
@@ -271,11 +270,15 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 				if _, exists := result[fullPath]; exists {
 					continue
 				}
+
+				pf := provider.NewFile(fullPath)
+				pf.Classify(cfg.FileRegEx)
+
 				clog.Log.Debugf("    discovered related test: %s", fullPath)
-				result[fullPath] = struct{}{}
+				result[fullPath] = pf
 				derivedTestFiles[fullPath] = true
 				if !testFileSeen[fullPath] {
-					testFiles = append(testFiles, fullPath)
+					testFiles = append(testFiles, pf)
 					testFileSeen[fullPath] = true
 				}
 			}
@@ -287,13 +290,10 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
 	showFiles := cfg.CollapseFilesAfter == 0 || len(changedFiles) <= cfg.CollapseFilesAfter
 	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
-	for _, f := range changedFiles {
-		pf := provider.NewFileWithPath(f, "")
-		pf.Classify(cfg.FileRegEx)
-
+	for _, pf := range changedFiles {
 		// skipped files in red, test files in green, resource files in teal
 		colour := pf.Colour()
-		if skippedFiles[f] {
+		if skippedFiles[pf.RelPath] {
 			colour = "<red>"
 		}
 		if showFiles {
@@ -309,29 +309,26 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	// print test files
 	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
 	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFiles) <= cfg.CollapseFilesAfter
-	for _, f := range testFiles {
-		pfile := provider.NewFileWithPath(f, "")
-		pfile.Classify(cfg.FileRegEx)
-
+	for _, pf := range testFiles {
 		// build label based on whether file is changed, derived, or both
 		var labels []string
-		if changedTestFiles[f] {
+		if changedTestFiles[pf.Name] {
 			labels = append(labels, "CHANGED")
 		}
-		if derivedTestFiles[f] {
+		if derivedTestFiles[pf.Name] {
 			labels = append(labels, "DERIVED")
 		}
 		label := strings.Join(labels, "/")
 
 		// changed files in green, derived-only in dark cyan
 		fileColor := "<fg=36>" // dark cyan for derived
-		if changedTestFiles[f] {
+		if changedTestFiles[pf.Name] {
 			fileColor = "<fg=28>" // dark green for changed
 		}
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Name, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColor, pf.Name, label)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pfile.Dir, fileColor, pfile.Name, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColor, pf.Name, label)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
@@ -344,8 +341,8 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	}
 
 	files := make([]provider.File, 0, len(result))
-	for f := range result {
-		files = append(files, provider.NewFileWithPath(f, ""))
+	for _, pf := range result {
+		files = append(files, pf)
 	}
 	return files, nil
 }
