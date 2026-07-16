@@ -59,6 +59,7 @@ type FlagData struct {
 	OpenInBrowser   bool            `mapstructure:"open"`
 	RunAllTests     bool            `mapstructure:"all"`
 	Services        []string        `mapstructure:"service"`
+	DryRun          bool            `mapstructure:"dry-run"`
 }
 
 type DiscoveryConfig struct {
@@ -68,6 +69,10 @@ type DiscoveryConfig struct {
 	AccTestFileSuffixRegexes []*regexp.Regexp `mapstructure:"-"`
 	Concurrency              int              `mapstructure:"concurrency"`
 	CollapseFilesAfter       int              `mapstructure:"collapse-files-after"`
+	LocalRepoPath            string           `mapstructure:"local-repo-path"`
+	LocalTraceDepth          int              `mapstructure:"local-trace-depth"`
+	LocalVendorMode          string           `mapstructure:"local-vendor-mode"`
+	LocalMode                string           `mapstructure:"local-mode"`
 }
 
 type FlagsGitHub struct {
@@ -137,6 +142,17 @@ func configureFlags(root *cobra.Command) error {
 	pflags.Bool("reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
 	pflags.Int("concurrency", 5, "maximum number of concurrent file downloads during test discovery")
 	pflags.Int("collapse-files-after", 20, "collapse file listings to a count when there are more than this many files (0 to always show)")
+	pflags.String("token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
+	pflags.StringP("repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
+
+	pflags.StringSliceP("f-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
+	pflags.StringSliceP("f-labels-all", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
+	pflags.StringSliceP("f-labels-any", "", []string{}, "only test PRs that match any label conditions. ie 'label1,label2,-not-this-label'")
+	pflags.StringP("f-milestone", "m", "", "filter out PRs that have or do no have a milestone, ie 'this-milstone' or '-not-this-milestone'")
+	pflags.DurationP("f-created-time", "", time.Nanosecond, "filter out PRs that where not created within this duration")
+	pflags.DurationP("f-updated-time", "", time.Nanosecond, "filter out PRs that were not updated within this duration")
+	pflags.StringP("f-title-regex", "", "", "filter PRs by title using case-insensitive regex (e.g. 'test' matches titles containing 'test', 'fix.*bug' matches 'fix' followed by 'bug')")
+	pflags.BoolP("f-drafts", "d", false, "filter out any PRs that are in draft mode")
 	pflags.String("local-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files)")
 	pflags.Int("local-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
 	pflags.String("local-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
