@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -30,8 +31,23 @@ type File struct {
 	Content  []byte // optional file content for self-reading methods
 }
 
-// NewFileWithPath creates a File from a relative path, an absolute repository path, and a type.
-func NewFileWithPath(relPath, repoPath string, fileType FileType) File {
+// NewFileWithPath creates a File from a relative path and a local repository root.
+func NewFileWithPath(relPath, repoPath string) File {
+	f := newFile(relPath)
+	f.Path = filepath.Join(repoPath, relPath)
+	return f
+}
+
+// NewFileWithContent creates a File with pre-loaded content (e.g. downloaded from GitHub).
+func NewFileWithContent(relPath string, content []byte) File {
+	f := newFile(relPath)
+	// no local disk path — content is already in memory
+	f.Content = content
+	return f
+}
+
+// newFile creates a File with only the path-derived fields populated.
+func newFile(relPath string) File {
 	lastSlash := strings.LastIndex(relPath, "/")
 	dir := ""
 	base := relPath
@@ -42,21 +58,70 @@ func NewFileWithPath(relPath, repoPath string, fileType FileType) File {
 
 	return File{
 		RelPath:  relPath,
-		Path:     filepath.Join(repoPath, relPath),
 		Dir:      dir,
 		Name:     base,
 		BaseName: strings.TrimSuffix(base, ".go"),
-		Type:     fileType,
-		Content:  nil,
 	}
 }
 
-// NewFileWithContent creates a File and initialises its Content.
-func NewFileWithContent(relPath string, fileType FileType, content []byte) File {
-	f := NewFileWithPath(relPath, "", fileType)
-	f.Path = "" // no local disk path
+// Classify determines the FileType for this file using the given regex and sets f.Type.
+// Note: for test files, this always returns FileTypeTest. Use ClassifyTestFile
+// to distinguish between acceptance tests and unit tests (requires file contents).
+func (f *File) Classify(fileRegEx *regexp.Regexp) FileType {
+	if !strings.HasSuffix(f.RelPath, ".go") {
+		f.Type = FileTypeOther
+		return f.Type
+	}
+
+	if f.IsServicePath() {
+		if f.Name == "registration.go" || f.Name == "resourceids.go" {
+			f.Type = FileTypeOther
+			return f.Type
+		}
+	}
+
+	if strings.HasSuffix(f.RelPath, "_test.go") {
+		// unit test vs acceptance test determination is handled later during ast parsing
+		f.Type = FileTypeTest
+		return f.Type
+	}
+	if strings.HasPrefix(f.RelPath, "vendor/") {
+		f.Type = FileTypeVendor
+		return f.Type
+	}
+
+	if fileRegEx != nil && fileRegEx.MatchString(f.RelPath) {
+		f.Type = FileTypeResource
+		return f.Type
+	}
+
+	if f.IsServicePath() {
+		f.Type = FileTypeHelper
+		return f.Type
+	}
+
+	f.Type = FileTypeOther
+	return f.Type
+}
+
+// GetContent returns the file's content. It uses the cached Content buffer if
+// available, otherwise reads from the absolute Path on disk and caches the result.
+func (f *File) GetContent() ([]byte, error) {
+	if len(f.Content) > 0 {
+		return f.Content, nil
+	}
+
+	if f.Path == "" {
+		return nil, fmt.Errorf("file %s: no content and no local path", f.RelPath)
+	}
+
+	content, err := os.ReadFile(f.Path) //nolint:gosec
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", f.Path, err)
+	}
+
 	f.Content = content
-	return f
+	return content, nil
 }
 
 // ResourcePrefix returns the prefix used for test file discovery.
@@ -110,37 +175,4 @@ func (f File) Colour() string {
 // Example: "<darkGray>internal/services/batch/</><fg=36>batch_account_resource.go</>"
 func (f File) ColouredOutput() string {
 	return fmt.Sprintf("<darkGray>%s</>%s%s</>", f.Dir, f.Colour(), f.Name)
-}
-
-// Classify determines the FileType for this file using the given regex.
-// Note: for test files, this always returns FileTypeTest. Use ClassifyTestFile
-// to distinguish between acceptance tests and unit tests (requires file contents).
-func (f File) Classify(fileRegEx *regexp.Regexp) FileType {
-	if !strings.HasSuffix(f.RelPath, ".go") {
-		return FileTypeOther
-	}
-
-	if f.IsServicePath() {
-		if f.Name == "registration.go" || f.Name == "resourceids.go" {
-			return FileTypeOther
-		}
-	}
-
-	if strings.HasSuffix(f.RelPath, "_test.go") {
-		// unit test vs acceptance test determination is handled later during ast parsing
-		return FileTypeTest
-	}
-	if strings.HasPrefix(f.RelPath, "vendor/") {
-		return FileTypeVendor
-	}
-
-	if fileRegEx.MatchString(f.RelPath) {
-		return FileTypeResource
-	}
-
-	if f.IsServicePath() {
-		return FileTypeHelper
-	}
-
-	return FileTypeOther
 }

@@ -75,7 +75,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	}
 
 	clog.Log.Tracef("listing files...")
-	filesFiltered, err := ghr.GetAllPullRequestFiles(pri, cfg)
+	filesFiltered, err := ghr.GetPullRequestTestFiles(pri, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
 	}
@@ -109,7 +109,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 				return // file was skipped
 			}
 
-			pfile := provider.NewFileWithContent(f.RelPath, provider.FileTypeTest, content)
+			pfile := provider.NewFileWithContent(f.RelPath, content)
 			tests, err := pfile.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			if err != nil {
 				mu.Lock()
@@ -155,7 +155,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	return &serviceTests, nil
 }
 
-func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
+func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
 	result := make(map[string]struct{})
 
 	// track resource files that need sibling test file discovery
@@ -220,7 +220,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 			changedFiles = append(changedFiles, name)
 
 			// note the directory and probable resourceName so we can discover all related test files
-			pf := provider.NewFileWithPath(name, "", provider.FileTypeResource)
+			pf := provider.NewFileWithPath(name, "")
 			resourceDirs[pf.Dir[:len(pf.Dir)-1]] = append(resourceDirs[pf.Dir[:len(pf.Dir)-1]], pf.ResourcePrefix())
 		}
 
@@ -288,16 +288,8 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 	showFiles := cfg.CollapseFilesAfter == 0 || len(changedFiles) <= cfg.CollapseFilesAfter
 	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
 	for _, f := range changedFiles {
-		var fileType provider.FileType
-		switch {
-		case skippedFiles[f]:
-			fileType = provider.FileTypeHelper
-		case strings.HasSuffix(f, "_test.go"):
-			fileType = provider.FileTypeTest
-		default:
-			fileType = provider.FileTypeResource
-		}
-		pf := provider.NewFileWithPath(f, "", fileType)
+		pf := provider.NewFileWithPath(f, "")
+		pf.Classify(cfg.FileRegEx)
 
 		// skipped files in red, test files in green, resource files in teal
 		colour := pf.Colour()
@@ -318,7 +310,8 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
 	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFiles) <= cfg.CollapseFilesAfter
 	for _, f := range testFiles {
-		pfile := provider.NewFileWithPath(f, "", provider.FileTypeTest)
+		pfile := provider.NewFileWithPath(f, "")
+		pfile.Classify(cfg.FileRegEx)
 
 		// build label based on whether file is changed, derived, or both
 		var labels []string
@@ -352,7 +345,7 @@ func (ghr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) ([]pr
 
 	files := make([]provider.File, 0, len(result))
 	for f := range result {
-		files = append(files, provider.NewFileWithPath(f, "", provider.FileTypeTest))
+		files = append(files, provider.NewFileWithPath(f, ""))
 	}
 	return files, nil
 }

@@ -1,11 +1,9 @@
 package provider
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"strings"
 
 	"github.com/katbyte/tctest/lib/clog"
@@ -14,19 +12,12 @@ import (
 // ExtractTests parses Go source code and extracts names of
 // acceptance tests (functions starting with "TestAcc").
 // If AST parsing fails, it falls back to string regex matching.
-// It uses f.Content if available, otherwise it reads from f.Path (the absolute local path).
+// It uses f.GetContent() to read the file (from cached Content or from disk).
 // It also applies the provided `splitOn` and `reappend` logic.
-func (f File) ExtractTests(splitOn string, reappend bool) ([]string, error) {
-	content := f.Content
-	if len(content) == 0 {
-		if f.Path == "" {
-			return nil, fmt.Errorf("reading %s: no content and no local path provided", f.RelPath)
-		}
-		var err error
-		content, err = os.ReadFile(f.Path) //nolint:gosec
-		if err != nil {
-			return nil, fmt.Errorf("reading %s: %w", f.Path, err)
-		}
+func (f *File) ExtractTests(splitOn string, reappend bool) ([]string, error) {
+	content, err := f.GetContent()
+	if err != nil {
+		return nil, err
 	}
 
 	var tests []string

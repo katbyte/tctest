@@ -10,19 +10,15 @@ import (
 
 // Symbols extracts all globally declared function/type/variable/constant names from the file.
 // If exportedOnly is true, it only returns symbols starting with an uppercase letter.
-func (f File) Symbols(exportedOnly bool) []string {
-	fset := token.NewFileSet()
-	// parse file from f.Path (or use content if available, though parser can read directly)
-	// if we wanted to support memory-only files, we would pass content like in ExtractTests.
-	var parsed *ast.File
-	var err error
-
-	if f.Content != nil {
-		parsed, err = parser.ParseFile(fset, f.Path, f.Content, 0)
-	} else {
-		parsed, err = parser.ParseFile(fset, f.Path, nil, 0)
+func (f *File) Symbols(exportedOnly bool) []string {
+	content, err := f.GetContent()
+	if err != nil {
+		clog.Log.Debugf("    failed to read %s for symbols: %v", f.RelPath, err)
+		return nil
 	}
 
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, f.RelPath, content, 0)
 	if err != nil {
 		clog.Log.Debugf("    failed to parse %s for symbols: %v", f.RelPath, err)
 		return nil
