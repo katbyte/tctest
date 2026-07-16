@@ -214,7 +214,6 @@ func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *h
 	return service, processedTests, nil
 }
 
-
 func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
 	result := make(map[string]struct{})
 	filterRegEx := cfg.FileRegEx
@@ -349,8 +348,10 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 	}
 
 	// print file regex and changed files
-	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
-	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
+	if cout.Level == cout.VerbosityVerbose {
+		cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
+		cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
+	}
 	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]
