@@ -27,7 +27,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 
 	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.LocalMode, "AST") {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
-		serviceTests, err = ghr.PrTestsFromLocal(number, f.DiscoveryConfig)
+		serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
 	} else {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 		serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
@@ -120,7 +120,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 				mu.Unlock()
 				return
 			}
-			service := f.ExtractService()
+			service := f.Service
 
 			mu.Lock()
 			for _, t := range tests {

@@ -14,6 +14,7 @@ type File struct {
 	Dir      string // directory with trailing slash: "internal/services/batch/"
 	Name     string // filename: "batch_account_resource.go"
 	BaseName string // filename without .go: "batch_account_resource"
+	Service  string // the extracted service name from the path, e.g. "batch"
 	Type     FileType
 	content  []byte // optional file content for self-reading methods
 }
@@ -43,6 +44,15 @@ func NewFile(relPath string) File {
 		Name:     base,
 		BaseName: strings.TrimSuffix(base, ".go"),
 	}
+
+	for _, sep := range []string{"/services/", "/service/"} {
+		parts := strings.Split(f.RelPath, sep)
+		if len(parts) == 2 {
+			f.Service = strings.Split(parts[1], "/")[0]
+			break
+		}
+	}
+
 	f.Classify()
 	return f
 }
@@ -73,18 +83,7 @@ func (f *File) SetContent(content []byte) {
 	f.Classify()
 }
 
-// ExtractService extracts the service name from a file path.
-// Handles both /services/ (Azure) and /service/ (AWS) layouts.
-// Returns empty string for non-service paths.
-func (f File) ExtractService() string {
-	for _, sep := range []string{"/services/", "/service/"} {
-		parts := strings.Split(f.RelPath, sep)
-		if len(parts) == 2 {
-			return strings.Split(parts[1], "/")[0]
-		}
-	}
-	return ""
-}
+
 
 // IsServicePath returns true if the path is within a service directory.
 func (f File) InServicePackage() bool {
