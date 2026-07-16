@@ -9,14 +9,15 @@ import (
 
 // File represents a Go source file in a Terraform provider repository.
 type File struct {
-	RelPath  string // full relative path: "internal/services/batch/batch_account_resource.go"
-	Path     string // absolute local path (or empty if using Content buffer)
-	Dir      string // directory with trailing slash: "internal/services/batch/"
-	Name     string // filename: "batch_account_resource.go"
-	BaseName string // filename without .go: "batch_account_resource"
-	Service  string // the extracted service name from the path, e.g. "batch"
-	Type     FileType
-	content  []byte // optional file content for self-reading methods
+	RelPath      string // full relative path: "internal/services/batch/batch_account_resource.go"
+	Path         string // absolute local path (or empty if using Content buffer)
+	Dir          string // directory with trailing slash: "internal/services/batch/"
+	Name         string // filename: "batch_account_resource.go"
+	BaseName     string // filename without .go: "batch_account_resource"
+	Service      string // the extracted service name from the path, e.g. "batch"
+	Type         FileType
+	DiscoveredBy []string // e.g. CHANGED, DERIVED, TRACED, VENDOR
+	content      []byte   // optional file content for self-reading methods
 }
 
 // NewFileWithPath creates a File from a relative path and a local repository root.
@@ -83,8 +84,6 @@ func (f *File) SetContent(content []byte) {
 	f.Classify()
 }
 
-
-
 // IsServicePath returns true if the path is within a service directory.
 func (f File) InServicePackage() bool {
 	return strings.Contains(f.RelPath, "/services/") || strings.Contains(f.RelPath, "/service/")
@@ -95,4 +94,14 @@ func (f File) InServicePackage() bool {
 // For "batch_account_data_source.go" → "batch_account_data_source".
 func (f File) ResourcePrefix() string {
 	return strings.TrimSuffix(f.BaseName, "_resource")
+}
+
+// AddDiscovery adds a discovery source label if it isn't already present.
+func (f *File) AddDiscovery(source string) {
+	for _, s := range f.DiscoveredBy {
+		if s == source {
+			return
+		}
+	}
+	f.DiscoveredBy = append(f.DiscoveredBy, source)
 }

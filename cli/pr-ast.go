@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -25,17 +26,9 @@ type AstDiscoveryContext struct {
 	Config     DiscoveryConfig
 
 	// File tracking
-	TestFiles    []provider.File
-	TestFileSeen map[string]bool
-
-	// Tagging / Labelling
-	ChangedTestFiles map[string]bool
-	DerivedTestFiles map[string]bool
-	TracedTestFiles  map[string]bool
-	VendorTestFiles  map[string]bool
+	TestFiles map[string]*provider.File
 
 	// Accumulators for PrintDiscoveredFiles
-	ChangedFileCount int
 	ChangedFileLines []string
 }
 
@@ -45,13 +38,7 @@ func NewAstDiscoveryContext(repoPath, modulePath string, cfg DiscoveryConfig) *A
 		ModulePath: modulePath,
 		Config:     cfg,
 
-		TestFiles:    make([]provider.File, 0),
-		TestFileSeen: make(map[string]bool),
-
-		ChangedTestFiles: make(map[string]bool),
-		DerivedTestFiles: make(map[string]bool),
-		TracedTestFiles:  make(map[string]bool),
-		VendorTestFiles:  make(map[string]bool),
+		TestFiles: make(map[string]*provider.File),
 
 		ChangedFileLines: make([]string, 0),
 	}
@@ -355,6 +342,26 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 	return result
 }
 
+func (dc *AstDiscoveryContext) SortedTestFiles() []*provider.File {
+	var files []*provider.File
+	for _, pf := range dc.TestFiles {
+		files = append(files, pf)
+	}
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].RelPath < files[j].RelPath
+	})
+	return files
+}
+
+func (dc *AstDiscoveryContext) AddTestFile(pf provider.File, source string) {
+	existing, ok := dc.TestFiles[pf.RelPath]
+	if !ok {
+		existing = &pf
+		dc.TestFiles[pf.RelPath] = existing
+	}
+	existing.AddDiscovery(source)
+}
+
 func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (map[string][]string, []provider.File, []provider.File, error) {
 	resourcePrefixesByPackage := map[string][]string{}
 	var helperFiles []provider.File
@@ -379,36 +386,26 @@ func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (map
 
 			switch pf.Type {
 			case provider.FileTypeOther:
-				dc.ChangedFileCount++
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>%s</>\n", pf.ColouredFileName(), pf.TypeLabel()))
 
 			case provider.FileTypeTest:
-				dc.ChangedFileCount++
 
-				if !dc.TestFileSeen[pf.RelPath] {
-					dc.TestFiles = append(dc.TestFiles, pf)
-					dc.TestFileSeen[pf.RelPath] = true
-				}
-				dc.ChangedTestFiles[pf.RelPath] = true
+				dc.AddTestFile(pf, "CHANGED")
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>[TEST]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeUnitTest:
-				dc.ChangedFileCount++
 				clog.Log.Debugf("    %s: no TestAcc functions, skipping", pf.RelPath)
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>[UNIT]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeResource:
-				dc.ChangedFileCount++
 				resourcePrefixesByPackage[path.Dir(pf.RelPath)] = append(resourcePrefixesByPackage[path.Dir(pf.RelPath)], pf.ResourcePrefix())
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>[RESOURCE]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeHelper:
-				dc.ChangedFileCount++
 				helperFiles = append(helperFiles, pf)
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>[HELPER]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeVendor:
-				dc.ChangedFileCount++
 				vendorFiles = append(vendorFiles, pf)
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>[VENDOR]</>\n", pf.ColouredFileName()))
 			}
@@ -419,8 +416,8 @@ func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (map
 		return nil, nil, nil, fmt.Errorf("failed to get PR files: %w", err)
 	}
 
-	cout.Printf("  changed files: <yellow>%d</>\n", dc.ChangedFileCount)
-	showChangedFiles := dc.Config.CollapseFilesAfter == 0 || dc.ChangedFileCount <= dc.Config.CollapseFilesAfter
+	cout.Printf("  changed files: <yellow>%d</>\n", len(dc.ChangedFileLines))
+	showChangedFiles := dc.Config.CollapseFilesAfter == 0 || len(dc.ChangedFileLines) <= dc.Config.CollapseFilesAfter
 	for _, line := range dc.ChangedFileLines {
 		if showChangedFiles {
 			cout.Printf("%s", line)
@@ -429,7 +426,7 @@ func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (map
 		}
 	}
 	if !showChangedFiles && cout.Level < cout.VerbosityVerbose {
-		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", dc.ChangedFileCount, dc.Config.CollapseFilesAfter)
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(dc.ChangedFileLines), dc.Config.CollapseFilesAfter)
 	}
 
 	return resourcePrefixesByPackage, helperFiles, vendorFiles, nil
@@ -443,12 +440,7 @@ func (dc *AstDiscoveryContext) DiscoverSiblingTests(resourcePrefixesByPackage ma
 			continue
 		}
 		for _, pf := range discovered {
-			if dc.TestFileSeen[pf.RelPath] {
-				continue
-			}
-			dc.DerivedTestFiles[pf.RelPath] = true
-			dc.TestFiles = append(dc.TestFiles, pf)
-			dc.TestFileSeen[pf.RelPath] = true
+			dc.AddTestFile(pf, "DERIVED")
 		}
 	}
 }
@@ -553,12 +545,7 @@ func (dc *AstDiscoveryContext) TraceHelperFiles(helperFiles []provider.File) {
 					continue
 				}
 				for _, pf := range discovered {
-					if dc.TestFileSeen[pf.RelPath] {
-						continue
-					}
-					dc.TracedTestFiles[pf.RelPath] = true
-					dc.TestFiles = append(dc.TestFiles, pf)
-					dc.TestFileSeen[pf.RelPath] = true
+					dc.AddTestFile(pf, "TRACED")
 				}
 			}
 		}
@@ -620,12 +607,7 @@ func (dc *AstDiscoveryContext) TraceHelperFiles(helperFiles []provider.File) {
 				continue
 			}
 			for _, pf := range discovered {
-				if dc.TestFileSeen[pf.RelPath] {
-					continue
-				}
-				dc.TracedTestFiles[pf.RelPath] = true
-				dc.TestFiles = append(dc.TestFiles, pf)
-				dc.TestFileSeen[pf.RelPath] = true
+				dc.AddTestFile(pf, "TRACED")
 			}
 		}
 
@@ -723,12 +705,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 				return nil
 			}
 			for _, pf := range discovered {
-				dc.VendorTestFiles[pf.RelPath] = true
-				if dc.TestFileSeen[pf.RelPath] {
-					continue
-				}
-				dc.TestFiles = append(dc.TestFiles, pf)
-				dc.TestFileSeen[pf.RelPath] = true
+				dc.AddTestFile(pf, "VENDOR")
 			}
 			break
 		}
@@ -760,37 +737,25 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 func (dc *AstDiscoveryContext) PrintDiscoveredFiles() {
 	cout.Printf("  test files: <yellow>%d</>\n", len(dc.TestFiles))
 	showTestFiles := dc.Config.CollapseFilesAfter == 0 || len(dc.TestFiles) <= dc.Config.CollapseFilesAfter
-	for _, pf := range dc.TestFiles {
-		tf := pf.RelPath
-
-		var labels []string
-		if dc.ChangedTestFiles[tf] {
-			labels = append(labels, "CHANGED")
-		}
-		if dc.DerivedTestFiles[tf] {
-			labels = append(labels, "DERIVED")
-		}
-		if dc.TracedTestFiles[tf] {
-			labels = append(labels, "TRACED")
-		}
-		if dc.VendorTestFiles[tf] {
-			labels = append(labels, "VENDOR")
-		}
-		label := strings.Join(labels, "+")
+	for _, pf := range dc.SortedTestFiles() {
+		sources := strings.Join(pf.DiscoveredBy, "+")
 
 		fileColour := provider.FileColourDerived
-		switch {
-		case dc.ChangedTestFiles[tf]:
-			fileColour = provider.FileColourTest
-		case dc.VendorTestFiles[tf]:
-			fileColour = provider.FileColourVendor
-		case dc.TracedTestFiles[tf]:
-			fileColour = provider.FileColourHelper
+		for _, s := range pf.DiscoveredBy {
+			if s == "CHANGED" {
+				fileColour = provider.FileColourTest
+				break
+			} else if s == "VENDOR" && fileColour != provider.FileColourTest {
+				fileColour = provider.FileColourVendor
+			} else if s == "TRACED" && fileColour != provider.FileColourTest && fileColour != provider.FileColourVendor {
+				fileColour = provider.FileColourHelper
+			}
 		}
+
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, sources)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, sources)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
@@ -806,9 +771,9 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 	var errs []error
 	sem := make(chan struct{}, dc.Config.Concurrency)
 
-	for _, pf := range dc.TestFiles {
+	for _, pf := range dc.SortedTestFiles() {
 		wg.Add(1)
-		go func(pfile provider.File) {
+		go func(pfile *provider.File) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
