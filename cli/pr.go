@@ -7,7 +7,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -157,30 +156,13 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, filePath, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
 	clog.Log.Debugf("    download %s", filePath)
 
-	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", gr.Owner, gr.Name, mergeCommitSHA, filePath)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	content, statusCode, err := gr.DownloadFile(ctx, httpClient, filePath, mergeCommitSHA)
 	if err != nil {
-		return "", nil, fmt.Errorf("creating request for %s: %w", filePath, err)
+		return "", nil, err
 	}
 
-	if gr.Token.Token != nil {
-		req.Header.Set("Authorization", "token "+*gr.Token.Token)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "", nil, fmt.Errorf("downloading file (%s): %w", filePath, err)
-	}
-
-	content, err := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if err != nil {
-		return "", nil, fmt.Errorf("reading file (%s): %w", filePath, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", filePath, resp.StatusCode)
+	if statusCode != http.StatusOK {
+		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", filePath, statusCode)
 		return "", nil, nil
 	}
 
@@ -232,33 +214,6 @@ func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *h
 	return service, processedTests, nil
 }
 
-func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *github.Response) error) error {
-	client, ctx := gr.NewClient()
-
-	opts := &github.ListOptions{
-		Page:    1,
-		PerPage: 100,
-	}
-
-	for {
-		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", gr.Owner, gr.Name, pri, opts.Page)
-		files, resp, err := client.PullRequests.ListFiles(ctx, gr.Owner, gr.Name, pri, opts)
-		if err != nil {
-			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", gr.Owner, gr.Name, pri, opts.Page, err)
-		}
-
-		if err = cb(files, resp); err != nil {
-			return fmt.Errorf("callback failed for %s/%s/pull/%d (Page %d): %w", gr.Owner, gr.Name, pri, opts.Page, err)
-		}
-
-		if resp.NextPage == 0 {
-			break
-		}
-		opts.Page = resp.NextPage
-	}
-
-	return nil
-}
 
 func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
 	result := make(map[string]struct{})
