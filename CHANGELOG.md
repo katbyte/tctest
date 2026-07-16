@@ -1,5 +1,13 @@
-## v0.8.0 (2026-06-18)
+## v0.9.0 (2026-07-16)
 
+- bump golang.org/x/crypto from 0.47.0 to 0.52.0 ([#84](https://github.com/katbyte/tctest/pull/84))
+- enforce exact args, fix draft flag parsing/filtering, improve error handling for PR tests, and fix TeamCity auth ([#83](https://github.com/katbyte/tctest/pull/83))
+- add retry transport for GitHub API calls ([#83](https://github.com/katbyte/tctest/pull/83))
+- add `--dry-run` and `--concurrency` flags ([#82](https://github.com/katbyte/tctest/pull/82))
+- switch to concurrent file downloads and using raw GitHub URLs vs API ([#81](https://github.com/katbyte/tctest/pull/81))
+- refactor test discovery to support AWS provider file layout, use suffix patterns for related test discovery, and skip non-Go files ([#80](https://github.com/katbyte/tctest/pull/80))
+
+## v0.8.0 (2026-06-18)
 - add a new flag to reappend the split character ([#79](https://github.com/katbyte/tctest/pull/79))
 
 ## v0.7.0 (2026-05-01)
