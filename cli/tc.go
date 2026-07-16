@@ -9,6 +9,7 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 	"github.com/pkg/browser"
+	"github.com/spf13/viper"
 )
 
 func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
@@ -24,7 +25,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int,
 		properties += "POST_GITHUB_COMMENT=true"
 	}
 
-	if f.DryRun {
+	if viper.GetBool("dry-run") {
 		cout.Printf("  <yellow>[DRY RUN]</> would trigger build on <darkGray>%s</> with test regex <darkGray>%s</>\n", buildTypeID, testRegex)
 		if properties != "" {
 			cout.Printf("  <yellow>[DRY RUN]</> properties: <darkGray>%s</>\n", properties)
