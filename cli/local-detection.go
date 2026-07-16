@@ -56,7 +56,7 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 	}
 
 	// get module path from go.mod for import tracing
-	modulePath, err := getModulePath(repoPath)
+	modulePath, err := provider.GetModulePath(repoPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read module path: %w", err)
 	}
@@ -614,22 +614,7 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 	return &serviceTests, nil
 }
 
-// --- Module path ---
 
-// getModulePath reads go.mod in the repo and returns the module import path.
-func getModulePath(repoPath string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(repoPath, "go.mod")) //nolint:gosec // path is from user-provided --local-repo-path flag
-	if err != nil {
-		return "", fmt.Errorf("reading go.mod: %w", err)
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "module ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
-		}
-	}
-	return "", errors.New("module directive not found in go.mod")
-}
 
 // --- Local test file discovery ---
 
