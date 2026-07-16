@@ -15,13 +15,14 @@ type File struct {
 	Name     string // filename: "batch_account_resource.go"
 	BaseName string // filename without .go: "batch_account_resource"
 	Type     FileType
-	Content  []byte // optional file content for self-reading methods
+	content  []byte // optional file content for self-reading methods
 }
 
 // NewFileWithPath creates a File from a relative path and a local repository root.
 func NewFileWithPath(relPath, repoPath string) File {
 	f := NewFile(relPath)
 	f.Path = filepath.Join(repoPath, relPath)
+	f.Classify()
 	return f
 }
 
@@ -49,8 +50,8 @@ func NewFile(relPath string) File {
 // GetContent returns the file's content. It uses the cached Content buffer if
 // available, otherwise reads from the absolute Path on disk and caches the result.
 func (f *File) GetContent() ([]byte, error) {
-	if len(f.Content) > 0 {
-		return f.Content, nil
+	if len(f.content) > 0 {
+		return f.content, nil
 	}
 
 	if f.Path == "" {
@@ -62,8 +63,14 @@ func (f *File) GetContent() ([]byte, error) {
 		return nil, fmt.Errorf("reading %s: %w", f.Path, err)
 	}
 
-	f.Content = content
+	f.content = content
 	return content, nil
+}
+
+// SetContent sets the file's internal content buffer and re-runs classification.
+func (f *File) SetContent(content []byte) {
+	f.content = content
+	f.Classify()
 }
 
 // ExtractService extracts the service name from a file path.

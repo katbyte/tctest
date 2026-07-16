@@ -34,7 +34,14 @@ func DefaultClassifier(f *File) FileType {
 	}
 
 	if strings.HasSuffix(f.RelPath, "_test.go") {
-		// unit test vs acceptance test determination is handled later during ast parsing
+		// if we have local path/content, do an in-depth detection for acceptance vs unit test
+		if content, err := f.GetContent(); err == nil {
+			if strings.Contains(string(content), "func TestAcc") {
+				return FileTypeTest
+			}
+			return FileTypeUnitTest
+		}
+		// fallback if content isn't locally available
 		return FileTypeTest
 	}
 	if strings.HasPrefix(f.RelPath, "vendor/") {
@@ -108,8 +115,8 @@ func (f File) TextColour() string {
 	}
 }
 
-// ColouredOutput returns the formatted dir + coloured base for cout output.
-// Example: "<darkGray>internal/services/batch/</><fg=36>batch_account_resource.go</>"
-func (f File) ColouredOutput() string {
+// ColouredFileName returns the formatted dir + coloured base for cout output.
+// Example: "<fg=208>internal/services/batch/</><fg=36>batch_account_resource.go</>"
+func (f File) ColouredFileName() string {
 	return fmt.Sprintf("<darkGray>%s</>%s%s</>", f.Dir, f.TextColour(), f.Name)
 }

@@ -93,6 +93,7 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 			clog.Log.Debugf("    %v (%s)", pf.RelPath, f.GetStatus())
 
 			if !strings.HasSuffix(pf.RelPath, ".go") {
+				clog.Log.Debugf("    skipping non go file: %s", pf.RelPath)
 				continue
 			}
 			if f.GetStatus() == "removed" {
@@ -100,60 +101,44 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 				continue
 			}
 
-			if pf.Type == provider.FileTypeOther && !strings.HasPrefix(pf.RelPath, "vendor/") &&
-				!strings.Contains(pf.RelPath, "/services/") && !strings.Contains(pf.RelPath, "/service/") {
-				changedFileCount++
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s %s\n", pf.ColouredOutput(), pf.TypeLabel()))
-				continue
-			}
-
 			switch pf.Type {
 			case provider.FileTypeOther:
-				// registration.go, resourceids.go — skip silently
-				continue
+				changedFileCount++
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>%s</>\n", pf.ColouredFileName(), pf.TypeLabel()))
 
 			case provider.FileTypeTest:
 				changedFileCount++
 
-				// quick local read to check for TestAcc
-				hasAccTests := false
-				if content, readErr := os.ReadFile(filepath.Join(repoPath, pf.RelPath)); readErr == nil { //nolint:gosec // path is from user-provided --local-repo-path flag
-					hasAccTests = strings.Contains(string(content), "func TestAcc")
+				if !testFileSeen[pf.RelPath] {
+					testFilesList = append(testFilesList, pf.RelPath)
+					testFileSeen[pf.RelPath] = true
 				}
+				changedTestFiles[pf.RelPath] = true
+				testFilesToParse[pf.RelPath] = struct{}{}
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[TEST]</>\n", pf.ColouredFileName()))
 
-				if hasAccTests {
-					if !testFileSeen[pf.RelPath] {
-						testFilesList = append(testFilesList, pf.RelPath)
-						testFileSeen[pf.RelPath] = true
-					}
-					changedTestFiles[pf.RelPath] = true
-					testFilesToParse[pf.RelPath] = struct{}{}
-					changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[TEST]</>\n", pf.ColouredOutput()))
-				} else {
-					pf.Type = provider.FileTypeUnitTest
-					unitTestFiles[pf.RelPath] = true
-					clog.Log.Debugf("    %s: no TestAcc functions, skipping", pf.RelPath)
-					changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[UNIT]</>\n", pf.ColouredOutput()))
-				}
+			case provider.FileTypeUnitTest:
+				changedFileCount++
+				unitTestFiles[pf.RelPath] = true
+				clog.Log.Debugf("    %s: no TestAcc functions, skipping", pf.RelPath)
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[UNIT]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeResource:
 				changedFileCount++
 				resourcePrefixesByPackage[path.Dir(pf.RelPath)] = append(resourcePrefixesByPackage[path.Dir(pf.RelPath)], pf.ResourcePrefix())
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[RESOURCE]</>\n", pf.ColouredOutput()))
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[RESOURCE]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeHelper:
 				changedFileCount++
 				helperFiles = append(helperFiles, pf.RelPath)
 				helperFileSet[pf.RelPath] = true
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[HELPER]</>\n", pf.ColouredOutput()))
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[HELPER]</>\n", pf.ColouredFileName()))
 
 			case provider.FileTypeVendor:
 				changedFileCount++
 				vendorFiles = append(vendorFiles, pf.RelPath)
-				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[VENDOR]</>\n", pf.ColouredOutput()))
+				changedFileLines = append(changedFileLines, fmt.Sprintf("    %s <darkGray>[VENDOR]</>\n", pf.ColouredFileName()))
 
-			case provider.FileTypeUnitTest:
-				// ClassifyFile never returns UnitTest; handled in FileTypeTest case above
 			}
 		}
 		return nil
@@ -177,20 +162,19 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 
 	// find sibling test files for resource files (local FS walk)
 	for dir, prefixes := range resourcePrefixesByPackage {
-		localDir := filepath.Join(repoPath, dir)
-		discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixRegexes)
+		discovered, err := findLocalTestFiles(repoPath, dir, prefixes, cfg.AccTestFileSuffixRegexes)
 		if err != nil {
 			clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
 			continue
 		}
-		for _, tf := range discovered {
-			if testFileSeen[tf] {
+		for _, pf := range discovered {
+			if testFileSeen[pf.RelPath] {
 				continue
 			}
-			testFilesToParse[tf] = struct{}{}
-			derivedTestFiles[tf] = true
-			testFilesList = append(testFilesList, tf)
-			testFileSeen[tf] = true
+			testFilesToParse[pf.RelPath] = struct{}{}
+			derivedTestFiles[pf.RelPath] = true
+			testFilesList = append(testFilesList, pf.RelPath)
+			testFileSeen[pf.RelPath] = true
 		}
 	}
 
@@ -294,18 +278,18 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 					samePkgTracedFiles[relPath] = true
 
 					// find test files for this resource
-					discovered, err := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
+					discovered, err := findLocalTestFiles(repoPath, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
 					if err != nil {
 						continue
 					}
-					for _, tf := range discovered {
-						tracedTestFiles[tf] = true
-						if testFileSeen[tf] {
+					for _, pf := range discovered {
+						if testFileSeen[pf.RelPath] {
 							continue
 						}
-						testFilesToParse[tf] = struct{}{}
-						testFilesList = append(testFilesList, tf)
-						testFileSeen[tf] = true
+						testFilesToParse[pf.RelPath] = struct{}{}
+						tracedTestFiles[pf.RelPath] = true
+						testFilesList = append(testFilesList, pf.RelPath)
+						testFileSeen[pf.RelPath] = true
 					}
 				}
 			}
@@ -328,7 +312,7 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 				if len(traced) > 0 {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, tpf := range traced {
-						cout.Verbosef("      %s\n", tpf.ColouredOutput())
+						cout.Verbosef("      %s\n", tpf.ColouredFileName())
 					}
 				} else {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Name)
@@ -362,26 +346,25 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 			tracedDirs := traceImportsToResourceFiles(repoPath, modulePath, crossPkgHelpers, pkgSymbols, cfg.FileRegEx, cfg.LocalTraceDepth)
 
 			for dir, files := range tracedDirs {
-				localDir := filepath.Join(repoPath, dir)
 				// derive test prefixes from actual filenames
 				var prefixes []string
 				for _, f := range files {
 					tpf := provider.NewFileWithPath(f, repoPath)
 					prefixes = append(prefixes, tpf.ResourcePrefix())
 				}
-				discovered, err := findLocalTestFiles(localDir, dir, prefixes, cfg.AccTestFileSuffixRegexes)
+				discovered, err := findLocalTestFiles(repoPath, dir, prefixes, cfg.AccTestFileSuffixRegexes)
 				if err != nil {
 					clog.Log.Debugf("  failed to find test files in %s: %v", dir, err)
 					continue
 				}
-				for _, tf := range discovered {
-					tracedTestFiles[tf] = true
-					if testFileSeen[tf] {
+				for _, pf := range discovered {
+					if testFileSeen[pf.RelPath] {
 						continue
 					}
-					testFilesToParse[tf] = struct{}{}
-					testFilesList = append(testFilesList, tf)
-					testFileSeen[tf] = true
+					testFilesToParse[pf.RelPath] = struct{}{}
+					tracedTestFiles[pf.RelPath] = true
+					testFilesList = append(testFilesList, pf.RelPath)
+					testFileSeen[pf.RelPath] = true
 				}
 			}
 
@@ -409,7 +392,7 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, t := range tracedFiles {
 						tpf := provider.NewFileWithPath(t, repoPath)
-						cout.Verbosef("      %s\n", tpf.ColouredOutput())
+						cout.Verbosef("      %s\n", tpf.ColouredFileName())
 					}
 				} else {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> → <darkGray>no resource files traced</>\n", pf.Dir, pf.Name)
@@ -487,20 +470,19 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 
 				pkgToResources[impPath] = append(pkgToResources[impPath], tracedFile)
 
-				localDir := filepath.Join(repoPath, dir)
-				discovered, findErr := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
+				discovered, findErr := findLocalTestFiles(repoPath, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
 				if findErr != nil {
 					//nolint:nilerr // test file discovery failure is non-fatal
 					return nil
 				}
-				for _, tf := range discovered {
-					vendorTestFiles[tf] = true
-					if testFileSeen[tf] {
+				for _, pf := range discovered {
+					vendorTestFiles[pf.RelPath] = true
+					if testFileSeen[pf.RelPath] {
 						continue
 					}
-					testFilesToParse[tf] = struct{}{}
-					testFilesList = append(testFilesList, tf)
-					testFileSeen[tf] = true
+					testFilesToParse[pf.RelPath] = struct{}{}
+					testFilesList = append(testFilesList, pf.RelPath)
+					testFileSeen[pf.RelPath] = true
 				}
 				break // found a matching import, no need to check others
 			}
@@ -523,7 +505,7 @@ func (ghr GithubRepo) PrTestsFromLocal(pri int, cfg DiscoveryConfig) (*map[strin
 		for pkg, resources := range pkgToResources {
 			cout.Verbosef("    <fg=177>%s</> →\n", pkg)
 			for _, rpf := range resources {
-				cout.Verbosef("      %s\n", rpf.ColouredOutput())
+				cout.Verbosef("      %s\n", rpf.ColouredFileName())
 			}
 		}
 		if len(pkgToResources) == 0 {
@@ -654,37 +636,46 @@ func getModulePath(repoPath string) (string, error) {
 // findLocalTestFiles walks a local directory and returns test files matching
 // the resource prefix + suffix regex patterns. Same matching logic as the
 // GitHub Contents API path, but reads from the local filesystem (no 1000-file cap).
-func findLocalTestFiles(localDir, relativeDir string, resourcePrefixes []string, suffixREs []*regexp.Regexp) ([]string, error) {
+func findLocalTestFiles(repoPath, relativeDir string, resourcePrefixes []string, suffixREs []*regexp.Regexp) ([]provider.File, error) {
+	localDir := filepath.Join(repoPath, relativeDir)
+
 	entries, err := os.ReadDir(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("reading directory %s: %w", localDir, err)
 	}
 
-	var testFiles []string
+	var testFiles []provider.File
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_test.go") {
+		if entry.IsDir() {
 			continue
 		}
 
-		nameNoExt := strings.TrimSuffix(entry.Name(), ".go")
+		pf := provider.NewFileWithPath(filepath.Join(relativeDir, entry.Name()), repoPath)
+		if pf.Type != provider.FileTypeTest && pf.Type != provider.FileTypeUnitTest {
+			continue
+		}
+
 		matched := false
 		for _, prefix := range resourcePrefixes {
-			if !strings.HasPrefix(nameNoExt, prefix) {
+			if !strings.HasPrefix(pf.BaseName, prefix) {
 				continue
 			}
-			remainder := nameNoExt[len(prefix):]
+			remainder := pf.BaseName[len(prefix):]
+
 			for _, re := range suffixREs {
 				if re.MatchString(remainder) {
 					matched = true
 					break
 				}
 			}
+
 			if matched {
 				break
 			}
 		}
+
 		if matched {
-			testFiles = append(testFiles, relativeDir+"/"+entry.Name())
+			testFiles = append(testFiles, pf)
 		}
 	}
 

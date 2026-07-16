@@ -112,7 +112,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 				return // file was skipped
 			}
 
-			f.Content = content
+			f.SetContent(content)
 			tests, err := f.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
 			if err != nil {
 				mu.Lock()
