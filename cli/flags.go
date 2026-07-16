@@ -232,7 +232,8 @@ func configureFlags(root *cobra.Command) error {
 	viper.AddConfigPath(".")
 
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if !errors.As(err, &configFileNotFoundError) {
 			clog.Log.Errorf("Error reading config file: %v", err)
 		}
 	}
