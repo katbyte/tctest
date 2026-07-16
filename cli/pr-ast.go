@@ -103,7 +103,7 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 	dc.TraceHelperFiles(helperFiles)
 	dc.TraceVendorFiles(vendorFiles)
 
-	// summarize results
+	// summarise results
 	dc.PrintDiscoveredFiles()
 
 	// parse tests
@@ -343,7 +343,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 }
 
 func (dc *AstDiscoveryContext) SortedTestFiles() []*provider.File {
-	var files []*provider.File
+	files := make([]*provider.File, 0, len(dc.TestFiles))
 	for _, pf := range dc.TestFiles {
 		files = append(files, pf)
 	}
@@ -665,7 +665,10 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 	servicesDir := filepath.Join(dc.RepoPath, "internal", "services")
 	_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil || d.IsDir() {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
 			return nil
 		}
 		if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
@@ -674,7 +677,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 		relPath, relErr := filepath.Rel(dc.RepoPath, path)
 		if relErr != nil {
-			return nil
+			return nil //nolint:nilerr
 		}
 		relPath = filepath.ToSlash(relPath)
 
@@ -685,7 +688,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 		fset := token.NewFileSet()
 		parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 		if parseErr != nil {
-			return nil
+			return nil //nolint:nilerr
 		}
 
 		for _, imp := range parsed.Imports {
@@ -702,7 +705,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 			discovered, findErr := dc.findLocalTestFiles(dir, []string{tracedFile.ResourcePrefix()})
 			if findErr != nil {
-				return nil
+				return nil //nolint:nilerr
 			}
 			for _, pf := range discovered {
 				dc.AddTestFile(pf, "VENDOR")
@@ -740,16 +743,26 @@ func (dc *AstDiscoveryContext) PrintDiscoveredFiles() {
 	for _, pf := range dc.SortedTestFiles() {
 		sources := strings.Join(pf.DiscoveredBy, "+")
 
-		fileColour := provider.FileColourDerived
+		hasChanged, hasVendor, hasTraced := false, false, false
 		for _, s := range pf.DiscoveredBy {
-			if s == "CHANGED" {
-				fileColour = provider.FileColourTest
-				break
-			} else if s == "VENDOR" && fileColour != provider.FileColourTest {
-				fileColour = provider.FileColourVendor
-			} else if s == "TRACED" && fileColour != provider.FileColourTest && fileColour != provider.FileColourVendor {
-				fileColour = provider.FileColourHelper
+			switch s {
+			case "CHANGED":
+				hasChanged = true
+			case "VENDOR":
+				hasVendor = true
+			case "TRACED":
+				hasTraced = true
 			}
+		}
+
+		fileColour := provider.FileColourDerived
+		switch {
+		case hasChanged:
+			fileColour = provider.FileColourTest
+		case hasVendor:
+			fileColour = provider.FileColourVendor
+		case hasTraced:
+			fileColour = provider.FileColourHelper
 		}
 
 		if showTestFiles {
