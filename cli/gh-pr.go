@@ -312,17 +312,17 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	for _, pf := range testFiles {
 		// build label based on whether file is changed, derived, or both
 		var labels []string
-		if changedTestFiles[pf.Name] {
+		if changedTestFiles[pf.RelPath] {
 			labels = append(labels, "CHANGED")
 		}
-		if derivedTestFiles[pf.Name] {
+		if derivedTestFiles[pf.RelPath] {
 			labels = append(labels, "DERIVED")
 		}
 		label := strings.Join(labels, "/")
 
 		// changed files in green, derived-only in dark cyan
 		fileColor := "<fg=36>" // dark cyan for derived
-		if changedTestFiles[pf.Name] {
+		if changedTestFiles[pf.RelPath] {
 			fileColor = "<fg=28>" // dark green for changed
 		}
 		if showTestFiles {

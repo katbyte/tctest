@@ -230,7 +230,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 			samePkgHelperCount += len(h)
 		}
 		samePkgTracedFiles := map[string]bool{}
-		allHelperTraced := map[string][]string{} // helper file -> traced resource files (across all dirs)
+		allHelperTraced := map[string][]provider.File{} // helper file -> traced resource files (across all dirs)
 		for dir, helpers := range samePkgHelpers {
 			// extract all symbols (including unexported) from each helper
 			symbols := map[string]bool{}
@@ -287,9 +287,12 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				if len(usedSymbols) > 0 {
 					tracedFile := provider.NewFileWithPath(relPath, repoPath)
 					clog.Log.Debugf("    same-pkg traced: %s uses %v", relPath, usedSymbols)
+					tracedFile.Classify(cfg.FileRegEx)
+					// map the directory to the file's prefix so we can find tests
+					resourceDirs[dir] = append(resourceDirs[dir], tracedFile.ResourcePrefix())
 
 					for _, f := range helpers {
-						allHelperTraced[f] = append(allHelperTraced[f], relPath)
+						allHelperTraced[f] = append(allHelperTraced[f], tracedFile)
 					}
 					samePkgTracedFiles[relPath] = true
 
@@ -327,8 +330,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 				traced := allHelperTraced[f]
 				if len(traced) > 0 {
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
-					for _, t := range traced {
-						tpf := provider.NewFileWithPath(t, repoPath)
+					for _, tpf := range traced {
 						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
@@ -410,6 +412,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 					cout.Verbosef("    <darkGray>%s</><white;op=bold>%s</> →\n", pf.Dir, pf.Name)
 					for _, t := range tracedFiles {
 						tpf := provider.NewFileWithPath(t, repoPath)
+						tpf.Classify(cfg.FileRegEx)
 						cout.Verbosef("      %s\n", tpf.ColouredOutput())
 					}
 				} else {
@@ -428,6 +431,9 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		// collect unique vendor package import paths, tracking which files belong to each package
 		vendorPkgs := map[string]bool{}
 		vendorFileToPkg := map[string]string{} // vendor file -> package import path
+
+		// map of vendor package -> list of resource files that import it
+		pkgToResources := map[string][]provider.File{}
 		for _, f := range vendorFiles {
 			pkgImportPath := filepath.ToSlash(filepath.Dir(strings.TrimPrefix(f, "vendor/")))
 			vendorPkgs[pkgImportPath] = true
@@ -444,7 +450,6 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 		// walk all service directories looking for resource files that import these vendor packages
 		// track which packages traced to which resource files
-		pkgToResources := map[string][]string{} // package -> list of resource files
 		servicesDir := filepath.Join(repoPath, "internal", "services")
 		_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil || d.IsDir() {
@@ -482,9 +487,10 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 
 				dir := filepath.ToSlash(filepath.Dir(relPath))
 				tracedFile := provider.NewFileWithPath(relPath, repoPath)
+				tracedFile.Classify(cfg.FileRegEx)
 				clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
 
-				pkgToResources[impPath] = append(pkgToResources[impPath], relPath)
+				pkgToResources[impPath] = append(pkgToResources[impPath], tracedFile)
 
 				localDir := filepath.Join(repoPath, dir)
 				discovered, findErr := findLocalTestFiles(localDir, dir, []string{tracedFile.ResourcePrefix()}, cfg.AccTestFileSuffixRegexes)
@@ -521,8 +527,7 @@ func (ghr GithubRepo) PrTestsLocal(pri int, cfg DiscoveryConfig) (*map[string][]
 		// print which packages traced to which resource files
 		for pkg, resources := range pkgToResources {
 			cout.Verbosef("    <fg=177>%s</> →\n", pkg)
-			for _, res := range resources {
-				rpf := provider.NewFileWithPath(res, repoPath)
+			for _, rpf := range resources {
 				cout.Verbosef("      %s\n", rpf.ColouredOutput())
 			}
 		}
