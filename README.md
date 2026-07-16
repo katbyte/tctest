@@ -17,15 +17,27 @@ go install github.com/katbyte/tctest@latest
 
 ## Configuration
 
-All options can be passed as command-line flags but most can also be set via environment variables. Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and source it.
+All options can be passed as command-line flags, environment variables, or via a configuration file. 
 
+### Configuration File
+
+You can place a `.tctest` file in your home directory `~/.tctest` (for global settings) or in your current directory `./.tctest` (for repository-specific settings). Keys in the file match the long flag names or environment variables using the `env` format. For example:
+
+```env
+SERVER=ci.katbyte.net
+BUILD-TYPE-ID=AzureRm
+TOKEN-GH=github_pat_1234
+TOKEN-TC=ey...
+```
+
+Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and source it for environment variables.
 
 ### Environment Variables
 
 | Variable | Flag | Description |
 |---|---|---|
 | `TCTEST_SERVER` | `--server`, `-s` | TeamCity server URL |
-| `TCTEST_BUILDTYPEID` | `--buildtypeid`, `-b` | TeamCity build configuration ID |
+| `TCTEST_BUILD_TYPE_ID` | `--build-type-id`, `-b` | TeamCity build configuration ID |
 | `TCTEST_TOKEN_TC` | `--token-tc`, `-t` | TeamCity authentication token |
 | `TCTEST_USER` | `--username` | TeamCity username (alternative to token) |
 | `TCTEST_PASS` | `--password` | TeamCity password (alternative to token) |

@@ -13,6 +13,10 @@ func (r Repo) PrURL(pr int) string {
 	return "https://github.com/" + r.Owner + "/" + r.Name + "/pull/" + strconv.Itoa(pr)
 }
 
+func (r Repo) CloneURL() string {
+	return "https://github.com/" + r.Owner + "/" + r.Name + ".git"
+}
+
 func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *github.Response) error) error {
 	client, ctx := r.NewClient()
 
