@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/katbyte/tctest/lib/provider"
 	"github.com/katbyte/tctest/lib/tc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -268,6 +269,15 @@ func GetFlags() FlagData {
 
 	// Manually compile Regex fields since Viper doesn't know how to unmarshal strings into *regexp.Regexp natively
 	f.DiscoveryConfig.FileRegEx = regexp.MustCompile(viper.GetString("fileregex"))
+
+	// Set the global File classifier using the configured regex
+	provider.Classifier = func(file *provider.File) provider.FileType {
+		t := provider.DefaultClassifier(file)
+		if t == provider.FileTypeHelper && f.DiscoveryConfig.FileRegEx != nil && f.DiscoveryConfig.FileRegEx.MatchString(file.RelPath) {
+			return provider.FileTypeResource
+		}
+		return t
+	}
 
 	suffixStrs := viper.GetStringSlice("acctest-file-suffix-regexes")
 	f.DiscoveryConfig.AccTestFileSuffixRegexes = make([]*regexp.Regexp, 0, len(suffixStrs))

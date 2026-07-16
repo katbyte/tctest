@@ -16,8 +16,8 @@ import (
 	"github.com/pkg/browser"
 )
 
-// TODO reorg this file
-
+// GetPrTests discovers the tests that need to be run for a PR. It first checks if the PR title contains
+// a test override. If not, it delegates to GithubRepo.PrTestsFromAPI to discover tests based on changed files.
 func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
 	ghr := f.NewRepo()
 
@@ -27,7 +27,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 
 	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.LocalMode, "AST") {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
-		serviceTests, err = ghr.PrTestsLocal(number, f.DiscoveryConfig)
+		serviceTests, err = ghr.PrTestsFromLocal(number, f.DiscoveryConfig)
 	} else {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
 		serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
@@ -57,6 +57,8 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	return serviceTests, nil
 }
 
+// PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
+// It uses GetPullRequestTestFiles to get the files, groups them into packages, and returns a map of package names to a list of test names.
 func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
 	client, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
@@ -156,71 +158,75 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	return &serviceTests, nil
 }
 
+// GetPullRequestTestFiles fetches all changed files in a PR and determines the related test files.
+// It classifies files based on the DiscoveryConfig and lists contents of directories containing changed resources to find related tests.
 func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
 	result := make(map[string]provider.File)
 
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
-	resourceDirs := map[string][]string{}
+	resourcePrefixesByPackage := map[string][]string{}
 
 	// track changed files and test files for output
-	var changedFiles []provider.File
+	var changedServiceFiles []provider.File
 	skippedFiles := map[string]bool{} // service files that didn't match the regex
 	var testFiles []provider.File
 	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
 	derivedTestFiles := map[string]bool{} // tracks which test files were derived
 	testFileSeen := map[string]bool{}     // dedup test files
 
+	// first get all files for the pull request and filter out every one that is not inside a service package
 	err := ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
 			}
 
-			name := *f.Filename
-			clog.Log.Debugf("    %v (%s)", name, f.GetStatus())
+			pf := provider.NewFile(f.GetFilename())
+			clog.Log.Debugf("    %v (%s)", pf.RelPath, f.GetStatus())
 
 			// for now we only care about go files, data files that acctests load/rely on will be skipped for now
-			if !strings.HasSuffix(name, ".go") {
+			if !strings.HasSuffix(pf.RelPath, ".go") {
 				continue
 			}
 
 			// skip deleted files - they won't exist at the merge commit
 			if f.GetStatus() == "removed" {
-				clog.Log.Debugf("    skipping removed file: %s", name)
+				clog.Log.Debugf("    skipping removed file: %s", pf.RelPath)
 				continue
 			}
 
-			pf := provider.NewFile(name)
-			pf.Classify(cfg.FileRegEx)
-
 			if pf.Type == provider.FileTypeHelper {
 				// track service files that don't match the regex (e.g. client helpers)
-				changedFiles = append(changedFiles, pf)
-				skippedFiles[name] = true
+				changedServiceFiles = append(changedServiceFiles, pf)
+				skippedFiles[pf.RelPath] = true
 				continue
 			}
 
 			if pf.Type == provider.FileTypeTest {
-				changedFiles = append(changedFiles, pf)
-				if !testFileSeen[name] {
+				changedServiceFiles = append(changedServiceFiles, pf)
+				if !testFileSeen[pf.RelPath] {
 					testFiles = append(testFiles, pf)
-					testFileSeen[name] = true
+					testFileSeen[pf.RelPath] = true
 				}
-				changedTestFiles[name] = true
-				result[name] = pf
+				changedTestFiles[pf.RelPath] = true
+				result[pf.RelPath] = pf
 				continue
 			}
 
 			if pf.Type == provider.FileTypeOther || pf.Type == provider.FileTypeVendor {
-				// skip registration.go, resourceids.go, vendor files, and non-service files that don't match the regex
+				// if they are in the service path (e.g. registration.go, resourceids.go), mark them as skipped in the output
+				if pf.InServicePackage() {
+					changedServiceFiles = append(changedServiceFiles, pf)
+					skippedFiles[pf.RelPath] = true
+				}
 				continue
 			}
 
-			changedFiles = append(changedFiles, pf)
+			changedServiceFiles = append(changedServiceFiles, pf)
 
 			// note the directory and probable resourceName so we can discover all related test files
-			resourceDirs[path.Dir(pf.RelPath)] = append(resourceDirs[path.Dir(pf.RelPath)], pf.ResourcePrefix())
+			resourcePrefixesByPackage[path.Dir(pf.RelPath)] = append(resourcePrefixesByPackage[path.Dir(pf.RelPath)], pf.ResourcePrefix())
 		}
 
 		return nil
@@ -231,9 +237,9 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 
 	// For each directory containing a modified file, list all files
 	// and add test files whose name matches "{resource/datasource-name}{acctest-pattern}.go".
-	if len(resourceDirs) > 0 {
+	if len(resourcePrefixesByPackage) > 0 {
 		client, ctx := ghr.NewClient()
-		for dir, prefixes := range resourceDirs {
+		for dir, prefixes := range resourcePrefixesByPackage {
 			clog.Log.Debugf("  listing directory %s for related test files...", dir)
 			_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, dir, nil)
 			if err != nil {
@@ -242,44 +248,44 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 			}
 
 			for _, entry := range dirContents {
-				entryName := entry.GetName()
-				if !strings.HasSuffix(entryName, "_test.go") {
+				pf := provider.NewFile(path.Join(dir, entry.GetName()))
+				if pf.Type != provider.FileTypeTest {
 					continue
 				}
-				fileNameWithNoExt := strings.TrimSuffix(entryName, ".go")
+
 				shouldInclude := false
 				for _, resource := range prefixes {
-					if !strings.HasPrefix(fileNameWithNoExt, resource) {
+					if !strings.HasPrefix(pf.BaseName, resource) {
 						continue
 					}
-					remainder := fileNameWithNoExt[len(resource):]
+
+					remainder := pf.BaseName[len(resource):]
 					for _, testSuffix := range cfg.AccTestFileSuffixRegexes {
 						if testSuffix.MatchString(remainder) {
 							shouldInclude = true
 							break
 						}
 					}
+
 					if shouldInclude {
 						break
 					}
 				}
+
 				if !shouldInclude {
 					continue
 				}
-				fullPath := dir + "/" + entryName
-				if _, exists := result[fullPath]; exists {
+
+				if _, exists := result[pf.RelPath]; exists {
 					continue
 				}
 
-				pf := provider.NewFile(fullPath)
-				pf.Classify(cfg.FileRegEx)
-
-				clog.Log.Debugf("    discovered related test: %s", fullPath)
-				result[fullPath] = pf
-				derivedTestFiles[fullPath] = true
-				if !testFileSeen[fullPath] {
+				clog.Log.Debugf("    discovered related test: %s", pf.RelPath)
+				result[pf.RelPath] = pf
+				derivedTestFiles[pf.RelPath] = true
+				if !testFileSeen[pf.RelPath] {
 					testFiles = append(testFiles, pf)
-					testFileSeen[fullPath] = true
+					testFileSeen[pf.RelPath] = true
 				}
 			}
 		}
@@ -288,14 +294,16 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	// print file regex and changed files
 	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
 	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
-	showFiles := cfg.CollapseFilesAfter == 0 || len(changedFiles) <= cfg.CollapseFilesAfter
-	cout.Printf("  changed files: <yellow>%d</>\n", len(changedFiles))
-	for _, pf := range changedFiles {
+	cout.Printf("  changed service package files: <yellow>%d</>\n", len(changedServiceFiles))
+
+	showFiles := cfg.CollapseFilesAfter == 0 || len(changedServiceFiles) <= cfg.CollapseFilesAfter
+	for _, pf := range changedServiceFiles {
 		// skipped files in red, test files in green, resource files in teal
-		colour := pf.Colour()
+		colour := pf.TextColour()
 		if skippedFiles[pf.RelPath] {
-			colour = "<red>"
+			colour = provider.FileColourSkipped
 		}
+
 		if showFiles {
 			cout.Printf("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Name)
 		} else {
@@ -303,7 +311,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 		}
 	}
 	if !showFiles && cout.Level < cout.VerbosityVerbose {
-		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(changedFiles), cfg.CollapseFilesAfter)
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(changedServiceFiles), cfg.CollapseFilesAfter)
 	}
 
 	// print test files
@@ -321,14 +329,14 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 		label := strings.Join(labels, "/")
 
 		// changed files in green, derived-only in dark cyan
-		fileColor := "<fg=36>" // dark cyan for derived
+		fileColour := provider.FileColourDerived
 		if changedTestFiles[pf.RelPath] {
-			fileColor = "<fg=28>" // dark green for changed
+			fileColour = provider.FileColourTest
 		}
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColor, pf.Name, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, label)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColor, pf.Name, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, label)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
