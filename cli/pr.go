@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 
@@ -161,8 +162,6 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 // GetPullRequestTestFiles fetches all changed files in a PR and determines the related test files.
 // It classifies files based on the DiscoveryConfig and lists contents of directories containing changed resources to find related tests.
 func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
-	result := make(map[string]provider.File)
-
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
 	resourcePrefixesByPackage := map[string][]string{}
@@ -170,10 +169,16 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	// track changed files and test files for output
 	var changedServiceFiles []provider.File
 	skippedFiles := map[string]bool{} // service files that didn't match the regex
-	var testFiles []provider.File
-	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
-	derivedTestFiles := map[string]bool{} // tracks which test files were derived
-	testFileSeen := map[string]bool{}     // dedup test files
+
+	testFiles := map[string]*provider.File{}
+	addTestFile := func(pf provider.File, source string) {
+		existing, ok := testFiles[pf.RelPath]
+		if !ok {
+			existing = &pf
+			testFiles[pf.RelPath] = existing
+		}
+		existing.AddDiscovery(source)
+	}
 
 	// first get all files for the pull request and filter out every one that is not inside a service package
 	err := ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
@@ -205,12 +210,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 
 			if pf.Type == provider.FileTypeTest {
 				changedServiceFiles = append(changedServiceFiles, pf)
-				if !testFileSeen[pf.RelPath] {
-					testFiles = append(testFiles, pf)
-					testFileSeen[pf.RelPath] = true
-				}
-				changedTestFiles[pf.RelPath] = true
-				result[pf.RelPath] = pf
+				addTestFile(pf, "CHANGED")
 				continue
 			}
 
@@ -276,17 +276,12 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 					continue
 				}
 
-				if _, exists := result[pf.RelPath]; exists {
+				if _, exists := testFiles[pf.RelPath]; exists {
 					continue
 				}
 
 				clog.Log.Debugf("    discovered related test: %s", pf.RelPath)
-				result[pf.RelPath] = pf
-				derivedTestFiles[pf.RelPath] = true
-				if !testFileSeen[pf.RelPath] {
-					testFiles = append(testFiles, pf)
-					testFileSeen[pf.RelPath] = true
-				}
+				addTestFile(pf, "DERIVED")
 			}
 		}
 	}
@@ -314,43 +309,47 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(changedServiceFiles), cfg.CollapseFilesAfter)
 	}
 
-	// print test files
-	cout.Printf("  test files: <yellow>%d</>\n", len(testFiles))
-	showTestFiles := cfg.CollapseFilesAfter == 0 || len(testFiles) <= cfg.CollapseFilesAfter
+	// sort test files
+	var sortedTestFiles []*provider.File
 	for _, pf := range testFiles {
-		// build label based on whether file is changed, derived, or both
-		var labels []string
-		if changedTestFiles[pf.RelPath] {
-			labels = append(labels, "CHANGED")
-		}
-		if derivedTestFiles[pf.RelPath] {
-			labels = append(labels, "DERIVED")
-		}
-		label := strings.Join(labels, "/")
+		sortedTestFiles = append(sortedTestFiles, pf)
+	}
+	sort.Slice(sortedTestFiles, func(i, j int) bool {
+		return sortedTestFiles[i].RelPath < sortedTestFiles[j].RelPath
+	})
 
-		// changed files in green, derived-only in dark cyan
+	// print test files
+	cout.Printf("  test files: <yellow>%d</>\n", len(sortedTestFiles))
+	showTestFiles := cfg.CollapseFilesAfter == 0 || len(sortedTestFiles) <= cfg.CollapseFilesAfter
+	for _, pf := range sortedTestFiles {
+		sources := strings.Join(pf.DiscoveredBy, "+")
+
 		fileColour := provider.FileColourDerived
-		if changedTestFiles[pf.RelPath] {
-			fileColour = provider.FileColourTest
+		for _, s := range pf.DiscoveredBy {
+			if s == "CHANGED" {
+				fileColour = provider.FileColourTest
+				break
+			}
 		}
+
 		if showTestFiles {
-			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, label)
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, sources)
 		} else {
-			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, label)
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, sources)
 		}
 	}
 	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
-		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(testFiles), cfg.CollapseFilesAfter)
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(sortedTestFiles), cfg.CollapseFilesAfter)
 	}
 
-	clog.Log.Debugf("  FOUND %d", len(result))
-	for f := range result {
+	clog.Log.Debugf("  FOUND %d", len(testFiles))
+	for f := range testFiles {
 		clog.Log.Debugf("     %s", f)
 	}
 
-	files := make([]provider.File, 0, len(result))
-	for _, pf := range result {
-		files = append(files, pf)
+	files := make([]provider.File, 0, len(sortedTestFiles))
+	for _, pf := range sortedTestFiles {
+		files = append(files, *pf)
 	}
 	return files, nil
 }
