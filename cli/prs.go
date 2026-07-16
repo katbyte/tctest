@@ -56,6 +56,22 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			continue
 		}
 
+		// check max-builds-per-pr limit
+		if f.TC.Build.MaxBuildsPerPR > 0 {
+			serviceCount := 0
+			for s := range *serviceTests {
+				if serviceFilter != nil && !serviceFilter.set[s] {
+					continue
+				}
+				serviceCount++
+			}
+			if serviceCount > f.TC.Build.MaxBuildsPerPR {
+				cout.Printf("  <red>ERROR:</> would trigger <yellow>%d</> service builds, exceeding --max-builds-per-pr limit of <yellow>%d</>\n\n", serviceCount, f.TC.Build.MaxBuildsPerPR)
+				failed++
+				continue
+			}
+		}
+
 		// trigger a build for each service
 		for s, tests := range *serviceTests {
 			// if --service is set, skip services not in the filter
@@ -117,10 +133,10 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 		return nil, nil
 	}
 
-	gr := f.NewRepo()
+	ghr := f.NewRepo()
 
-	cout.Printf("Fetching service list from <cyan>%s/%s</>...\n", gr.Owner, gr.Name)
-	validServices, err := gr.ListServices()
+	cout.Printf("Fetching service list from <cyan>%s/%s</>...\n", ghr.Owner, ghr.Name)
+	validServices, err := ghr.ListServices()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list services: %w", err)
 	}
