@@ -9,7 +9,6 @@ import (
 	"go/token"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 
@@ -263,11 +262,8 @@ func (gr GithubRepo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFi
 
 func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
 	result := make(map[string]struct{})
-	filterRegEx := regexp.MustCompile(cfg.FileRegExStr)
-	testFileSuffixREs := make([]*regexp.Regexp, 0, len(cfg.AccTestFileSuffixRegexes))
-	for _, p := range cfg.AccTestFileSuffixRegexes {
-		testFileSuffixREs = append(testFileSuffixREs, regexp.MustCompile(p))
-	}
+	filterRegEx := cfg.FileRegEx
+	testFileSuffixREs := cfg.AccTestFileSuffixRegexes
 
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
@@ -398,8 +394,8 @@ func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[
 	}
 
 	// print file regex and changed files
-	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegExStr)
-	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", strings.Join(cfg.AccTestFileSuffixRegexes, ", "))
+	cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
+	cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
 	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
 	for _, f := range changedFiles {
 		dir := f[:strings.LastIndex(f, "/")+1]

@@ -45,6 +45,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				cout.Level = cout.VerbosityJSON
 			case viper.GetBool("quiet"):
 				cout.Level = cout.VerbosityQuiet
+			case viper.GetBool("verbose"):
+				cout.Level = cout.VerbosityVerbose
 			}
 
 			// TODO: remove once --buildtypeid is removed
