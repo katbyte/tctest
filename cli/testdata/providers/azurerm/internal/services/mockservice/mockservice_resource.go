@@ -1,3 +1,0 @@
-package mockservice
-
-func mockResource() {}
