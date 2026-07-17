@@ -72,7 +72,7 @@ type DiscoveryConfig struct {
 	LocalRepoPath            string           `mapstructure:"local-repo-path"`
 	LocalTraceDepth          int              `mapstructure:"local-trace-depth"`
 	LocalVendorMode          string           `mapstructure:"local-vendor-mode"`
-	LocalMode                string           `mapstructure:"local-mode"`
+	Mode                     string           `mapstructure:"mode"`
 }
 
 type FlagsGitHub struct {
@@ -147,10 +147,10 @@ func configureFlags(root *cobra.Command) error {
 	pflags.Int("collapse-files-after", 20, "collapse file listings to a count when there are more than this many files (0 to always show)")
 
 	// Local Discovery Flags (DiscoveryConfig)
-	pflags.String("local-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files)")
+	pflags.String("local-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files, and changes default mode to AST)")
 	pflags.Int("local-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
 	pflags.String("local-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
-	pflags.String("local-mode", "AST", "mode for local test detection: 'off' (or empty, uses default web mode), 'AST' (the new ast mode). Note: 'SSA' (super slow analyse) to be added in the future")
+	pflags.String("mode", "AST", "mode for local test detection: 'api' (default) or 'AST' (default when --local-repo-path is provided). Note: 'SSA' (super slow analyse) to be added in the future")
 
 	// GitHub Flags (FlagsGitHub)
 	pflags.String("token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
@@ -215,7 +215,7 @@ func configureFlags(root *cobra.Command) error {
 		"local-repo-path":                  "TCTEST_LOCAL_REPO_PATH",
 		"local-trace-depth":                "",
 		"local-vendor-mode":                "TCTEST_LOCAL_VENDOR_MODE",
-		"local-mode":                       "TCTEST_LOCAL_MODE",
+		"mode":                             "TCTEST_MODE",
 		"queue-timeout":                    "",
 		"run-timeout":                      "",
 		"f-authors":                        "",

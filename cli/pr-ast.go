@@ -45,7 +45,7 @@ func NewAstDiscoveryContext(repoPath, modulePath string, cfg DiscoveryConfig) *A
 }
 
 // PrTestsFromAst performs test discovery using a local git clone of the repository.
-// When cfg.LocalMode is AST, this is called instead of PrTestsFromAPI (the HTTP-based path).
+// When cfg.Mode is AST, this is called instead of PrTestsFromAPI (the HTTP-based path).
 //
 // It fetches the PR merge ref, checks out the code, and uses Go AST to discover
 // affected tests — including tracing imports from helper/validation files back to

@@ -58,8 +58,8 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 | `TCTEST_OUTPUT_QUIET` | `--quiet` | Minimal machine-readable output |
 | `TCTEST_OUTPUT_JSON` | `--json` | Output build results as a JSON array |
 | `TCTEST_OUTPUT_SILENT` | `--silent` | Suppress all output |
-| `TCTEST_LOCAL_REPO_PATH` | `--local-repo-path` | Path to a local git clone for AST-based test detection (enables import tracing) |
-| `TCTEST_LOCAL_MODE` | `--local-mode` | Local detection mode: `AST` (default) or `off` |
+| `TCTEST_LOCAL_REPO_PATH` | `--local-repo-path` | Path to a local git clone for AST-based test detection (enables import tracing, and changes default mode to AST) |
+| `TCTEST_MODE` | `--mode` | Local detection mode: `api` (default) or `AST` (default when `--local-repo-path` is provided) |
 | `TCTEST_LOCAL_VENDOR_MODE` | `--local-vendor-mode` | Vendor tracing mode: `basic` (default) or `none` |
 
 ## Commands
@@ -407,8 +407,8 @@ Without `--verbose`, the summary line shows just the count of traced resource fi
 | `--acctest-file-suffix-regexes` | *(multiple)* | Comma-separated regex patterns to match test file suffixes |
 | `--reappend-split-character` | `false` | Append the split character to the test filter for more precise matching |
 | `--concurrency` | `5` | Maximum concurrent file downloads during test discovery |
-| `--local-repo-path` | *(empty)* | Path to a local git clone for AST-based detection |
-| `--local-mode` | `AST` | Mode for local detection: `AST` (default) or `off` (fall back to web mode) |
+| `--local-repo-path` | *(empty)* | Path to a local git clone for AST-based detection (changes default mode to `AST`) |
+| `--mode` | `AST` | Mode for local detection: `api` (default) or `AST` (default when `--local-repo-path` is provided) |
 | `--local-trace-depth` | `10` | Max BFS depth for import tracing (0 to disable) |
 | `--local-vendor-mode` | `basic` | Vendor tracing mode: `basic` (import-based) or `none` (disabled) |
 | `--collapse-files-after` | `20` | Collapse file lists when count exceeds this value (0 to always show) |

@@ -26,7 +26,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	var serviceTests *map[string][]string
 	var err error
 
-	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.LocalMode, "AST") {
+	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.Mode, "AST") {
 		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
 		serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
 	} else {
@@ -310,7 +310,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	}
 
 	// sort test files
-	var sortedTestFiles []*provider.File
+	var sortedTestFiles = make([]*provider.File, 0, len(testFiles))
 	for _, pf := range testFiles {
 		sortedTestFiles = append(sortedTestFiles, pf)
 	}
