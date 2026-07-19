@@ -310,7 +310,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	}
 
 	// sort test files
-	var sortedTestFiles = make([]*provider.File, 0, len(testFiles))
+	sortedTestFiles := make([]*provider.File, 0, len(testFiles))
 	for _, pf := range testFiles {
 		sortedTestFiles = append(sortedTestFiles, pf)
 	}
