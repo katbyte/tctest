@@ -65,7 +65,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 		Args:          cobra.NoArgs,
 		SilenceErrors: true,
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println("tctest v" + version.Version + "-" + version.GitCommit)
+			fmt.Println("tctest " + version.Version)
 		},
 	})
 
