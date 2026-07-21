@@ -32,7 +32,7 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 		clog.Log.Debugf("Listing all PRs for %s/%s (Page %d)...", r.Owner, r.Name, opts.Page)
 		prs, resp, err := client.PullRequests.List(ctx, r.Owner, r.Name, opts)
 		if err != nil {
-			return fmt.Errorf("unable to list PRs for %s/%s (Page %d): %w", r.Owner, r.Name, opts.Page, err)
+			return WrapGitHubError(err, fmt.Sprintf("listing PRs for %s/%s (Page %d)", r.Owner, r.Name, opts.Page))
 		}
 
 		if err = cb(prs, resp); err != nil {
@@ -92,7 +92,7 @@ func (r Repo) ListAllPullRequestFiles(pri int, cb func([]*github.CommitFile, *gi
 		clog.Log.Debugf("Listing all files for %s/%s/pull/%d (Page %d)...", r.Owner, r.Name, pri, opts.Page)
 		files, resp, err := client.PullRequests.ListFiles(ctx, r.Owner, r.Name, pri, opts)
 		if err != nil {
-			return fmt.Errorf("unable to list files for %s/%s/pull/%d (Page %d): %w", r.Owner, r.Name, pri, opts.Page, err)
+			return WrapGitHubError(err, fmt.Sprintf("listing files for %s/%s/pull/%d (Page %d)", r.Owner, r.Name, pri, opts.Page))
 		}
 
 		if err = cb(files, resp); err != nil {

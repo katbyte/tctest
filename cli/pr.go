@@ -15,6 +15,7 @@ import (
 	"github.com/katbyte/tctest/lib/chttp"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
+	"github.com/katbyte/tctest/lib/gh"
 	"github.com/pkg/browser"
 )
 
@@ -55,7 +56,7 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
 	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
 	if err != nil {
-		return nil, err
+		return nil, gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", gr.Owner, gr.Name, pri))
 	}
 
 	clog.Log.Debugf("  checking pr state: %v", pr.GetState())
