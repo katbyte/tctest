@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-github/v45/github"
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/katbyte/tctest/lib/git"
 )
 
 func (r Repo) PrURL(pr int) string {
@@ -15,6 +16,19 @@ func (r Repo) PrURL(pr int) string {
 
 func (r Repo) CloneURL() string {
 	return "https://github.com/" + r.Owner + "/" + r.Name + ".git"
+}
+
+// CheckoutPR fetches the merge ref for a PR and checks out FETCH_HEAD in the given repo path.
+// Returns the short SHA of the checked-out merge commit.
+func (r Repo) CheckoutPR(repoPath string, prNumber int) (string, error) {
+	if err := git.FetchPRMergeRef(repoPath, prNumber); err != nil {
+		return "", fmt.Errorf("failed to fetch PR merge ref: %w", err)
+	}
+	sha, err := git.CheckoutFetchHead(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to checkout merge commit: %w", err)
+	}
+	return sha, nil
 }
 
 func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *github.Response) error) error {

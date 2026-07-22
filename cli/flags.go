@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/katbyte/tctest/lib/provider"
 	"github.com/katbyte/tctest/lib/tc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -58,6 +59,7 @@ type FlagData struct {
 	OpenInBrowser   bool            `mapstructure:"open"`
 	RunAllTests     bool            `mapstructure:"all"`
 	Services        []string        `mapstructure:"service"`
+	DryRun          bool            `mapstructure:"dry-run"`
 }
 
 type DiscoveryConfig struct {
@@ -67,6 +69,10 @@ type DiscoveryConfig struct {
 	AccTestFileSuffixRegexes []*regexp.Regexp `mapstructure:"-"`
 	Concurrency              int              `mapstructure:"concurrency"`
 	CollapseFilesAfter       int              `mapstructure:"collapse-files-after"`
+	LocalRepoPath            string           `mapstructure:"local-repo-path"`
+	LocalTraceDepth          int              `mapstructure:"local-trace-depth"`
+	LocalVendorMode          string           `mapstructure:"local-vendor-mode"`
+	Mode                     string           `mapstructure:"mode"`
 }
 
 type FlagsGitHub struct {
@@ -113,16 +119,19 @@ type FlagsTeamCityBuild struct {
 func configureFlags(root *cobra.Command) error {
 	pflags := root.PersistentFlags()
 
+	// General Flags (FlagData / Global)
 	pflags.BoolP("open", "o", false, "Open the PR and build in a browser")
 	pflags.BoolP("all", "", false, "run all tests when none are found by passing TestAcc")
 	pflags.StringSlice("service", []string{}, "force trigger builds for specific services (comma-separated), use 'all' to trigger all services")
 	pflags.Bool("quiet", false, "minimal machine-readable output (pr@service@build url)")
+
+	// Output Flags
 	pflags.Bool("json", false, "output build results as JSON array")
 	pflags.Bool("silent", false, "suppress all output")
 	pflags.Bool("dry-run", false, "show what builds would be triggered without actually triggering them")
 	pflags.BoolP("verbose", "v", false, "show detailed file listings and trace output")
 
-	// "services?" matches both provider layouts: AWS(`service`) and Azure(`services`).
+	// Discovery Configuration Flags (DiscoveryConfig)
 	pflags.String("fileregex", `^internal/services?/[^/]+/[a-z0-9_][^/]*$`, "the regex to filter files by")
 	pflags.String("splitteston", "_", "the character to split tests on and use the value on the left")
 	pflags.StringSlice("acctest-file-suffix-regexes", []string{
@@ -137,9 +146,17 @@ func configureFlags(root *cobra.Command) error {
 	pflags.Int("concurrency", 5, "maximum number of concurrent file downloads during test discovery")
 	pflags.Int("collapse-files-after", 20, "collapse file listings to a count when there are more than this many files (0 to always show)")
 
+	// Local Discovery Flags (DiscoveryConfig)
+	pflags.String("local-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files, and changes default mode to AST)")
+	pflags.Int("local-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
+	pflags.String("local-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
+	pflags.String("mode", "AST", "mode for local test detection: 'api' (default) or 'AST' (default when --local-repo-path is provided). Note: 'SSA' (super slow analyse) to be added in the future")
+
+	// GitHub Flags (FlagsGitHub)
 	pflags.String("token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
 	pflags.StringP("repo", "r", "", "repository the pr resides in, such as terraform-providers/terraform-provider-azurerm")
 
+	// GitHub PR Filter Flags (FlagsGitHubPrFilter)
 	pflags.StringSliceP("f-authors", "a", []string{}, "only test PR by these authors. ie 'katbyte,author2,author3'")
 	pflags.StringSliceP("f-labels-all", "l", []string{}, "only test PRs that match all label conditions. ie 'label1,label2,-not-this-label'")
 	pflags.StringSliceP("f-labels-any", "", []string{}, "only test PRs that match any label conditions. ie 'label1,label2,-not-this-label'")
@@ -149,10 +166,13 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringP("f-title-regex", "", "", "filter PRs by title using case-insensitive regex (e.g. 'test' matches titles containing 'test', 'fix.*bug' matches 'fix' followed by 'bug')")
 	pflags.BoolP("f-drafts", "d", false, "filter out any PRs that are in draft mode")
 
+	// TeamCity Flags (FlagsTeamCity)
 	pflags.StringP("server", "s", "", "the TeamCity server's url")
 	pflags.StringP("token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.String("username", "", "the TeamCity user to use")
 	pflags.String("password", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
+
+	// TeamCity Build Flags (FlagsTeamCityBuild)
 	pflags.StringP("buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
 	pflags.String("build-type-id", "", "the TeamCity BuildTypeId to trigger")
 	pflags.Bool("build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behaviour from --buildtypeid)")
@@ -192,6 +212,10 @@ func configureFlags(root *cobra.Command) error {
 		"dry-run":                          "",
 		"verbose":                          "",
 		"concurrency":                      "",
+		"local-repo-path":                  "TCTEST_LOCAL_REPO_PATH",
+		"local-trace-depth":                "",
+		"local-vendor-mode":                "TCTEST_LOCAL_VENDOR_MODE",
+		"mode":                             "TCTEST_MODE",
 		"queue-timeout":                    "",
 		"run-timeout":                      "",
 		"f-authors":                        "",
@@ -250,6 +274,15 @@ func GetFlags() FlagData {
 	var f FlagData
 	if err := viper.Unmarshal(&f); err != nil {
 		clog.Log.Fatalf("failed to unmarshal configuration: %v", err)
+	}
+
+	// Set the global File classifier using the configured regex
+	provider.Classifier = func(file *provider.File) provider.FileType {
+		t := provider.DefaultClassifier(file)
+		if t == provider.FileTypeHelper && f.DiscoveryConfig.FileRegEx != nil && f.DiscoveryConfig.FileRegEx.MatchString(file.RelPath) {
+			return provider.FileTypeResource
+		}
+		return t
 	}
 
 	// Manually compile Regex fields since Viper doesn't know how to unmarshal strings into *regexp.Regexp natively

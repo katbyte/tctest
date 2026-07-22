@@ -1,13 +1,11 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"net/http"
+	"path"
+	"sort"
 	"strings"
 	"sync"
 
@@ -16,17 +14,26 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/gh"
+	"github.com/katbyte/tctest/lib/provider"
 	"github.com/pkg/browser"
 )
 
-// TODO reorg this file
-
+// GetPrTests discovers the tests that need to be run for a PR. It first checks if the PR title contains
+// a test override. If not, it delegates to GithubRepo.PrTestsFromAPI to discover tests based on changed files.
 func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
-	gr := f.NewRepo()
+	ghr := f.NewRepo()
 
-	prURL := gr.PrURL(number)
-	cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
-	serviceTests, err := gr.PrTests(number, f.DiscoveryConfig)
+	prURL := ghr.PrURL(number)
+	var serviceTests *map[string][]string
+	var err error
+
+	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.Mode, "AST") {
+		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
+		serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
+	} else {
+		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
+		serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
+	}
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
@@ -38,76 +45,84 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 		return nil, fmt.Errorf("pr list failed: %w", err)
 	}
 
-	for service, tests := range *serviceTests {
-		cout.Printf("  <yellow>%s</>:\n", service)
-		for _, t := range tests {
-			cout.Printf("    %s\n", t)
+	maxLen := 0
+	for service := range *serviceTests {
+		if len(service) > maxLen {
+			maxLen = len(service)
 		}
+	}
+
+	for service, tests := range *serviceTests {
+		cout.Printf("  <yellow>%-*s</>: %s\n", maxLen, service, strings.Join(tests, ", "))
 	}
 
 	return serviceTests, nil
 }
 
-// todo break this apart - get/check PR state, get files, filter/process files, get tests, get services.
-func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
-	client, ctx := gr.NewClient()
+// PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
+// It uses GetPullRequestTestFiles to get the files, groups them into packages, and returns a map of package names to a list of test names.
+func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+	client, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
-	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", gr.Owner, gr.Name, pri)
-	pr, _, err := client.PullRequests.Get(ctx, gr.Owner, gr.Name, pri)
+	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", ghr.Owner, ghr.Name, pri)
+	pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, pri)
 	if err != nil {
-		return nil, gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", gr.Owner, gr.Name, pri))
+		return nil, gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, pri))
 	}
 
 	clog.Log.Debugf("  checking pr state: %v", pr.GetState())
 	if pr.GetState() == "closed" {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
-
-	clog.Log.Tracef("listing files...")
-	filesFiltered, err := gr.GetAllPullRequestFiles(pri, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
-	}
-
 	if pr.MergeCommitSHA == nil {
 		return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
+	}
+
+	clog.Log.Tracef("listing files...")
+	filesFiltered, err := ghr.GetPullRequestTestFiles(pri, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
 	}
 
 	// for each file get content and parse out test files & services
 	serviceTestMap := map[string]map[string]bool{}
 
-	files := make([]string, 0, len(*filesFiltered))
-	for f := range *filesFiltered {
-		files = append(files, f)
-	}
-
-	clog.Log.Debugf("  downloading & parsing %d files concurrently (max %d):", len(files), cfg.Concurrency)
+	clog.Log.Debugf("  downloading & parsing %d files concurrently (max %d):", len(filesFiltered), cfg.Concurrency)
 	mu := sync.Mutex{}
 	wg := sync.WaitGroup{}
-	firstErr := error(nil)
+	var errs []error
 	sem := make(chan struct{}, cfg.Concurrency)
 
-	for _, f := range files {
+	for _, f := range filesFiltered {
 		wg.Add(1)
-		go func(f string) {
+		go func(f provider.File) {
 			defer wg.Done()
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore
 
-			service, tests, err := gr.downloadAndParseTestFile(ctx, httpClient, f, *pr.MergeCommitSHA, cfg)
+			content, status, err := ghr.DownloadFile(ctx, httpClient, f.RelPath, *pr.MergeCommitSHA)
 			if err != nil {
 				mu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
+				errs = append(errs, err)
 				mu.Unlock()
 				return
 			}
 
-			if tests == nil {
-				return // file was skipped (e.g. not found at merge commit)
+			if status != http.StatusOK {
+				clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.RelPath, status)
+				return // file was skipped
 			}
+
+			f.SetContent(content)
+			tests, err := f.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, err)
+				mu.Unlock()
+				return
+			}
+			service := f.Service
 
 			mu.Lock()
 			for _, t := range tests {
@@ -125,8 +140,8 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 
 	wg.Wait()
 
-	if firstErr != nil {
-		return nil, firstErr
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
 	}
 
 	serviceTests := map[string][]string{}
@@ -145,256 +160,197 @@ func (gr GithubRepo) PrTests(pri int, cfg DiscoveryConfig) (*map[string][]string
 	return &serviceTests, nil
 }
 
-// downloadAndParseTestFile downloads a single file from GitHub using the raw content URL
-// and parses it for acceptance test function names. Returns (service, testNames, nil) on
-// success, ("", nil, nil) when the file should be skipped (e.g. not found at merge commit),
-// or ("", nil, err) on failure.
-//
-// This uses raw.githubusercontent.com directly instead of the GitHub Contents API
-// (client.Repositories.GetContents) to avoid two issues with that approach:
-//  1. GetContents has a 1MB file size limit
-//  2. GetContents performs a directory listing for each file request (capped at 1000 entries)
-func (gr GithubRepo) downloadAndParseTestFile(ctx context.Context, httpClient *http.Client, filePath, mergeCommitSHA string, cfg DiscoveryConfig) (string, []string, error) {
-	clog.Log.Debugf("    download %s", filePath)
-
-	content, statusCode, err := gr.DownloadFile(ctx, httpClient, filePath, mergeCommitSHA)
-	if err != nil {
-		return "", nil, err
-	}
-
-	if statusCode != http.StatusOK {
-		clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", filePath, statusCode)
-		return "", nil, nil
-	}
-
-	// use go/ast to extract test function names
-	var tests []string
-	fset := token.NewFileSet()
-	parsed, parseErr := parser.ParseFile(fset, filePath, content, 0)
-	if parseErr != nil {
-		clog.Log.Debugf("    failed to parse %s, falling back to regex: %v", filePath, parseErr)
-		// fallback: scan lines for "func TestAcc" if AST parsing fails
-		for _, line := range strings.Split(string(content), "\n") {
-			if strings.Contains(line, "func TestAcc") {
-				parts := strings.Fields(line)
-				if len(parts) >= 2 {
-					tests = append(tests, strings.Split(parts[1], "(")[0])
-				}
-			}
-		}
-	} else {
-		for _, decl := range parsed.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if ok && strings.HasPrefix(fn.Name.Name, "TestAcc") {
-				clog.Log.Tracef("found test function: %s", fn.Name.Name)
-				tests = append(tests, fn.Name.Name)
-			}
-		}
-	}
-
-	// extract service name from path
-	service := ""
-	parts := strings.Split(filePath, "/services/")
-	if len(parts) == 2 {
-		service = strings.Split(parts[1], "/")[0]
-	}
-
-	// process test names: split and optionally reappend split character
-	processedTests := make([]string, 0, len(tests))
-	for _, t := range tests {
-		// split on `(` to make sure we just get the full function name
-		testName := strings.Split(strings.Split(t, cfg.SplitTestsOn)[0], "(")[0]
-
-		if cfg.ReappendSplitCharacter && cfg.SplitTestsOn != "" {
-			testName += cfg.SplitTestsOn
-		}
-
-		processedTests = append(processedTests, testName)
-	}
-
-	return service, processedTests, nil
-}
-
-func (gr GithubRepo) GetAllPullRequestFiles(pri int, cfg DiscoveryConfig) (*map[string]struct{}, error) {
-	result := make(map[string]struct{})
-	filterRegEx := cfg.FileRegEx
-	testFileSuffixREs := cfg.AccTestFileSuffixRegexes
-
+// GetPullRequestTestFiles fetches all changed files in a PR and determines the related test files.
+// It classifies files based on the DiscoveryConfig and lists contents of directories containing changed resources to find related tests.
+func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
-	resourceDirs := map[string][]string{}
+	resourcePrefixesByPackage := map[string][]string{}
 
 	// track changed files and test files for output
-	var changedFiles []string
+	var changedServiceFiles []provider.File
 	skippedFiles := map[string]bool{} // service files that didn't match the regex
-	var testFiles []string
-	changedTestFiles := map[string]bool{} // tracks which test files came from the PR diff
-	derivedTestFiles := map[string]bool{} // tracks which test files were derived
-	testFileSeen := map[string]bool{}     // dedup test files
 
-	err := gr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
+	testFiles := map[string]*provider.File{}
+	addTestFile := func(pf provider.File, source string) {
+		existing, ok := testFiles[pf.RelPath]
+		if !ok {
+			existing = &pf
+			testFiles[pf.RelPath] = existing
+		}
+		existing.AddDiscovery(source)
+	}
+
+	// first get all files for the pull request and filter out every one that is not inside a service package
+	err := ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
 			}
 
-			name := *f.Filename
-			clog.Log.Debugf("    %v (%s)", name, f.GetStatus())
+			pf := provider.NewFile(f.GetFilename())
+			clog.Log.Debugf("    %v (%s)", pf.RelPath, f.GetStatus())
+
 			// for now we only care about go files, data files that acctests load/rely on will be skipped for now
-			if !strings.HasSuffix(name, ".go") {
+			if !strings.HasSuffix(pf.RelPath, ".go") {
 				continue
 			}
 
 			// skip deleted files - they won't exist at the merge commit
 			if f.GetStatus() == "removed" {
-				clog.Log.Debugf("    skipping removed file: %s", name)
+				clog.Log.Debugf("    skipping removed file: %s", pf.RelPath)
 				continue
 			}
 
-			// if in service package mode skip some files
-			if strings.Contains(name, "/services/") {
-				// skip files that don't have meaningful test counterparts
-				if strings.HasSuffix(name, "registration.go") || strings.HasSuffix(name, "resourceids.go") {
-					continue
-				}
-			}
-
-			if strings.HasSuffix(name, "_test.go") {
-				changedFiles = append(changedFiles, name)
-				if !testFileSeen[name] {
-					testFiles = append(testFiles, name)
-					testFileSeen[name] = true
-				}
-				changedTestFiles[name] = true
-				result[name] = struct{}{}
+			if pf.Type == provider.FileTypeHelper {
+				// track service files that don't match the regex (e.g. client helpers)
+				changedServiceFiles = append(changedServiceFiles, pf)
+				skippedFiles[pf.RelPath] = true
 				continue
 			}
 
-			if !filterRegEx.MatchString(name) {
-				// track service files that don't match the regex
-				if strings.Contains(name, "/services/") {
-					changedFiles = append(changedFiles, name)
-					skippedFiles[name] = true
+			if pf.Type == provider.FileTypeTest {
+				changedServiceFiles = append(changedServiceFiles, pf)
+				addTestFile(pf, "CHANGED")
+				continue
+			}
+
+			if pf.Type == provider.FileTypeOther || pf.Type == provider.FileTypeVendor {
+				// if they are in the service path (e.g. registration.go, resourceids.go), mark them as skipped in the output
+				if pf.InServicePackage() {
+					changedServiceFiles = append(changedServiceFiles, pf)
+					skippedFiles[pf.RelPath] = true
 				}
 				continue
 			}
 
-			changedFiles = append(changedFiles, name)
+			changedServiceFiles = append(changedServiceFiles, pf)
 
-			// note the directory and probable resourceName so we can discover all related test files (e.g. _list_test.go, _identity_gen_test.go)
-			// Azure follows "_resource" suffix convention for resource filename
-			fileNameWithOutGoExtension := strings.TrimSuffix(name, ".go")
-			dir := fileNameWithOutGoExtension[:strings.LastIndex(fileNameWithOutGoExtension, "/")]
-			base := fileNameWithOutGoExtension[strings.LastIndex(fileNameWithOutGoExtension, "/")+1:]
-			resourceName := strings.TrimSuffix(base, "_resource") // e.g. "api_management_gateway_resource" -> "api_management_gateway"
-			resourceDirs[dir] = append(resourceDirs[dir], resourceName)
+			// note the directory and probable resourceName so we can discover all related test files
+			resourcePrefixesByPackage[path.Dir(pf.RelPath)] = append(resourcePrefixesByPackage[path.Dir(pf.RelPath)], pf.ResourcePrefix())
 		}
 
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", gr.Owner, gr.Name, pri, err)
+		return nil, fmt.Errorf("failed to get all files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
 	}
 
 	// For each directory containing a modified file, list all files
 	// and add test files whose name matches "{resource/datasource-name}{acctest-pattern}.go".
-	if len(resourceDirs) > 0 {
-		client, ctx := gr.NewClient()
-		for dir, prefixes := range resourceDirs {
+	if len(resourcePrefixesByPackage) > 0 {
+		client, ctx := ghr.NewClient()
+		for dir, prefixes := range resourcePrefixesByPackage {
 			clog.Log.Debugf("  listing directory %s for related test files...", dir)
-			_, dirContents, _, err := client.Repositories.GetContents(ctx, gr.Owner, gr.Name, dir, nil)
+			_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, dir, nil)
 			if err != nil {
 				clog.Log.Debugf("  failed to list directory %s: %v", dir, err)
 				continue
 			}
 
 			for _, entry := range dirContents {
-				entryName := entry.GetName()
-				if !strings.HasSuffix(entryName, "_test.go") {
+				pf := provider.NewFile(path.Join(dir, entry.GetName()))
+				if pf.Type != provider.FileTypeTest {
 					continue
 				}
-				fileNameWithNoExt := strings.TrimSuffix(entryName, ".go")
+
 				shouldInclude := false
 				for _, resource := range prefixes {
-					if !strings.HasPrefix(fileNameWithNoExt, resource) {
+					if !strings.HasPrefix(pf.BaseName, resource) {
 						continue
 					}
-					remainder := fileNameWithNoExt[len(resource):]
-					for _, testSuffix := range testFileSuffixREs {
+
+					remainder := pf.BaseName[len(resource):]
+					for _, testSuffix := range cfg.AccTestFileSuffixRegexes {
 						if testSuffix.MatchString(remainder) {
 							shouldInclude = true
 							break
 						}
 					}
+
 					if shouldInclude {
 						break
 					}
 				}
+
 				if !shouldInclude {
 					continue
 				}
-				fullPath := dir + "/" + entryName
-				if _, exists := result[fullPath]; exists {
+
+				if _, exists := testFiles[pf.RelPath]; exists {
 					continue
 				}
-				clog.Log.Debugf("    discovered related test: %s", fullPath)
-				result[fullPath] = struct{}{}
-				derivedTestFiles[fullPath] = true
-				if !testFileSeen[fullPath] {
-					testFiles = append(testFiles, fullPath)
-					testFileSeen[fullPath] = true
-				}
+
+				clog.Log.Debugf("    discovered related test: %s", pf.RelPath)
+				addTestFile(pf, "DERIVED")
 			}
 		}
 	}
 
 	// print file regex and changed files
-	if cout.Level == cout.VerbosityVerbose {
-		cout.Printf("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
-		cout.Printf("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
-	}
-	cout.Printf("  changed files (<yellow>%d</>):\n", len(changedFiles))
-	for _, f := range changedFiles {
-		dir := f[:strings.LastIndex(f, "/")+1]
-		base := f[strings.LastIndex(f, "/")+1:]
-		switch {
-		case skippedFiles[f]:
-			cout.Printf("    <darkGray>%s</><red>%s</>\n", dir, base)
-		case strings.HasSuffix(f, "_test.go"):
-			cout.Printf("    <darkGray>%s</><fg=28>%s</>\n", dir, base)
-		default:
-			cout.Printf("    <darkGray>%s</><fg=36>%s</>\n", dir, base)
+	cout.Verbosef("  file regex: <darkGray>%s</>\n", cfg.FileRegEx.String())
+	cout.Verbosef("  acctest file suffix patterns: <darkGray>%s</>\n", cfg.AccTestFileSuffixRegexStrings())
+	cout.Printf("  changed service package files: <yellow>%d</>\n", len(changedServiceFiles))
+
+	showFiles := cfg.CollapseFilesAfter == 0 || len(changedServiceFiles) <= cfg.CollapseFilesAfter
+	for _, pf := range changedServiceFiles {
+		// skipped files in red, test files in green, resource files in teal
+		colour := pf.TextColour()
+		if skippedFiles[pf.RelPath] {
+			colour = provider.FileColourSkipped
+		}
+
+		if showFiles {
+			cout.Printf("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Name)
+		} else {
+			cout.Verbosef("    <darkGray>%s</>%s%s</>\n", pf.Dir, colour, pf.Name)
 		}
 	}
+	if !showFiles && cout.Level < cout.VerbosityVerbose {
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(changedServiceFiles), cfg.CollapseFilesAfter)
+	}
+
+	// sort test files
+	sortedTestFiles := make([]*provider.File, 0, len(testFiles))
+	for _, pf := range testFiles {
+		sortedTestFiles = append(sortedTestFiles, pf)
+	}
+	sort.Slice(sortedTestFiles, func(i, j int) bool {
+		return sortedTestFiles[i].RelPath < sortedTestFiles[j].RelPath
+	})
 
 	// print test files
-	cout.Printf("  test files (<yellow>%d</>):\n", len(testFiles))
-	for _, f := range testFiles {
-		dir := f[:strings.LastIndex(f, "/")+1]
-		base := f[strings.LastIndex(f, "/")+1:]
+	cout.Printf("  test files: <yellow>%d</>\n", len(sortedTestFiles))
+	showTestFiles := cfg.CollapseFilesAfter == 0 || len(sortedTestFiles) <= cfg.CollapseFilesAfter
+	for _, pf := range sortedTestFiles {
+		sources := strings.Join(pf.DiscoveredBy, "+")
 
-		// build label based on whether file is changed, derived, or both
-		var labels []string
-		if changedTestFiles[f] {
-			labels = append(labels, "CHANGED")
+		fileColour := provider.FileColourDerived
+		for _, s := range pf.DiscoveredBy {
+			if s == "CHANGED" {
+				fileColour = provider.FileColourTest
+				break
+			}
 		}
-		if derivedTestFiles[f] {
-			labels = append(labels, "DERIVED")
-		}
-		label := strings.Join(labels, "/")
 
-		// changed files in green, derived-only in dark cyan
-		fileColor := "<fg=36>" // dark cyan for derived
-		if changedTestFiles[f] {
-			fileColor = "<fg=28>" // dark green for changed
+		if showTestFiles {
+			cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, sources)
+		} else {
+			cout.Verbosef("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", pf.Dir, fileColour, pf.Name, sources)
 		}
-		cout.Printf("    <darkGray>%s</>%s%s</> <darkGray>[%s]</>\n", dir, fileColor, base, label)
+	}
+	if !showTestFiles && cout.Level < cout.VerbosityVerbose {
+		cout.Printf("    <yellow>%d</> <fg=208>exceeds display limit of</> <yellow>%d</><darkGray>, use -v or --collapse-files-after 0 to see all</>\n", len(sortedTestFiles), cfg.CollapseFilesAfter)
 	}
 
-	clog.Log.Debugf("  FOUND %d", len(result))
-	for f := range result {
+	clog.Log.Debugf("  FOUND %d", len(testFiles))
+	for f := range testFiles {
 		clog.Log.Debugf("     %s", f)
 	}
 
-	return &result, nil
+	files := make([]provider.File, 0, len(sortedTestFiles))
+	for _, pf := range sortedTestFiles {
+		files = append(files, *pf)
+	}
+	return files, nil
 }

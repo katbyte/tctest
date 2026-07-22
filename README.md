@@ -58,6 +58,9 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 | `TCTEST_OUTPUT_QUIET` | `--quiet` | Minimal machine-readable output |
 | `TCTEST_OUTPUT_JSON` | `--json` | Output build results as a JSON array |
 | `TCTEST_OUTPUT_SILENT` | `--silent` | Suppress all output |
+| `TCTEST_LOCAL_REPO_PATH` | `--local-repo-path` | Path to a local git clone for AST-based test detection (enables import tracing, and changes default mode to AST) |
+| `TCTEST_MODE` | `--mode` | Local detection mode: `api` (default) or `AST` (default when `--local-repo-path` is provided) |
+| `TCTEST_LOCAL_VENDOR_MODE` | `--local-vendor-mode` | Vendor tracing mode: `basic` (default) or `none` |
 
 ## Commands
 
@@ -258,9 +261,11 @@ By default `tctest` prints colorized, verbose output. Use these flags to control
 | Flag | Description |
 |---|---|
 | *(default)* | Full colorized output with test discovery details, file listings, and build info |
+| `--verbose`, `-v` | Show all file listings (even when collapsed) and detailed trace output |
 | `--quiet` | One line per build: `PR@SERVICE@BUILDID URL` |
 | `--json` | JSON array of all triggered builds (output at end) |
 | `--silent` | Suppress all output (errors still print to stderr) |
+| `--dry-run` | Show what builds would be triggered without actually triggering them |
 
 ### Quiet output
 
@@ -300,3 +305,113 @@ When no test regex is provided, `tctest` automatically discovers tests by:
 6. Grouping tests by service and triggering a separate build per service
 
 Files in `/client/`, `/parse/`, `/validate/` subdirectories and `registration.go`/`resourceids.go` are automatically skipped. Deleted files are also excluded.
+
+### Test Output
+
+Discovered tests are grouped by service and displayed with padded service names for alignment:
+
+```
+cognitive      : TestAccCognitiveDeployment, TestAccCognitiveAccountProject, TestAccCognitiveAccountProjectDataSource, TestAccCognitiveAccount
+eventhub       : TestAccEventHubConsumerGroupDataSource, TestAccEventHubConsumerGroup
+batch          : TestAccBatchAccount, TestAccBatchPoolDataSource, TestAccBatchPool, TestAccBatchApplicationDataSource, TestAccBatchApplication, TestAccBatchAccountDataSource
+```
+
+### File Listing & Collapsing
+
+By default, changed files and test files are listed in the output. When either list exceeds 20 files (configurable via `--collapse-files-after`), the list is collapsed to just a count with a hint:
+
+```
+  changed files: 5
+    internal/services/cognitive/cognitive_deployment_resource.go [RESOURCE]
+    ...
+  test files: 61
+    61 exceeds display limit of 20, use -v or --collapse-files-after 0 to see all
+```
+
+Use `--verbose` (`-v`) to always show all files regardless of the threshold, or `--collapse-files-after 0` to disable collapsing entirely.
+
+### Local AST Detection (`--local-repo-path`)
+
+For more accurate test discovery — especially when helper, validation, or client files are modified — point `tctest` at a local clone of the repository:
+
+```bash
+tctest list 3232 --local-repo-path /path/to/local/clone
+tctest pr 3232 --local-repo-path /path/to/local/clone
+```
+
+When `--local-repo-path` is set, tctest:
+
+1. Fetches the PR merge ref (`git fetch origin pull/{N}/merge`) and checks out `FETCH_HEAD`
+2. Uses the **local filesystem** instead of HTTP downloads (no API rate limits, no 1000-file directory cap)
+3. **Traces imports** from helper files back to resource files to discover affected tests
+
+#### Same-Package Helper Tracing
+
+If a PR modifies a non-resource `.go` file in the same package (e.g. `internal/services/cognitive/common.go`), tctest:
+- Extracts all symbols defined in the helper
+- Scans resource files in the same directory for references to those symbols
+- Discovers test files for any matched resource files
+- Labels these tests as `[TRACED]` in the output
+
+#### Cross-Package Helper Tracing
+
+If a PR modifies a file in a sub-directory (e.g. `internal/services/network/parse/helpers.go`), tctest:
+- Parses the Go imports of all files in the parent service directory
+- Finds resource files that import the helper package **and** reference changed exported symbols
+- Performs BFS traversal through intermediate packages up to `--local-trace-depth` levels
+- Labels these tests as `[TRACED]` in the output
+
+#### Vendor File Tracing (`--local-vendor-mode`)
+
+If a PR modifies files under `vendor/`, tctest can trace which resource files import those vendor packages:
+
+```bash
+# enabled by default
+tctest pr 3232 --local-repo-path /path/to/clone --local-vendor-mode basic
+
+# disable vendor tracing
+tctest pr 3232 --local-repo-path /path/to/clone --local-vendor-mode none
+```
+
+Tests discovered via vendor tracing are labeled `[VENDOR]` in the output.
+
+#### Verbose Tracing Output
+
+With `--verbose` (`-v`), tctest shows the detailed trace results — which helper file traced to which resource files:
+
+```
+  tracing symbols from 1 same-package helper file(s)...
+    internal/services/appconfiguration/app_configuration.go →
+      internal/services/appconfiguration/app_configuration_data_source.go
+      internal/services/appconfiguration/app_configuration_resource.go
+  tracing symbols from 3 cross-package helper file(s)...
+    internal/services/batch/validate/account_name.go →
+      internal/services/batch/batch_account_resource.go
+      internal/services/batch/batch_application_resource.go
+```
+
+Without `--verbose`, the summary line shows just the count of traced resource files:
+
+```
+  tracing symbols from 1 same-package helper file(s)... 4 resource file(s)
+  tracing symbols from 3 cross-package helper file(s)... 20 resource file(s)
+  tracing imports from 3 vendor file(s)... 15 resource file(s)
+```
+
+### Discovery Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--fileregex` | `^internal/services?/...` | Regex to filter PR files for test discovery |
+| `--splitteston` | `_` | Character to split test names on |
+| `--acctest-file-suffix-regexes` | *(multiple)* | Comma-separated regex patterns to match test file suffixes |
+| `--reappend-split-character` | `false` | Append the split character to the test filter for more precise matching |
+| `--concurrency` | `5` | Maximum concurrent file downloads during test discovery |
+| `--local-repo-path` | *(empty)* | Path to a local git clone for AST-based detection (changes default mode to `AST`) |
+| `--mode` | `AST` | Mode for local detection: `api` (default) or `AST` (default when `--local-repo-path` is provided) |
+| `--local-trace-depth` | `10` | Max BFS depth for import tracing (0 to disable) |
+| `--local-vendor-mode` | `basic` | Vendor tracing mode: `basic` (import-based) or `none` (disabled) |
+| `--collapse-files-after` | `20` | Collapse file lists when count exceeds this value (0 to always show) |
+| `--verbose`, `-v` | `false` | Show detailed file listings and trace output |
+
+> **Note:** The `--local-repo-path` clone will have its working tree modified (checkout of FETCH_HEAD). Use a **dedicated clone** for tctest, not your active working directory. tctest will abort if the clone has uncommitted changes.

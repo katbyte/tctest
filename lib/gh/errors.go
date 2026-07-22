@@ -10,7 +10,7 @@ import (
 
 // WrapGitHubError examines a GitHub API error and returns a more descriptive
 // error message. GitHub often returns 404 instead of 401/403 for security
-// reasons (to avoid revealing resource existence to unauthorized users), so
+// reasons (to avoid revealing resource existence to unauthorised users), so
 // a "404 Not Found" may actually mean the token is expired, revoked, or
 // lacks the required permissions.
 func WrapGitHubError(err error, action string) error {
