@@ -19,14 +19,16 @@ func (r Repo) CloneURL() string {
 }
 
 // CheckoutPR fetches the merge ref for a PR and checks out FETCH_HEAD in the given repo path.
-func (r Repo) CheckoutPR(repoPath string, prNumber int) error {
+// Returns the short SHA of the checked-out merge commit.
+func (r Repo) CheckoutPR(repoPath string, prNumber int) (string, error) {
 	if err := git.FetchPRMergeRef(repoPath, prNumber); err != nil {
-		return fmt.Errorf("failed to fetch PR merge ref: %w", err)
+		return "", fmt.Errorf("failed to fetch PR merge ref: %w", err)
 	}
-	if err := git.CheckoutFetchHead(repoPath); err != nil {
-		return fmt.Errorf("failed to checkout merge commit: %w", err)
+	sha, err := git.CheckoutFetchHead(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to checkout merge commit: %w", err)
 	}
-	return nil
+	return sha, nil
 }
 
 func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *github.Response) error) error {

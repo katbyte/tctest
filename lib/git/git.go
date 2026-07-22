@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/katbyte/tctest/lib/cout"
 )
 
 func Run(repoPath string, args ...string) (string, error) {
@@ -21,10 +23,11 @@ func Run(repoPath string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// EnsurePathIsRepo ensures the given path contains a clean git repository.
+// EnsurePathIsRepo ensures the given path contains a git repository.
 // If the directory doesn't exist or is empty, it clones from cloneURL.
-// It verifies a .git directory exists and aborts if there are uncommitted changes.
-func EnsurePathIsRepo(repoPath, cloneURL string) error {
+// It verifies a .git directory exists. If force is true, uncommitted changes
+// are discarded with git reset + clean; otherwise an error is returned.
+func EnsurePathIsRepo(repoPath, cloneURL string, force bool) error {
 	// ensure repo path exists, cloning if the directory is empty or doesn't exist
 	needsClone := false
 	if info, err := os.Stat(repoPath); os.IsNotExist(err) {
@@ -45,6 +48,7 @@ func EnsurePathIsRepo(repoPath, cloneURL string) error {
 	}
 
 	if needsClone {
+		cout.Printf("  cloning <fg=208>%s</>...\n", cloneURL)
 		if err := Clone(filepath.Dir(repoPath), cloneURL, repoPath); err != nil {
 			return fmt.Errorf("cloning repo: %w", err)
 		}
@@ -55,21 +59,41 @@ func EnsurePathIsRepo(repoPath, cloneURL string) error {
 		return fmt.Errorf("repo path %s is not a git repository: %w", repoPath, err)
 	}
 
-	// abort if there are uncommitted changes
-	if err := EnsureCleanWorkingTree(repoPath); err != nil {
+	// check for uncommitted changes
+	dirty, dirtyOutput, err := IsWorkingTreeDirty(repoPath)
+	if err != nil {
 		return err
+	}
+	if dirty {
+		if !force {
+			return fmt.Errorf("repo at %s has uncommitted changes, aborting:\n%s", repoPath, dirtyOutput)
+		}
+		cout.Printf("  <yellow>resetting</> uncommitted changes...\n")
+		if err := ResetAndClean(repoPath); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func EnsureCleanWorkingTree(repoPath string) error {
+// IsWorkingTreeDirty returns true if the repo has uncommitted changes,
+// along with the porcelain output describing them.
+func IsWorkingTreeDirty(repoPath string) (bool, string, error) {
 	out, err := Run(repoPath, "status", "--porcelain")
 	if err != nil {
-		return fmt.Errorf("checking repo status: %w", err)
+		return false, "", fmt.Errorf("checking repo status: %w", err)
 	}
-	if out != "" {
-		return fmt.Errorf("repo at %s has uncommitted changes, aborting:\n%s", repoPath, out)
+	return out != "", out, nil
+}
+
+// ResetAndClean discards all uncommitted changes (tracked and untracked).
+func ResetAndClean(repoPath string) error {
+	if _, err := Run(repoPath, "reset", "--hard"); err != nil {
+		return fmt.Errorf("git reset --hard: %w", err)
+	}
+	if _, err := Run(repoPath, "clean", "-fd"); err != nil {
+		return fmt.Errorf("git clean -fd: %w", err)
 	}
 	return nil
 }
@@ -83,14 +107,16 @@ func FetchPRMergeRef(repoPath string, prNumber int) error {
 	return nil
 }
 
-func CheckoutFetchHead(repoPath string) error {
-	out, err := Run(repoPath, "checkout", "FETCH_HEAD")
+func CheckoutFetchHead(repoPath string) (string, error) {
+	_, err := Run(repoPath, "checkout", "FETCH_HEAD")
 	if err != nil {
-		return err
+		return "", err
 	}
-	// caller can log if needed
-	_ = out
-	return nil
+	sha, err := Run(repoPath, "rev-parse", "--short", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("getting HEAD sha: %w", err)
+	}
+	return sha, nil
 }
 
 func Clone(parentDir, cloneURL, targetPath string) error {

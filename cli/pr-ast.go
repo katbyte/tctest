@@ -56,17 +56,35 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 		return nil, fmt.Errorf("resolving repo path: %w", err)
 	}
 
-	// ensure repo path is a clean git clone (cloning if needed)
+	// check for uncommitted changes and prompt user
 	cout.Printf("  local AST detection: <fg=208>%s</> trace depth <yellow>%d</>\n", repoPath, cfg.LocalTraceDepth)
-	if err := git.EnsurePathIsRepo(repoPath, ghr.CloneURL()); err != nil {
+
+	force := false
+	dirty, dirtyOutput, err := git.IsWorkingTreeDirty(repoPath)
+	if err == nil && dirty {
+		cout.Printf("  <yellow>WARNING:</> repo has uncommitted changes:\n%s\n", dirtyOutput)
+		cout.Printf("  reset and continue? [y/N]: ")
+		var answer string
+		fmt.Scanln(&answer)
+		if strings.EqualFold(answer, "y") || strings.EqualFold(answer, "yes") {
+			force = true
+		} else {
+			return nil, fmt.Errorf("repo at %s has uncommitted changes, aborting", repoPath)
+		}
+	}
+
+	// ensure repo path is a clean git clone (cloning if needed)
+	if err := git.EnsurePathIsRepo(repoPath, ghr.CloneURL(), force); err != nil {
 		return nil, err
 	}
 
 	// fetch PR merge ref and checkout
 	cout.Printf("  fetching PR <cyan>#%d</> merge ref...\n", pri)
-	if err := ghr.CheckoutPR(repoPath, pri); err != nil {
+	sha, err := ghr.CheckoutPR(repoPath, pri)
+	if err != nil {
 		return nil, err
 	}
+	cout.Printf("  checked out PR <cyan>#%d</> at merge commit <darkGray>%s</>\n", pri, sha)
 
 	// check PR state via GitHub API
 	client, ctx := ghr.NewClient()
