@@ -64,8 +64,12 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 	if err == nil && dirty {
 		cout.Printf("  <yellow>WARNING:</> repo has uncommitted changes:\n%s\n", dirtyOutput)
 		cout.Printf("  reset and continue? [y/N]: ")
+
 		var answer string
-		fmt.Scanln(&answer)
+		if _, err := fmt.Scanln(&answer); err != nil {
+			return nil, fmt.Errorf("reading input: %w", err)
+		}
+
 		if strings.EqualFold(answer, "y") || strings.EqualFold(answer, "yes") {
 			force = true
 		} else {
