@@ -1,3 +1,7 @@
+## v0.9.2 (2026-07-21)
+
+- fix versioning
+
 ## v0.9.0 (2026-07-16)
 
 - bump golang.org/x/crypto from 0.47.0 to 0.52.0 ([#84](https://github.com/katbyte/tctest/pull/84))

@@ -1,5 +1,15 @@
 package version
 
-const Version = "0.6.0"
+import "runtime/debug"
+
+var Version = "dev"
 
 var GitCommit string
+
+func init() {
+	if Version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "(devel)" && info.Main.Version != "" {
+			Version = info.Main.Version
+		}
+	}
+}
