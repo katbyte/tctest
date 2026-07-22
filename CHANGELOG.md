@@ -1,17 +1,10 @@
-## v1.0.0 (Unreleased)
+## v1.0.0 (2026-07-22)
 
 - add local AST-based test discovery via `--local-repo-path` with Go AST parsing, import tracing, and vendor file tracing ([#87](https://github.com/katbyte/tctest/pull/87))
 - add `--mode` flag (`api` default, `AST` when `--local-repo-path` is provided) to control test detection mode ([#87](https://github.com/katbyte/tctest/pull/87))
 - add `--local-trace-depth`, `--local-vendor-mode` flags for AST tracing configuration ([#87](https://github.com/katbyte/tctest/pull/87))
 - add `--max-builds-per-pr`, `--tag`, `--collapse-files-after` flags ([#87](https://github.com/katbyte/tctest/pull/87))
-- add `--f-title-regex` PR filter flag ([#87](https://github.com/katbyte/tctest/pull/87))
 - add `--verbose`/`-v` flag to show detailed file listings and trace output ([#87](https://github.com/katbyte/tctest/pull/87))
-- prompt user to reset dirty local repo instead of hard-erroring ([#87](https://github.com/katbyte/tctest/pull/87))
-- show merge commit SHA when checking out PR for AST detection ([#87](https://github.com/katbyte/tctest/pull/87))
-- refactor flag definitions into logical groups with comments ([#87](https://github.com/katbyte/tctest/pull/87))
-- refactor test discovery into `provider` package with file classification and colour-coded output ([#87](https://github.com/katbyte/tctest/pull/87))
-- rename `--local-mode` to `--mode` and `off` value to `api` ([#87](https://github.com/katbyte/tctest/pull/87))
-- combine `make fmt` and `make fumpt` into a single target ([#87](https://github.com/katbyte/tctest/pull/87))
 
 ## v0.9.2 (2026-07-21)
 
