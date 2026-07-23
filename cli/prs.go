@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 )
 
@@ -24,19 +25,22 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 
 	ok := 0
 	failed := 0
+	buildsTriggered := 0
+	servicesSkipped := 0
 	for _, number := range prNumbers {
 		title := prs[number]
 
-		// when --service + --all, skip discovery and trigger TestAcc for each service directly
-		if serviceFilter != nil && f.RunAllTests {
+		// when --service + (--all or explicit test_regex), skip discovery and trigger directly
+		if serviceFilter != nil && (f.RunAllTests || testRegExParam != "") {
 			testRegEx := testRegExParam
 			if testRegEx == "" {
 				testRegEx = "TestAcc"
 			}
 
-			cout.Printf("PR <cyan>#%d</> %s (--all: running %s)\n", number, title, testRegEx)
+			cout.Printf("PR <cyan>#%d</> %s (running %s)\n", number, title, testRegEx)
 			for _, s := range serviceFilter.services {
 				f.triggerServiceBuild(s, number, testRegEx)
+				buildsTriggered++
 			}
 			ok++
 			continue
@@ -73,9 +77,12 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		}
 
 		// trigger a build for each service
+		prBuilds := 0
 		for s, tests := range *serviceTests {
 			// if --service is set, skip services not in the filter
 			if serviceFilter != nil && !serviceFilter.set[s] {
+				servicesSkipped++
+				clog.Log.Debugf("  skipping service %s (not in --service filter)", s)
 				continue
 			}
 
@@ -104,15 +111,26 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			}
 
 			f.triggerServiceBuild(s, number, testRegEx)
+			buildsTriggered++
+			prBuilds++
+		}
+
+		if serviceFilter != nil && prBuilds == 0 {
+			cout.Printf("  <yellow>no matching services</> for --service filter (discovered services had no overlap)\n\n")
 		}
 
 		ok++
 	}
 
+	// summary
 	if serviceFilter != nil {
-		cout.Printf("triggered tests for <yellow>%d</> PRs across <yellow>%d</> services!\n\n", ok, len(serviceFilter.services))
+		cout.Printf("triggered <yellow>%d</> build(s) for <yellow>%d</> PR(s)", buildsTriggered, ok)
+		if servicesSkipped > 0 {
+			cout.Printf(" <darkGray>(%d service(s) skipped by --service filter)</>", servicesSkipped)
+		}
+		cout.Printf("\n\n")
 	} else {
-		cout.Printf("triggered tests for <yellow>%d</> PRs!\n\n", ok)
+		cout.Printf("triggered <yellow>%d</> build(s) for <yellow>%d</> PR(s)\n\n", buildsTriggered, ok)
 	}
 
 	cout.FlushJSON()

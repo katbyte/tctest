@@ -102,19 +102,28 @@ tctest pr 3232 --open
 
 #### Service targeting with `--service`
 
-Use `--service` to target specific service(s). When used without `--all`, it still discovers tests from PR files but only triggers builds for the specified services. With `--all`, it runs `TestAcc` (all tests) for those services.
+Use `--service` to target specific service(s). The behavior depends on whether a `test_regex` or `--all` is also provided:
+
+- **`--service` alone**: Discovers tests from PR files, then **filters** to only trigger builds for the named services. If the PR doesn't touch those services, no builds are triggered.
+- **`--service` + `test_regex`**: **Skips discovery** and triggers the given regex directly for each named service.
+- **`--service` + `--all`**: **Skips discovery** and triggers `TestAcc` for each named service.
+
+Use `all` as the service name to target every service in the repo.
 
 ```bash
-# discover tests from PR, but only run for the network service
+# discover tests from PR, but only trigger for the network service
 tctest pr 3232 --service network
 
 # discover tests from PR for multiple services
 tctest pr 3232 --service network,compute
 
-# run ALL tests for a specific service (no test discovery)
+# run a specific test on a specific service (no discovery)
+tctest pr 3232 --service network TestAccVirtualNetwork_basic
+
+# run ALL tests for a specific service (no discovery)
 tctest pr 3232 --service network --all
 
-# run ALL tests for ALL services (no test discovery)
+# run ALL tests for ALL services (no discovery)
 tctest pr 3232 --service all --all
 
 # invalid service names will error with a list of valid services

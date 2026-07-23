@@ -123,7 +123,7 @@ func configureFlags(root *cobra.Command) error {
 	// General Flags (FlagData / Global)
 	pflags.BoolP("open", "o", false, "Open the PR and build in a browser")
 	pflags.BoolP("all", "", false, "run all tests when none are found by passing TestAcc")
-	pflags.StringSlice("service", []string{}, "force trigger builds for specific services (comma-separated), use 'all' to trigger all services")
+	pflags.StringSlice("service", []string{}, "target specific services: with --all or test_regex, skips discovery and triggers directly; alone, filters discovered services")
 	pflags.StringSlice("add-tests", []string{}, "additional test names to append to the discovered test regex (comma-separated)")
 	pflags.Bool("quiet", false, "minimal machine-readable output (pr@service@build url)")
 
