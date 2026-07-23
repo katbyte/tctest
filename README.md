@@ -66,7 +66,7 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 
 ### `branch` — Run tests on a branch
 
-Triggers acceptance tests matching a regex for a specific branch.
+Triggers a TeamCity build for the given branch with the specified test regex passed as `TEST_PATTERN`/`TEST_PREFIX`.
 
 ```bash
 # with flags
@@ -81,7 +81,7 @@ tctest b master TestAcc
 
 ### `pr` — Run tests for a PR
 
-Discovers tests from modified PR files and triggers builds. If no test regex is specified, it automatically determines which tests to run based on the changed files.
+Discovers tests from modified PR files and triggers builds. If a `test_regex` is provided as the second argument, it **overrides** auto-discovery and is sent directly as `TEST_PATTERN`/`TEST_PREFIX` to TeamCity.
 
 ```bash
 # auto-discover tests from PR files
@@ -102,19 +102,28 @@ tctest pr 3232 --open
 
 #### Service targeting with `--service`
 
-Use `--service` to target specific service(s). When used without `--all`, it still discovers tests from PR files but only triggers builds for the specified services. With `--all`, it runs `TestAcc` (all tests) for those services.
+Use `--service` to target specific service(s). The behavior depends on whether a `test_regex` or `--all` is also provided:
+
+- **`--service` alone**: Discovers tests from PR files, then **filters** to only trigger builds for the named services. If the PR doesn't touch those services, no builds are triggered.
+- **`--service` + `test_regex`**: **Skips discovery** and triggers the given regex directly for each named service.
+- **`--service` + `--all`**: **Skips discovery** and triggers `TestAcc` for each named service.
+
+Use `all` as the service name to target every service in the repo.
 
 ```bash
-# discover tests from PR, but only run for the network service
+# discover tests from PR, but only trigger for the network service
 tctest pr 3232 --service network
 
 # discover tests from PR for multiple services
 tctest pr 3232 --service network,compute
 
-# run ALL tests for a specific service (no test discovery)
+# run a specific test on a specific service (no discovery)
+tctest pr 3232 --service network TestAccVirtualNetwork_basic
+
+# run ALL tests for a specific service (no discovery)
 tctest pr 3232 --service network --all
 
-# run ALL tests for ALL services (no test discovery)
+# run ALL tests for ALL services (no discovery)
 tctest pr 3232 --service all --all
 
 # invalid service names will error with a list of valid services
@@ -142,7 +151,7 @@ tctest pr 3232 -c
 
 ### `prs` — Run tests for multiple PRs with filters
 
-Discovers all open PRs matching specified filters and triggers builds for each.
+Discovers all open PRs matching specified filters and triggers builds for each. If a `test_regex` is provided as the first argument, it **overrides** auto-discovery and is sent directly as `TEST_PATTERN`/`TEST_PREFIX` for every matching PR.
 
 ```bash
 # all open PRs by specific authors
