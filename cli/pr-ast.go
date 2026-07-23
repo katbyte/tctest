@@ -217,15 +217,16 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 		// extract service directory from file path
 		// e.g., "internal/services/network/parse/helper.go" -> "internal/services/network"
 		serviceDir := ""
-		for _, prefix := range []string{"internal/services/", "internal/service/"} {
-			idx := strings.Index(f, prefix)
+		for _, prefix := range provider.ServiceDirPrefixes {
+			pfx := prefix + "/"
+			idx := strings.Index(f, pfx)
 			if idx < 0 {
 				continue
 			}
-			rest := f[idx+len(prefix):]
+			rest := f[idx+len(pfx):]
 			parts := strings.SplitN(rest, "/", 2)
 			if len(parts) >= 1 && parts[0] != "" {
-				serviceDir = f[:idx+len(prefix)] + parts[0]
+				serviceDir = f[:idx+len(pfx)] + parts[0]
 			}
 		}
 		if serviceDir == "" {
@@ -685,58 +686,69 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 			pf.Dir, pf.Name, vendorFileToPkg[pf.RelPath])
 	}
 
-	servicesDir := filepath.Join(dc.RepoPath, "internal", "services")
-	_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	foundServiceDir := false
+	for _, prefix := range provider.ServiceDirPrefixes {
+		servicesDir := filepath.Join(dc.RepoPath, prefix)
+		if _, err := os.Stat(servicesDir); err != nil {
+			continue
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
-			return nil
-		}
-
-		relPath, relErr := filepath.Rel(dc.RepoPath, path)
-		if relErr != nil {
-			return nil //nolint:nilerr
-		}
-		relPath = filepath.ToSlash(relPath)
-
-		if !dc.Config.FileRegEx.MatchString(relPath) {
-			return nil
-		}
-
-		fset := token.NewFileSet()
-		parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if parseErr != nil {
-			return nil //nolint:nilerr
-		}
-
-		for _, imp := range parsed.Imports {
-			impPath := strings.Trim(imp.Path.Value, `"`)
-			if !vendorPkgs[impPath] {
-				continue
+		foundServiceDir = true
+		_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if d.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(d.Name(), ".go") || strings.HasSuffix(d.Name(), "_test.go") {
+				return nil
 			}
 
-			dir := filepath.ToSlash(filepath.Dir(relPath))
-			tracedFile := provider.NewFileWithPath(relPath, dc.RepoPath)
-			clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
-
-			pkgToResources[impPath] = append(pkgToResources[impPath], tracedFile)
-
-			discovered, findErr := dc.findLocalTestFiles(dir, []string{tracedFile.ResourcePrefix()})
-			if findErr != nil {
+			relPath, relErr := filepath.Rel(dc.RepoPath, path)
+			if relErr != nil {
 				return nil //nolint:nilerr
 			}
-			for _, pf := range discovered {
-				dc.AddTestFile(pf, "VENDOR")
-			}
-			break
-		}
+			relPath = filepath.ToSlash(relPath)
 
-		return nil
-	})
+			if !dc.Config.FileRegEx.MatchString(relPath) {
+				return nil
+			}
+
+			fset := token.NewFileSet()
+			parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+			if parseErr != nil {
+				return nil //nolint:nilerr
+			}
+
+			for _, imp := range parsed.Imports {
+				impPath := strings.Trim(imp.Path.Value, `"`)
+				if !vendorPkgs[impPath] {
+					continue
+				}
+
+				dir := filepath.ToSlash(filepath.Dir(relPath))
+				tracedFile := provider.NewFileWithPath(relPath, dc.RepoPath)
+				clog.Log.Debugf("    vendor traced: %s imports %s", relPath, impPath)
+
+				pkgToResources[impPath] = append(pkgToResources[impPath], tracedFile)
+
+				discovered, findErr := dc.findLocalTestFiles(dir, []string{tracedFile.ResourcePrefix()})
+				if findErr != nil {
+					return nil //nolint:nilerr
+				}
+				for _, pf := range discovered {
+					dc.AddTestFile(pf, "VENDOR")
+				}
+				break
+			}
+
+			return nil
+		})
+	}
+
+	if !foundServiceDir {
+		cout.Printf("  <yellow>WARNING:</> no service directory found (tried %s)\n", strings.Join(provider.ServiceDirPrefixes, ", "))
+	}
 
 	vendorTracedCount := 0
 	for _, resources := range pkgToResources {
