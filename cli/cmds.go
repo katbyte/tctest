@@ -95,8 +95,8 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "pr # [test_regex]",
-		Short:         "triggers acceptance tests for a PR",
+		Use:   "pr # [test_regex]",
+		Short: "triggers acceptance tests for a PR",
 		Long: `Discovers and triggers acceptance tests for one or more PRs (comma-separated).
 
 By default, tests are auto-discovered from the PR's changed files. If a test_regex
@@ -133,8 +133,8 @@ Use --all to run all tests (sends TestAcc as the regex).`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "prs [test_regex] [-a author1,katbyte] [-l with-this-label,-not-this-label]",
-		Short:         "triggers acceptance tests for each open PR matching filters",
+		Use:   "prs [test_regex] [-a author1,katbyte] [-l with-this-label,-not-this-label]",
+		Short: "triggers acceptance tests for each open PR matching filters",
 		Long: `Discovers and triggers acceptance tests for all open PRs matching the specified filters.
 
 By default, tests are auto-discovered from each PR's changed files. If a test_regex

@@ -87,12 +87,15 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			// generate test regex if we don't have it
 			testRegEx := testRegExParam
 			if testRegEx == "" {
-				if len(tests) == 0 {
+				allTests := append([]string{}, tests...)
+				allTests = append(allTests, f.AddTests...)
+
+				if len(allTests) == 0 {
 					cout.Printf("  %s<red>ERROR:</> no tests found, use TestAcc or --all to run all tests\n", serviceInfo)
 					continue
 				}
 
-				testRegEx = "(" + strings.Join(tests, "|") + ")"
+				testRegEx = "(" + strings.Join(allTests, "|") + ")"
 			}
 
 			// if --all set regex to TestAcc
