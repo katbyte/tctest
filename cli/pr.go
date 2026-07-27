@@ -155,6 +155,8 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 			clog.Log.Debugf("%s%s", serviceInfo, test)
 			serviceTests[service] = append(serviceTests[service], test)
 		}
+		// map iteration order is random; sort so the generated test regex is deterministic
+		sort.Strings(serviceTests[service])
 	}
 
 	return &serviceTests, nil

@@ -12,8 +12,17 @@ import (
 
 var httpClient = chttp.NewHTTPClient("TC")
 
+// baseURL returns the server's base URL, defaulting to https:// when the
+// configured server string doesn't include an explicit scheme.
+func (s Server) baseURL() string {
+	if strings.Contains(s.Server, "://") {
+		return s.Server
+	}
+	return "https://" + s.Server
+}
+
 func (s Server) makeGetRequest(endpoint string) (int, string, error) {
-	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
+	uri := s.baseURL() + endpoint
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", uri, nil)
 	if err != nil {
@@ -28,7 +37,7 @@ func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (int, s
 }
 
 func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (int, string, error) {
-	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
+	uri := s.baseURL() + endpoint
 	req, err := http.NewRequestWithContext(context.Background(), "POST", uri, strings.NewReader(body))
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)

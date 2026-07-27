@@ -202,6 +202,23 @@ func (dc *AstDiscoveryContext) findLocalTestFiles(relativeDir string, resourcePr
 //  5. If it uses a changed symbol but doesn't match fileregex, it's queued for the next depth level
 //
 // Returns map[dir][]string (same format as resourcePrefixesByPackage in GetPullRequestTestFiles).
+// recordQueuedSymbols adds the exported symbols of an intermediate helper file to the
+// symbol set of its (next-level) package. Without this, packages beyond depth 0 have no
+// symbol info and the BFS degrades to "any importer matches", pulling in far too many tests.
+// Symbols are only recorded for packages queued this level — a package visited at an
+// earlier depth is never traced again, so its set must not be extended mid-read.
+func recordQueuedSymbols(pkgSymbols map[string]map[string]bool, nextLevel map[string]string, helperPkg string, parsed *ast.File) {
+	if _, queued := nextLevel[helperPkg]; !queued {
+		return
+	}
+	for _, s := range provider.SymbolsFromAST(parsed, true) {
+		if pkgSymbols[helperPkg] == nil {
+			pkgSymbols[helperPkg] = map[string]bool{}
+		}
+		pkgSymbols[helperPkg][s] = true
+	}
+}
+
 func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provider.File, pkgSymbols map[string]map[string]bool) map[string][]string {
 	result := map[string][]string{}
 
@@ -308,6 +325,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 							nextLevel[helperPkg] = serviceDir
 							visited[helperPkg] = true
 						}
+						recordQueuedSymbols(pkgSymbols, nextLevel, helperPkg, parsed)
 					}
 					return nil
 				}
@@ -350,6 +368,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 						visited[helperPkg] = true
 						clog.Log.Debugf("    intermediate: %s uses %v from %s, queuing for depth %d", relPath, usedSymbols, pkgPath, depth+2)
 					}
+					recordQueuedSymbols(pkgSymbols, nextLevel, helperPkg, parsed)
 				}
 
 				return nil
@@ -855,6 +874,8 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 		for test := range tests {
 			serviceTests[service] = append(serviceTests[service], test)
 		}
+		// map iteration order is random; sort so the generated test regex is deterministic
+		sort.Strings(serviceTests[service])
 	}
 	return serviceTests, nil
 }

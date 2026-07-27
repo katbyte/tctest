@@ -23,7 +23,8 @@ imports:
 	goimports -w .
 
 test: build
-	go test ./... -timeout ${TEST_TIMEOUT}
+	go test $$(go list ./... | grep -v '/test$$') -timeout ${TEST_TIMEOUT}
+	@set -o pipefail; go test ./test/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
 build:
 	@echo "==> building..."
@@ -54,4 +55,4 @@ install:
 
 check-all: build test lint depscheck
 
-.PHONY: fmt imports build lint depscheck check-all install tools
+.PHONY: fmt imports build lint depscheck check-all install tools test
