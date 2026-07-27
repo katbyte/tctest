@@ -131,15 +131,15 @@ func (f FlagData) BuildResultsForPRCmd(pr int) error {
 			return err
 		}
 
-		fmt.Printf("Test Results (buildID: %d, buildNumber: %d, branch: %s):\n", build.ID, build.Number, build.Branch)
+		cout.Printf("Test Results (buildID: %d, buildNumber: %d, branch: %s):\n", build.ID, build.Number, build.Branch)
 		outputTestResults(body)
 
 		if build.State == "running" && !f.TC.Build.Wait {
 			// If we didn't want to wait, and it's not finished, print a warning at the end so people notice it
-			fmt.Printf("[WARN] build (ID: %d) for PR %d is still running, test results may be incomplete\n", build.ID, pr)
+			cout.Errorf("[WARN] build (ID: %d) for PR %d is still running, test results may be incomplete\n", build.ID, pr)
 		}
 
-		fmt.Printf("Build Log: %s\n\n", build.URL)
+		cout.Printf("Build Log: %s\n\n", build.URL)
 	}
 
 	return nil
@@ -149,7 +149,7 @@ func outputTestResults(body string) {
 	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
 	for _, line := range strings.Split(body, "\n") {
 		if r.MatchString(line) {
-			fmt.Printf("%s\n", line)
+			cout.Printf("%s\n", line)
 		}
 	}
 }

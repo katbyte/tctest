@@ -109,9 +109,17 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 				return
 			}
 
-			if status != http.StatusOK {
-				clog.Log.Debugf("    skipping %s (not found at merge commit, status %d)", f.RelPath, status)
+			if status == http.StatusNotFound {
+				clog.Log.Debugf("    skipping %s (not found at merge commit)", f.RelPath)
 				return // file was skipped
+			}
+			if status != http.StatusOK {
+				// anything else (403/429/5xx) means we failed to fetch a file that exists;
+				// silently skipping it would trigger builds with an incomplete test regex
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("downloading %s: unexpected status %d", f.RelPath, status))
+				mu.Unlock()
+				return
 			}
 
 			f.SetContent(content)
@@ -160,6 +168,26 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	}
 
 	return &serviceTests, nil
+}
+
+// CheckPrCanBuild verifies a PR exists, is open, and has a merge commit. Used by the
+// direct-trigger path (--service + --all/test regex), which skips discovery and would
+// otherwise happily trigger builds on a stale or missing refs/pull/N/merge ref.
+func (f FlagData) CheckPrCanBuild(number int) error {
+	ghr := f.NewRepo()
+	client, ctx := ghr.NewClient()
+
+	pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, number)
+	if err != nil {
+		return gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, number))
+	}
+	if pr.GetState() == "closed" {
+		return errors.New("cannot start build for a closed pr")
+	}
+	if pr.MergeCommitSHA == nil {
+		return errors.New("merge commit SHA is nil, is there a merge conflict?")
+	}
+	return nil
 }
 
 // GetPullRequestTestFiles fetches all changed files in a PR and determines the related test files.
@@ -246,8 +274,14 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 			clog.Log.Debugf("  listing directory %s for related test files...", dir)
 			_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, dir, nil)
 			if err != nil {
-				clog.Log.Debugf("  failed to list directory %s: %v", dir, err)
-				continue
+				// a directory new in this PR won't exist on the default branch; anything else
+				// would silently drop derived sibling test files
+				var ghErr *github.ErrorResponse
+				if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusNotFound {
+					clog.Log.Debugf("  directory %s not found (new in this PR?), skipping sibling test discovery", dir)
+					continue
+				}
+				return nil, fmt.Errorf("failed to list directory %s for related test files: %w", dir, err)
 			}
 
 			for _, entry := range dirContents {

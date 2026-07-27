@@ -714,7 +714,10 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 		foundServiceDir = true
 		_ = filepath.WalkDir(servicesDir, func(path string, d os.DirEntry, walkErr error) error {
 			if walkErr != nil {
-				return walkErr
+				// skip unreadable entries and keep walking; aborting here would silently
+				// drop every file after the error point
+				clog.Log.Debugf("    error walking %s: %v", path, walkErr)
+				return nil //nolint:nilerr
 			}
 			if d.IsDir() {
 				return nil
