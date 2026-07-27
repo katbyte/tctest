@@ -49,6 +49,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				cout.Level = cout.VerbosityVerbose
 			}
 
+			if viper.GetBool("all") && len(viper.GetStringSlice("add-tests")) > 0 {
+				return errors.New("cannot use --add-tests together with --all, --all already runs all tests")
+			}
+
 			// TODO: remove once --buildtypeid is removed
 			return resolveBuildTypeID(cmd)
 		},
@@ -101,9 +105,15 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 By default, tests are auto-discovered from the PR's changed files. If a test_regex
 is provided, it overrides auto-discovery and is sent directly as TEST_PATTERN/TEST_PREFIX.
-Use --all to run all tests (sends TestAcc as the regex).`,
-		Args:          cobra.RangeArgs(1, 2),
-		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
+Use --all to run all tests (sends TestAcc as the regex). A test_regex, --all, and
+--add-tests are mutually exclusive.`,
+		Args: cobra.RangeArgs(1, 2),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"})(cmd, args); err != nil {
+				return err
+			}
+			return validateTestRegexFlags(1)(cmd, args)
+		},
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
@@ -139,9 +149,15 @@ Use --all to run all tests (sends TestAcc as the regex).`,
 
 By default, tests are auto-discovered from each PR's changed files. If a test_regex
 is provided, it overrides auto-discovery and is sent directly as TEST_PATTERN/TEST_PREFIX
-for every matching PR. Use --all to run all tests (sends TestAcc as the regex).`,
-		Args:          cobra.RangeArgs(0, 1),
-		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
+for every matching PR. Use --all to run all tests (sends TestAcc as the regex).
+A test_regex, --all, and --add-tests are mutually exclusive.`,
+		Args: cobra.RangeArgs(0, 1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"})(cmd, args); err != nil {
+				return err
+			}
+			return validateTestRegexFlags(0)(cmd, args)
+		},
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			testRegExParam := ""

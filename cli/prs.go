@@ -23,9 +23,16 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		return err
 	}
 
+	// the direct-trigger path (--service + --all/test regex) triggers one build per service,
+	// so enforce --max-builds-per-pr up front
+	if serviceFilter != nil && (f.RunAllTests || testRegExParam != "") && f.TC.Build.MaxBuildsPerPR > 0 && len(serviceFilter.services) > f.TC.Build.MaxBuildsPerPR {
+		return fmt.Errorf("--service would trigger %d builds per PR, exceeding --max-builds-per-pr limit of %d (use --max-builds-per-pr 0 for no limit)", len(serviceFilter.services), f.TC.Build.MaxBuildsPerPR)
+	}
+
 	ok := 0
 	failed := 0
 	buildsTriggered := 0
+	buildsFailed := 0
 	servicesSkipped := 0
 	for _, number := range prNumbers {
 		title := prs[number]
@@ -39,8 +46,11 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 
 			cout.Printf("PR <cyan>#%d</> %s (running %s)\n", number, title, testRegEx)
 			for _, s := range serviceFilter.services {
-				f.triggerServiceBuild(s, number, testRegEx)
-				buildsTriggered++
+				if err := f.triggerServiceBuild(s, number, testRegEx); err != nil {
+					buildsFailed++
+				} else {
+					buildsTriggered++
+				}
 			}
 			ok++
 			continue
@@ -78,6 +88,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 
 		// trigger a build for each service
 		prBuilds := 0
+		prFailed := 0
 		for s, tests := range *serviceTests {
 			// if --service is set, skip services not in the filter
 			if serviceFilter != nil && !serviceFilter.set[s] {
@@ -91,9 +102,12 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 				serviceInfo = "[<yellow>" + s + "</>]"
 			}
 
-			// generate test regex if we don't have it
+			// generate the test regex: --all wins, then an explicit regex, then discovered tests (+ --add-tests)
 			testRegEx := testRegExParam
-			if testRegEx == "" {
+			switch {
+			case f.RunAllTests:
+				testRegEx = "TestAcc"
+			case testRegEx == "":
 				allTests := append([]string{}, tests...)
 				allTests = append(allTests, f.AddTests...)
 
@@ -105,17 +119,16 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 				testRegEx = "(" + strings.Join(allTests, "|") + ")"
 			}
 
-			// if --all set regex to TestAcc
-			if f.RunAllTests {
-				testRegEx = "TestAcc"
+			if err := f.triggerServiceBuild(s, number, testRegEx); err != nil {
+				buildsFailed++
+				prFailed++
+				continue
 			}
-
-			f.triggerServiceBuild(s, number, testRegEx)
 			buildsTriggered++
 			prBuilds++
 		}
 
-		if serviceFilter != nil && prBuilds == 0 {
+		if serviceFilter != nil && prBuilds == 0 && prFailed == 0 {
 			cout.Printf("  <yellow>no matching services</> for --service filter (discovered services had no overlap)\n\n")
 		}
 
@@ -123,20 +136,22 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 	}
 
 	// summary
-	if serviceFilter != nil {
-		cout.Printf("triggered <yellow>%d</> build(s) for <yellow>%d</> PR(s)", buildsTriggered, ok)
-		if servicesSkipped > 0 {
-			cout.Printf(" <darkGray>(%d service(s) skipped by --service filter)</>", servicesSkipped)
-		}
-		cout.Printf("\n\n")
-	} else {
-		cout.Printf("triggered <yellow>%d</> build(s) for <yellow>%d</> PR(s)\n\n", buildsTriggered, ok)
+	cout.Printf("triggered <yellow>%d</> build(s) for <yellow>%d</> PR(s)", buildsTriggered, ok)
+	if buildsFailed > 0 {
+		cout.Printf(" <red>(%d build(s) failed to trigger)</>", buildsFailed)
 	}
+	if servicesSkipped > 0 {
+		cout.Printf(" <darkGray>(%d service(s) skipped by --service filter)</>", servicesSkipped)
+	}
+	cout.Printf("\n\n")
 
 	cout.FlushJSON()
 
 	if failed > 0 {
 		return fmt.Errorf("%d of %d PRs failed", failed, len(prNumbers))
+	}
+	if buildsFailed > 0 {
+		return fmt.Errorf("%d build(s) failed to trigger", buildsFailed)
 	}
 
 	return nil
@@ -195,7 +210,7 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 }
 
 // triggerServiceBuild triggers a build for a single service on a PR
-func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx string) {
+func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx string) error {
 	serviceInfo := ""
 	if service != "" {
 		serviceInfo = "[" + service + "]"
@@ -211,9 +226,12 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
 	if err != nil {
 		cout.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
-	} else {
-		cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
-		cout.AddResult(prNumber, service, buildID, buildURL)
+		cout.Println()
+		return err
 	}
+
+	cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
+	cout.AddResult(prNumber, service, buildID, buildURL)
 	cout.Println()
+	return nil
 }

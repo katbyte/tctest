@@ -52,6 +52,27 @@ func resolveBuildTypeID(cmd *cobra.Command) error {
 	return nil
 }
 
+// validateTestRegexFlags returns a PreRunE that errors when an explicit test regex
+// (the positional arg at regexIdx) is combined with --all or --add-tests. The
+// --all vs --add-tests check is position-independent and lives in the root
+// PersistentPreRunE instead.
+func validateTestRegexFlags(regexIdx int) func(cmd *cobra.Command, args []string) error {
+	return func(_ *cobra.Command, args []string) error {
+		if len(args) <= regexIdx {
+			return nil
+		}
+
+		if viper.GetBool("all") {
+			return errors.New("cannot use --all together with an explicit test regex, use one or the other")
+		}
+		if len(viper.GetStringSlice("add-tests")) > 0 {
+			return errors.New("cannot use --add-tests together with an explicit test regex, include the tests in the regex instead")
+		}
+
+		return nil
+	}
+}
+
 type FlagData struct {
 	GH              FlagsGitHub     `mapstructure:",squash"`
 	TC              FlagsTeamCity   `mapstructure:",squash"`
@@ -122,9 +143,9 @@ func configureFlags(root *cobra.Command) error {
 
 	// General Flags (FlagData / Global)
 	pflags.BoolP("open", "o", false, "Open the PR and build in a browser")
-	pflags.BoolP("all", "", false, "run all tests when none are found by passing TestAcc")
+	pflags.BoolP("all", "", false, "run all tests by passing TestAcc (incompatible with an explicit test regex or --add-tests)")
 	pflags.StringSlice("service", []string{}, "target specific services: with --all or test_regex, skips discovery and triggers directly; alone, filters discovered services")
-	pflags.StringSlice("add-tests", []string{}, "additional test names to append to the discovered test regex (comma-separated)")
+	pflags.StringSlice("add-tests", []string{}, "additional test names to append to the discovered test regex (comma-separated, incompatible with --all or an explicit test regex)")
 	pflags.Bool("quiet", false, "minimal machine-readable output (pr@service@build url)")
 
 	// Output Flags

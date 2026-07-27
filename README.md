@@ -124,7 +124,8 @@ tctest pr 3232 --service network TestAccVirtualNetwork_basic
 tctest pr 3232 --service network --all
 
 # run ALL tests for ALL services (no discovery)
-tctest pr 3232 --service all --all
+# note: triggers one build per service, so --max-builds-per-pr (default 5) applies
+tctest pr 3232 --service all --all --max-builds-per-pr 0
 
 # invalid service names will error with a list of valid services
 tctest pr 3232 --service fakesvc
@@ -139,6 +140,8 @@ Without `--service`, `--all` overrides the discovered test regex with `TestAcc` 
 ```bash
 tctest pr 3232 --all
 ```
+
+An explicit `test_regex`, `--all`, and `--add-tests` are mutually exclusive — they are three different ways of specifying which tests to run, so combining them is an error.
 
 #### Post a GitHub comment with `--comment` / `-c`
 
