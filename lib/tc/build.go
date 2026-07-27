@@ -39,6 +39,7 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx 
 	return bid, fmt.Sprintf("https://%s/viewQueued.html?itemId=%d", s.Server, bid), nil
 }
 
+// TriggerBuild queues a TeamCity build for the given build type and branch with the test pattern and additional properties.
 // todo is there any reason to not inline this into runbuild?
 func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
 	var additionalProps strings.Builder

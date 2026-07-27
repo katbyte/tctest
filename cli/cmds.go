@@ -1,3 +1,5 @@
+// Package cli implements the tctest command line interface: the cobra commands, flag and config handling, and the
+// workflows that discover PR tests and trigger TeamCity builds.
 package cli
 
 import (

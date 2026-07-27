@@ -1,3 +1,4 @@
+// Package cout provides verbosity-levelled, coloured console output.
 package cout
 
 import (

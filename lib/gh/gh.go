@@ -1,3 +1,4 @@
+// Package gh wraps the go-github client with the GitHub helpers (PRs, files, labels) shared between katbyte's tools.
 package gh
 
 import (

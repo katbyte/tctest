@@ -11,7 +11,7 @@ import (
 	"github.com/katbyte/tctest/lib/provider"
 )
 
-// wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
+// GithubRepo wraps the common gh lib shared with my other tools, splitting common GH code from this CLI tool's tooling code.
 type GithubRepo struct {
 	gh.Repo
 }

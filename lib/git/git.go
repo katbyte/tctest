@@ -1,3 +1,4 @@
+// Package git runs local git commands for cloning repos, fetching PR merge refs, and checking out commits.
 package git
 
 import (

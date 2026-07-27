@@ -1,3 +1,5 @@
+// Package provider understands the layout of terraform provider repositories: classifying changed files, extracting
+// acceptance tests, and tracing symbols and imports via the Go AST.
 package provider
 
 import (
