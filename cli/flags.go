@@ -15,38 +15,41 @@ import (
 	"github.com/spf13/viper"
 )
 
-// resolveBuildTypeID handles the legacy --buildtypeid to --build-type-id migration.
-// It errors if both are set. When only the old flag is used, it copies the value to
-// build-type-id and enables build-type-id-add-service-suffix to maintain the old behaviour.
+// resolveBuildTypeID handles the legacy buildtypeid to build-type-id rename for every
+// source: the --buildtypeid/-b flag, the TCTEST_BUILDTYPEID env var, and the config file.
+// It errors if both settings are provided; when only the legacy one is set, it copies the
+// value to build-type-id and warns on stderr so the migration is never silent.
+// It is purely a rename — the _SERVICE suffix that the legacy setting used to imply is
+// governed solely by build-type-id-add-service-suffix, which the warning points at.
 // Called from PersistentPreRunE before ValidateParams so the resolved value is available for validation.
 // TODO remove this at some point in the future.
 func resolveBuildTypeID(cmd *cobra.Command) error {
-	oldFlagSet := cmd.Flags().Changed("buildtypeid")
-	newFlagSet := cmd.Flags().Changed("build-type-id")
-
-	// error only when both CLI flags are explicitly provided
-	if oldFlagSet && newFlagSet {
-		return errors.New("cannot use both --buildtypeid and --build-type-id; --buildtypeid is deprecated, use --build-type-id only")
+	oldVal := viper.GetString("buildtypeid")
+	if oldVal == "" {
+		return nil // legacy setting not in use
 	}
 
-	// explicit --buildtypeid CLI flag: copy to build-type-id and enable service suffix
-	if oldFlagSet && !newFlagSet {
-		viper.Set("build-type-id", viper.GetString("buildtypeid"))
-		if !viper.GetBool("build-type-id-add-service-suffix") {
-			viper.Set("build-type-id-add-service-suffix", true)
-		}
-		fmt.Fprintf(os.Stderr, "WARNING: --buildtypeid/-b is deprecated and will be removed in a future version.\n")
-		fmt.Fprintf(os.Stderr, "  Use --build-type-id instead. Note: --buildtypeid automatically appends _SERVICE\n")
-		fmt.Fprintf(os.Stderr, "  to the build type ID. To keep this behaviour, use --build-type-id-add-service-suffix.\n")
-		return nil
+	// name each setting the way the user actually provided it (a flag takes
+	// precedence over env/config in viper, so Changed() identifies the source)
+	oldName, newName, suffixName := "TCTEST_BUILDTYPEID", "TCTEST_BUILD_TYPE_ID", "TCTEST_BUILD_TYPE_ID_ADD_SERVICE_SUFFIX"
+	if cmd.Flags().Changed("buildtypeid") {
+		oldName, newName, suffixName = "--buildtypeid/-b", "--build-type-id", "--build-type-id-add-service-suffix"
 	}
 
-	// no explicit CLI flags: fall back to env vars
-	if viper.GetString("build-type-id") == "" && viper.GetString("buildtypeid") != "" {
-		viper.Set("build-type-id", viper.GetString("buildtypeid"))
-		if !viper.GetBool("build-type-id-add-service-suffix") {
-			viper.Set("build-type-id-add-service-suffix", true)
+	if viper.GetString("build-type-id") != "" {
+		conflictName := "TCTEST_BUILD_TYPE_ID"
+		if cmd.Flags().Changed("build-type-id") {
+			conflictName = "--build-type-id"
 		}
+		return fmt.Errorf("cannot use both %s and %s; %s is deprecated, use %s only", oldName, conflictName, oldName, conflictName)
+	}
+
+	viper.Set("build-type-id", oldVal)
+
+	fmt.Fprintf(os.Stderr, "WARNING: %s is deprecated and will be removed in a future version; use %s instead.\n", oldName, newName)
+	if !viper.GetBool("build-type-id-add-service-suffix") {
+		fmt.Fprintf(os.Stderr, "  Note: _SERVICE is no longer appended to the build type id automatically; if your\n")
+		fmt.Fprintf(os.Stderr, "  TeamCity project uses per-service build configurations, set %s.\n", suffixName)
 	}
 
 	return nil
@@ -198,7 +201,7 @@ func configureFlags(root *cobra.Command) error {
 	// TeamCity Build Flags (FlagsTeamCityBuild)
 	pflags.StringP("buildtypeid", "b", "", "[DEPRECATED] use --build-type-id instead")
 	pflags.String("build-type-id", "", "the TeamCity BuildTypeId to trigger")
-	pflags.Bool("build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID (legacy behaviour from --buildtypeid)")
+	pflags.Bool("build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID for per-service build configurations (previously appended automatically by --buildtypeid)")
 	pflags.StringP("properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
 	pflags.BoolP("skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolP("wait", "w", false, "Wait for the build to complete before tctest exits")
@@ -215,7 +218,7 @@ func configureFlags(root *cobra.Command) error {
 		"server":                           "TCTEST_SERVER",
 		"buildtypeid":                      "TCTEST_BUILDTYPEID",
 		"build-type-id":                    "TCTEST_BUILD_TYPE_ID",
-		"build-type-id-add-service-suffix": "",
+		"build-type-id-add-service-suffix": "TCTEST_BUILD_TYPE_ID_ADD_SERVICE_SUFFIX",
 		"token-tc":                         "TCTEST_TOKEN_TC",
 		"token-gh":                         "GITHUB_TOKEN",
 		"username":                         "TCTEST_USER",
