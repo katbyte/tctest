@@ -24,6 +24,12 @@ func (f *File) Symbols(exportedOnly bool) []string {
 		return nil
 	}
 
+	return SymbolsFromAST(parsed, exportedOnly)
+}
+
+// SymbolsFromAST extracts all globally declared function/type/variable/constant names
+// from an already-parsed file. If exportedOnly is true, it only returns exported names.
+func SymbolsFromAST(parsed *ast.File, exportedOnly bool) []string {
 	var symbols []string
 	for _, decl := range parsed.Decls {
 		switch d := decl.(type) {

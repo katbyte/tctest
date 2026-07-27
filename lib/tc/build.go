@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/katbyte/tctest/lib/clog"
+	"github.com/katbyte/tctest/lib/cout"
 )
 
 func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (int, string, error) {
@@ -46,13 +47,14 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 		clog.Log.Debugf("adding additional properties:")
 
 		for _, p := range strings.Split(buildProperties, ";") {
-			parts := strings.Split(p, "=")
+			// SplitN so values may themselves contain '=' (base64, -run=Foo, URLs)
+			parts := strings.SplitN(p, "=", 2)
 			if len(parts) != 2 {
-				return 0, "", fmt.Errorf("unable to parse build property '%s': missing =", p)
+				return 0, "", fmt.Errorf("unable to parse build property '%s': expected KEY=VALUE", p)
 			}
 
 			clog.Log.Debugf("  property:%s=%s", parts[0], parts[1])
-			fmt.Fprintf(&additionalProps, "\t\t<property name=\"%s\" value=\"%s\"/>\n", parts[0], parts[1])
+			fmt.Fprintf(&additionalProps, "\t\t<property name=\"%s\" value=\"%s\"/>\n", xmlEscape(parts[0]), xmlEscape(parts[1]))
 		}
 	}
 
@@ -71,9 +73,17 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
         <property name="TEST_PREFIX" value="%[3]s"/>
 %[4]s	</properties>
 </build>
-`, buildTypeID, branch, testPattern, bodyAdditionalProperties, strconv.FormatBool(skipQueue))
+`, xmlEscape(buildTypeID), xmlEscape(branch), xmlEscape(testPattern), bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
 	return s.makePostRequestWithXMLContentType("/app/rest/2018.1/buildQueue", body)
+}
+
+// xmlEscape escapes a string for use in an XML attribute value; regexes and
+// property values routinely contain &, <, and " which would break the request body
+func xmlEscape(s string) string {
+	var b strings.Builder
+	_ = xml.EscapeText(&b, []byte(s)) // only fails on writer errors, which strings.Builder never returns
+	return b.String()
 }
 
 func (s Server) BuildLog(buildID int) (int, string, error) {
@@ -89,7 +99,7 @@ func (s Server) BuildState(buildID int) (int, string, error) {
 }
 
 func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
-	fmt.Printf("Waiting for build %d status to be 'finished'...\n", buildID)
+	cout.Printf("Waiting for build %d status to be 'finished'...\n", buildID)
 
 	var queueTime, runningTime int
 	for {

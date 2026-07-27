@@ -45,6 +45,15 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			}
 
 			cout.Printf("PR <cyan>#%d</> %s (running %s)\n", number, title, testRegEx)
+
+			// discovery validates the PR as a side effect; here we skip discovery, so check
+			// the PR is open and mergeable before triggering builds on its merge ref
+			if err := f.CheckPrCanBuild(number); err != nil {
+				cout.Errorf("  <red>ERROR:</> %v\n\n", err)
+				failed++
+				continue
+			}
+
 			for _, s := range serviceFilter.services {
 				if err := f.triggerServiceBuild(s, number, testRegEx); err != nil {
 					buildsFailed++
@@ -59,13 +68,13 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		// discover tests from PR files
 		serviceTests, err := f.GetPrTests(number, title)
 		if err != nil {
-			cout.Printf("  <red>ERROR: discovering tests:</> %v\n\n", err)
+			cout.Errorf("  <red>ERROR: discovering tests:</> %v\n\n", err)
 			failed++
 			continue
 		}
 
 		if serviceTests == nil {
-			cout.Printf("  <red>ERROR: service tests is nil</>\n\n")
+			cout.Errorf("  <red>ERROR: service tests is nil</>\n\n")
 			failed++
 			continue
 		}
@@ -80,7 +89,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 				serviceCount++
 			}
 			if serviceCount > f.TC.Build.MaxBuildsPerPR {
-				cout.Printf("  <red>ERROR:</> would trigger <yellow>%d</> service builds, exceeding --max-builds-per-pr limit of <yellow>%d</>\n\n", serviceCount, f.TC.Build.MaxBuildsPerPR)
+				cout.Errorf("  <red>ERROR:</> would trigger <yellow>%d</> service builds, exceeding --max-builds-per-pr limit of <yellow>%d</>\n\n", serviceCount, f.TC.Build.MaxBuildsPerPR)
 				failed++
 				continue
 			}
@@ -112,7 +121,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 				allTests = append(allTests, f.AddTests...)
 
 				if len(allTests) == 0 {
-					cout.Printf("  %s<red>ERROR:</> no tests found, use TestAcc or --all to run all tests\n", serviceInfo)
+					cout.Errorf("  %s<red>ERROR:</> no tests found, use TestAcc or --all to run all tests\n", serviceInfo)
 					continue
 				}
 
@@ -225,13 +234,16 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 
 	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
 	if err != nil {
-		cout.Printf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
+		cout.Errorf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 		cout.Println()
 		return err
 	}
 
-	cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
-	cout.AddResult(prNumber, service, buildID, buildURL)
+	// dry-run triggers nothing, so don't emit machine-readable records for it
+	if !f.DryRun {
+		cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
+		cout.AddResult(prNumber, service, buildID, buildURL)
+	}
 	cout.Println()
 	return nil
 }
