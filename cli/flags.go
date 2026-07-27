@@ -105,7 +105,7 @@ type FlagsGitHub struct {
 	Repo      string              `mapstructure:"repo"`
 	FilterPRs FlagsGitHubPrFilter `mapstructure:",squash"`
 
-	// APIURL and RawURL exist so the e2e tests can point the binary at mock
+	// APIURL and RawURL exist so the integration tests can point the binary at mock
 	// GitHub servers (they also work for GitHub Enterprise). The flags are
 	// hidden; normally set via TCTEST_GITHUB_API_URL / TCTEST_GITHUB_RAW_URL.
 	APIURL string `mapstructure:"github-api-url"`
@@ -186,7 +186,7 @@ func configureFlags(root *cobra.Command) error {
 
 	// GitHub Flags (FlagsGitHub)
 	pflags.String("token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
-	// hidden: used by the e2e tests to point at mock servers (also works for GitHub Enterprise)
+	// hidden: used by the integration tests to point at mock servers (also works for GitHub Enterprise)
 	pflags.String("github-api-url", "", "override the GitHub API base URL, for testing against a mock server or GitHub Enterprise (default https://api.github.com)")
 	pflags.String("github-raw-url", "", "override the GitHub raw content base URL, for testing against a mock server or GitHub Enterprise (default https://raw.githubusercontent.com)")
 	for _, f := range []string{"github-api-url", "github-raw-url"} {

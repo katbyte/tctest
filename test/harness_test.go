@@ -1,4 +1,4 @@
-// Package test runs the tctest binary end-to-end against mock GitHub and
+// Package test contains integration tests: they run the real tctest binary against mock GitHub and
 // TeamCity servers, using fixture provider repositories under testdata/.
 //
 // The binary is built once in TestMain. Each test spins up its own mock
@@ -37,41 +37,41 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	tmp, err := os.MkdirTemp("", "tctest-e2e-*")
+	tmp, err := os.MkdirTemp("", "tctest-integration-*")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "e2e setup: %v\n", err)
+		fmt.Fprintf(os.Stderr, "integration test setup: %v\n", err)
 		os.Exit(1)
 	}
 
 	code := func() int {
 		harnessHome = filepath.Join(tmp, "home")
 		if err := os.MkdirAll(harnessHome, 0o750); err != nil {
-			fmt.Fprintf(os.Stderr, "e2e setup: %v\n", err)
+			fmt.Fprintf(os.Stderr, "integration test setup: %v\n", err)
 			return 1
 		}
 
 		// build the real binary once
 		binPath = filepath.Join(tmp, "tctest")
 		build := exec.CommandContext(context.Background(), "go", "build", "-o", binPath, ".") //nolint:gosec // building the repo's own binary into a temp dir
-		build.Dir = ".."                                                                      // e2e tests run with CWD = the e2e package dir
+		build.Dir = ".."                                                                      // tests run with CWD = the test package dir
 		if out, err := build.CombinedOutput(); err != nil {
-			fmt.Fprintf(os.Stderr, "e2e setup: building tctest: %v\n%s\n", err, out)
+			fmt.Fprintf(os.Stderr, "integration test setup: building tctest: %v\n%s\n", err, out)
 			return 1
 		}
 
 		// build the git upstreams used by the AST-mode tests
 		azurermUpstream = filepath.Join(tmp, "azurerm-upstream")
 		if err := buildGitUpstream("testdata/azurerm", azurermUpstream, 300, 320); err != nil {
-			fmt.Fprintf(os.Stderr, "e2e setup: git fixture: %v\n", err)
+			fmt.Fprintf(os.Stderr, "integration test setup: git fixture: %v\n", err)
 			return 1
 		}
 		awsUpstream = filepath.Join(tmp, "aws-upstream")
 		if err := buildGitUpstream("testdata/aws", awsUpstream, 400, 430); err != nil {
-			fmt.Fprintf(os.Stderr, "e2e setup: git fixture: %v\n", err)
+			fmt.Fprintf(os.Stderr, "integration test setup: git fixture: %v\n", err)
 			return 1
 		}
 
-		fmt.Println("==> e2e: running the tctest binary against mock GitHub + TeamCity servers...")
+		fmt.Println("==> integration: running the tctest binary against mock GitHub + TeamCity servers...")
 		return m.Run()
 	}()
 
@@ -84,7 +84,7 @@ func TestMain(m *testing.M) {
 func runGit(dir string, args ...string) error {
 	base := make([]string, 0, 8+len(args))
 	base = append(base,
-		"-c", "user.name=e2e", "-c", "user.email=e2e@test.invalid",
+		"-c", "user.name=integration-test", "-c", "user.email=integration-test@test.invalid",
 		"-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main",
 	)
 	cmd := exec.CommandContext(context.Background(), "git", append(base, args...)...) //nolint:gosec // fixture setup with internally-constructed args
@@ -401,7 +401,7 @@ func runTCTest(t *testing.T, env map[string]string, args ...string) runResult {
 		"PATH":                 os.Getenv("PATH"), // git must be findable
 		"HOME":                 harnessHome,
 		"TMPDIR":               os.TempDir(),
-		"TCTEST_TOKEN_TC":      "e2e-token",
+		"TCTEST_TOKEN_TC":      "integration-test-token",
 		"TCTEST_BUILD_TYPE_ID": "TF_E2E",
 	}
 	maps.Copy(full, env)
@@ -437,7 +437,7 @@ func scenario(t *testing.T, kind, name string) {
 	t.Helper()
 	t.Cleanup(func() {
 		if !t.Failed() && !t.Skipped() {
-			fmt.Printf("      ok  e2e [%s] %s\n", kind, name)
+			fmt.Printf("      ok  integration [%s] %s\n", kind, name)
 		}
 	})
 }
