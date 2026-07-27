@@ -46,7 +46,7 @@ func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildPrope
 	if buildProperties != "" {
 		clog.Log.Debugf("adding additional properties:")
 
-		for _, p := range strings.Split(buildProperties, ";") {
+		for p := range strings.SplitSeq(buildProperties, ";") {
 			// SplitN so values may themselves contain '=' (base64, -run=Foo, URLs)
 			parts := strings.SplitN(p, "=", 2)
 			if len(parts) != 2 {
@@ -139,16 +139,16 @@ func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
 func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
-		statusCode, _, err := s.BuildQueue(buildID)
+		queueStatusCode, _, err := s.BuildQueue(buildID)
 		if err != nil {
 			return fmt.Errorf("error checking for build %d in queue: %w", buildID, err)
 		}
 
-		if statusCode == http.StatusNotFound {
+		if queueStatusCode == http.StatusNotFound {
 			return fmt.Errorf("no build ID %d found in running builds or queue", buildID)
 		}
-		if statusCode != http.StatusOK {
-			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+		if queueStatusCode != http.StatusOK {
+			return fmt.Errorf("HTTP status NOT OK: %d", queueStatusCode)
 		}
 
 		return fmt.Errorf("build %d still queued, check results later", buildID)

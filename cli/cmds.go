@@ -138,7 +138,7 @@ Use --all to run all tests (sends TestAcc as the regex). A test_regex, --all, an
 			// parse list of prs
 			prTitles := make(map[int]string)
 			var invalid []string
-			for _, pr := range strings.Split(prs, ",") {
+			for pr := range strings.SplitSeq(prs, ",") {
 				pri, err := strconv.Atoi(strings.TrimSpace(pr))
 				if err != nil {
 					invalid = append(invalid, pr)

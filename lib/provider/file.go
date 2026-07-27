@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -110,10 +111,8 @@ func (f *File) ResourcePrefix() string {
 
 // AddDiscovery adds a discovery source label if it isn't already present.
 func (f *File) AddDiscovery(source string) {
-	for _, s := range f.DiscoveredBy {
-		if s == source {
-			return
-		}
+	if slices.Contains(f.DiscoveredBy, source) {
+		return
 	}
 	f.DiscoveredBy = append(f.DiscoveredBy, source)
 }

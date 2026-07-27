@@ -147,7 +147,7 @@ func (f *FlagData) BuildResultsForPRCmd(pr int) error {
 
 func outputTestResults(body string) {
 	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		if r.MatchString(line) {
 			cout.Printf("%s\n", line)
 		}

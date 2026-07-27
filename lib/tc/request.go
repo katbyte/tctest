@@ -15,7 +15,7 @@ var httpClient = chttp.NewHTTPClient("TC")
 func (s Server) makeGetRequest(endpoint string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", uri, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, uri, nil)
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}
@@ -29,7 +29,7 @@ func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (int, s
 
 func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (int, string, error) {
 	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
-	req, err := http.NewRequestWithContext(context.Background(), "POST", uri, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, uri, strings.NewReader(body))
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -46,7 +47,7 @@ func (ghr GithubRepo) ListServices() ([]string, error) {
 		clog.Log.Debugf("listing services for %s/%s at %s...", ghr.Owner, ghr.Name, prefix)
 		_, dirContents, resp, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, prefix, nil)
 		if err != nil {
-			if resp != nil && resp.StatusCode == 404 {
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
 				clog.Log.Debugf("  %s not found, trying next prefix", prefix)
 				continue
 			}

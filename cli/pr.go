@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -362,11 +363,8 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 		sources := strings.Join(pf.DiscoveredBy, "+")
 
 		fileColour := provider.FileColourDerived
-		for _, s := range pf.DiscoveredBy {
-			if s == "CHANGED" {
-				fileColour = provider.FileColourTest
-				break
-			}
+		if slices.Contains(pf.DiscoveredBy, "CHANGED") {
+			fileColour = provider.FileColourTest
 		}
 
 		if showTestFiles {

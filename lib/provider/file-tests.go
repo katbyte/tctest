@@ -28,7 +28,7 @@ func (f *File) ExtractTests(splitOn string, reappend bool) ([]string, error) {
 	if parseErr != nil {
 		clog.Log.Debugf("    failed to parse %s, falling back to string match: %v", f.RelPath, parseErr)
 		// fallback: scan lines for "func TestAcc" if AST parsing fails
-		for _, line := range strings.Split(string(content), "\n") {
+		for line := range strings.SplitSeq(string(content), "\n") {
 			if strings.Contains(line, "func TestAcc") {
 				parts := strings.Fields(line)
 				if len(parts) >= 2 {
