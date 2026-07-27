@@ -1,3 +1,6 @@
+# recipes use bash for pipefail support (ubuntu's default sh is dash)
+SHELL := /bin/bash
+
 GIT_COMMIT=$(shell git describe --always --long --dirty)
 GIT_VERSION=$(shell git describe --tags --dirty 2>/dev/null | sed 's/-\([0-9]*\)-g/+\1@g/' || echo dev)
 GOLANGCI_LINT_VERSION?=v1.47.3

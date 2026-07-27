@@ -32,6 +32,7 @@ const mergeSHA = "0123456789abcdef0123456789abcdef01234567"
 var (
 	binPath         string // the tctest binary built from the repo root
 	azurermUpstream string // git repo built from testdata/azurerm with refs/pull/N/merge refs
+	awsUpstream     string // git repo built from testdata/aws with refs/pull/N/merge refs
 	harnessHome     string // empty HOME for subprocesses so no real ~/.tctest or gitconfig leaks in
 )
 
@@ -58,9 +59,14 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 
-		// build the azurerm git upstream used by the AST-mode tests
+		// build the git upstreams used by the AST-mode tests
 		azurermUpstream = filepath.Join(tmp, "azurerm-upstream")
 		if err := buildGitUpstream("testdata/azurerm", azurermUpstream, 300, 320); err != nil {
+			fmt.Fprintf(os.Stderr, "e2e setup: git fixture: %v\n", err)
+			return 1
+		}
+		awsUpstream = filepath.Join(tmp, "aws-upstream")
+		if err := buildGitUpstream("testdata/aws", awsUpstream, 400, 430); err != nil {
 			fmt.Fprintf(os.Stderr, "e2e setup: git fixture: %v\n", err)
 			return 1
 		}

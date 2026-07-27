@@ -244,9 +244,6 @@ func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx st
 		cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
 		cout.AddResult(prNumber, service, buildID, buildURL)
 	}
-
-	cout.Quietf("%d@%s@%d %s\n", prNumber, service, buildID, buildURL)
-	cout.AddResult(prNumber, service, buildID, buildURL)
 	cout.Println()
 	return nil
 }
