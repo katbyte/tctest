@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-github/v45/github"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
+	"github.com/katbyte/tctest/lib/gh"
 	"github.com/katbyte/tctest/lib/git"
 	"github.com/katbyte/tctest/lib/provider"
 )
@@ -97,7 +98,7 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 	if err != nil {
 		return nil, err
 	}
-	if pr.GetState() == "closed" {
+	if pr.GetState() == gh.PRStateClosed {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
 

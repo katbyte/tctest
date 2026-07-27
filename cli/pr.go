@@ -20,7 +20,7 @@ import (
 
 // GetPrTests discovers the tests that need to be run for a PR. It first checks if the PR title contains
 // a test override. If not, it delegates to GithubRepo.PrTestsFromAPI to discover tests based on changed files.
-func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
+func (f *FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
 	ghr := f.NewRepo()
 
 	prURL := ghr.PrURL(number)
@@ -72,7 +72,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	}
 
 	clog.Log.Debugf("  checking pr state: %v", pr.GetState())
-	if pr.GetState() == "closed" {
+	if pr.GetState() == gh.PRStateClosed {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
 	if pr.MergeCommitSHA == nil {
@@ -173,7 +173,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 // CheckPrCanBuild verifies a PR exists, is open, and has a merge commit. Used by the
 // direct-trigger path (--service + --all/test regex), which skips discovery and would
 // otherwise happily trigger builds on a stale or missing refs/pull/N/merge ref.
-func (f FlagData) CheckPrCanBuild(number int) error {
+func (f *FlagData) CheckPrCanBuild(number int) error {
 	ghr := f.NewRepo()
 	client, ctx := ghr.NewClient()
 
@@ -181,7 +181,7 @@ func (f FlagData) CheckPrCanBuild(number int) error {
 	if err != nil {
 		return gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, number))
 	}
-	if pr.GetState() == "closed" {
+	if pr.GetState() == gh.PRStateClosed {
 		return errors.New("cannot start build for a closed pr")
 	}
 	if pr.MergeCommitSHA == nil {

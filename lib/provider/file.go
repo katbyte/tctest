@@ -92,7 +92,7 @@ func (f *File) SetContent(content []byte) {
 }
 
 // InServicePackage returns true if the path is within a service directory.
-func (f File) InServicePackage() bool {
+func (f *File) InServicePackage() bool {
 	for _, prefix := range ServiceDirPrefixes {
 		if strings.Contains(f.RelPath, "/"+filepath.Base(prefix)+"/") {
 			return true
@@ -104,7 +104,7 @@ func (f File) InServicePackage() bool {
 // ResourcePrefix returns the prefix used for test file discovery.
 // For "batch_account_resource.go" → "batch_account".
 // For "batch_account_data_source.go" → "batch_account_data_source".
-func (f File) ResourcePrefix() string {
+func (f *File) ResourcePrefix() string {
 	return strings.TrimSuffix(f.BaseName, "_resource")
 }
 

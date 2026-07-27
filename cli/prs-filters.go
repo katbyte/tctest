@@ -15,7 +15,7 @@ type Filter struct {
 	PR   func(github.PullRequest) (bool, error) // todo shjould this return an error?
 }
 
-func (f FlagData) GetFilters() ([]Filter, error) {
+func (f *FlagData) GetFilters() ([]Filter, error) {
 	var filters []Filter
 
 	// should these return errors

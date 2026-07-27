@@ -15,7 +15,7 @@ type GithubRepo struct {
 	gh.Repo
 }
 
-func (f FlagData) NewRepo() GithubRepo {
+func (f *FlagData) NewRepo() GithubRepo {
 	ownerrepo := f.GH.Repo
 
 	parts := strings.Split(ownerrepo, "/")

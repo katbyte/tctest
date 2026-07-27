@@ -65,7 +65,7 @@ func (f *File) Classify() FileType {
 }
 
 // TypeLabel returns the display label for this file type (e.g. "[RESOURCE]", "[HELPER]").
-func (f File) TypeLabel() string {
+func (f *File) TypeLabel() string {
 	switch f.Type {
 	case FileTypeOther:
 		return "[OTHER]"
@@ -96,7 +96,7 @@ const (
 )
 
 // TextColour returns the cout colour tag for this file type.
-func (f File) TextColour() string {
+func (f *File) TextColour() string {
 	switch f.Type {
 	case FileTypeOther:
 		return FileColourOther
@@ -117,6 +117,6 @@ func (f File) TextColour() string {
 
 // ColouredFileName returns the formatted dir + coloured base for cout output.
 // Example: "<fg=208>internal/services/batch/</><fg=36>batch_account_resource.go</>"
-func (f File) ColouredFileName() string {
+func (f *File) ColouredFileName() string {
 	return fmt.Sprintf("<darkGray>%s</>%s%s</>", f.Dir, f.TextColour(), f.Name)
 }

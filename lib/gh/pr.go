@@ -10,6 +10,13 @@ import (
 	"github.com/katbyte/tctest/lib/git"
 )
 
+// GitHub API pull request states, as returned by PullRequest.GetState()
+// and accepted by ListAllPullRequests/GetAllPullRequests.
+const (
+	PRStateOpen   = "open"
+	PRStateClosed = "closed"
+)
+
 func (r Repo) PrURL(pr int) string {
 	return "https://github.com/" + r.Owner + "/" + r.Name + "/pull/" + strconv.Itoa(pr)
 }

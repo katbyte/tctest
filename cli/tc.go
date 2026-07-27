@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
+func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
 	tc := f.NewTCServer()
 
 	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
@@ -73,7 +73,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int,
 	return buildID, buildURL, nil
 }
 
-func (f FlagData) BuildResultsCmd(buildID int) error {
+func (f *FlagData) BuildResultsCmd(buildID int) error {
 	tc := f.NewTCServer()
 
 	statusCode, buildStatus, err := tc.BuildState(buildID)
@@ -113,7 +113,7 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 	return nil
 }
 
-func (f FlagData) BuildResultsForPRCmd(pr int) error {
+func (f *FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewTCServer()
 
 	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
