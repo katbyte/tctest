@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// ServiceDirPrefixes lists the path segments used by different providers to
+// organise service packages. Azure uses "internal/services/", AWS uses
+// "internal/service/". All code that needs to detect or enumerate service
+// directories should iterate over this slice.
+var ServiceDirPrefixes = []string{"internal/services", "internal/service"}
+
 // File represents a Go source file in a Terraform provider repository.
 type File struct {
 	RelPath      string // full relative path: "internal/services/batch/batch_account_resource.go"
@@ -46,7 +52,8 @@ func NewFile(relPath string) File {
 		BaseName: strings.TrimSuffix(base, ".go"),
 	}
 
-	for _, sep := range []string{"/services/", "/service/"} {
+	for _, prefix := range ServiceDirPrefixes {
+		sep := "/" + filepath.Base(prefix) + "/"
 		parts := strings.Split(f.RelPath, sep)
 		if len(parts) == 2 {
 			f.Service = strings.Split(parts[1], "/")[0]
@@ -84,9 +91,14 @@ func (f *File) SetContent(content []byte) {
 	f.Classify()
 }
 
-// IsServicePath returns true if the path is within a service directory.
+// InServicePackage returns true if the path is within a service directory.
 func (f File) InServicePackage() bool {
-	return strings.Contains(f.RelPath, "/services/") || strings.Contains(f.RelPath, "/service/")
+	for _, prefix := range ServiceDirPrefixes {
+		if strings.Contains(f.RelPath, "/"+filepath.Base(prefix)+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // ResourcePrefix returns the prefix used for test file discovery.

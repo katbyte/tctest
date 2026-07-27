@@ -49,6 +49,10 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 				cout.Level = cout.VerbosityVerbose
 			}
 
+			if viper.GetBool("all") && len(viper.GetStringSlice("add-tests")) > 0 {
+				return errors.New("cannot use --add-tests together with --all, --all already runs all tests")
+			}
+
 			// TODO: remove once --buildtypeid is removed
 			return resolveBuildTypeID(cmd)
 		},
@@ -72,7 +76,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	root.AddCommand(&cobra.Command{
 		Use:           "branch [branchName] [test regex]",
 		Short:         "triggers acceptance tests matching regex for a branch name",
-		Long:          `For a given branch name and regex, discovers and runs acceptance tests against that branch.`,
+		Long:          `Triggers a TeamCity build for the given branch with the specified test regex passed as TEST_PATTERN/TEST_PREFIX.`,
 		Aliases:       []string{"b"},
 		Args:          cobra.ExactArgs(2),
 		PreRunE:       ValidateParams([]string{"server", "build-type-id"}),
@@ -95,11 +99,21 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "pr # [test_regex]",
-		Short:         "triggers acceptance tests matching regex for a PR",
-		Long:          `For a given PR number, discovers and runs acceptance tests against that PR branch.`,
-		Args:          cobra.RangeArgs(1, 2),
-		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
+		Use:   "pr # [test_regex]",
+		Short: "triggers acceptance tests for a PR",
+		Long: `Discovers and triggers acceptance tests for one or more PRs (comma-separated).
+
+By default, tests are auto-discovered from the PR's changed files. If a test_regex
+is provided, it overrides auto-discovery and is sent directly as TEST_PATTERN/TEST_PREFIX.
+Use --all to run all tests (sends TestAcc as the regex). A test_regex, --all, and
+--add-tests are mutually exclusive.`,
+		Args: cobra.RangeArgs(1, 2),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"})(cmd, args); err != nil {
+				return err
+			}
+			return validateTestRegexFlags(1)(cmd, args)
+		},
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prs := args[0]
@@ -129,11 +143,21 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 	})
 
 	root.AddCommand(&cobra.Command{
-		Use:           "prs [test_regex] [-a author1,katbyte] [-l with-this-label,-not-this-label]",
-		Short:         "triggers acceptance tests for each open PR matching specified filters",
-		Long:          `TODO.`,
-		Args:          cobra.RangeArgs(0, 1),
-		PreRunE:       ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"}),
+		Use:   "prs [test_regex] [-a author1,katbyte] [-l with-this-label,-not-this-label]",
+		Short: "triggers acceptance tests for each open PR matching filters",
+		Long: `Discovers and triggers acceptance tests for all open PRs matching the specified filters.
+
+By default, tests are auto-discovered from each PR's changed files. If a test_regex
+is provided, it overrides auto-discovery and is sent directly as TEST_PATTERN/TEST_PREFIX
+for every matching PR. Use --all to run all tests (sends TestAcc as the regex).
+A test_regex, --all, and --add-tests are mutually exclusive.`,
+		Args: cobra.RangeArgs(0, 1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := ValidateParams([]string{"server", "build-type-id", "repo", "fileregex", "splitteston"})(cmd, args); err != nil {
+				return err
+			}
+			return validateTestRegexFlags(0)(cmd, args)
+		},
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			testRegExParam := ""
