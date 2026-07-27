@@ -42,16 +42,22 @@ func AddResult(pr int, service string, buildNumber int, url string) {
 	})
 }
 
-// FlushJSON outputs collected results as a JSON array and resets the collector
+// FlushJSON outputs collected results as a JSON array and resets the collector.
+// An empty result set emits [] so JSON mode always produces valid JSON.
 func FlushJSON() {
-	if Level != VerbosityJSON || len(jsonResults) == 0 {
+	if Level != VerbosityJSON {
 		return
+	}
+
+	results := jsonResults
+	if results == nil {
+		results = []BuildResult{}
 	}
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "    ")
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(jsonResults); err != nil {
+	if err := enc.Encode(results); err != nil {
 		fmt.Fprintf(os.Stderr, "error marshalling JSON: %v\n", err)
 	}
 	jsonResults = nil
@@ -79,6 +85,15 @@ func Println(args ...interface{}) {
 		return
 	}
 	c.Println(args...)
+}
+
+// Errorf prints an error to stderr in every mode except silent, so failures stay
+// visible even when stdout is machine-readable (quiet/json) or suppressed.
+func Errorf(format string, args ...interface{}) {
+	if Level == VerbositySilent {
+		return
+	}
+	c.Fprintf(os.Stderr, format, args...)
 }
 
 // Quietf prints output only in quiet mode with color support.

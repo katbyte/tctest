@@ -70,10 +70,27 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	var resp *http.Response
 	var err error
 
+	// a request body is consumed by each attempt, so it must be rewound via GetBody
+	// before a retry; requests with a body but no GetBody cannot be retried safely
+	rewind := func() bool {
+		if req.Body == nil {
+			return true
+		}
+		if req.GetBody == nil {
+			return false
+		}
+		body, gbErr := req.GetBody()
+		if gbErr != nil {
+			return false
+		}
+		req.Body = body
+		return true
+	}
+
 	for attempt := range t.maxRetry {
 		resp, err = t.transport.RoundTrip(req)
 		if err != nil {
-			if attempt < t.maxRetry-1 {
+			if attempt < t.maxRetry-1 && rewind() {
 				wait := time.Duration(1<<attempt) * time.Second
 				clog.Log.Debugf("%s request failed (attempt %d/%d), retrying in %s: %v", t.name, attempt+1, t.maxRetry, wait, err)
 				time.Sleep(wait)
@@ -84,7 +101,7 @@ func (t *RetryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// retry on 429 (rate limited) or 5xx (server error)
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
-			if attempt < t.maxRetry-1 {
+			if attempt < t.maxRetry-1 && rewind() {
 				wait := time.Duration(1<<attempt) * time.Second
 				clog.Log.Debugf("%s got status %d (attempt %d/%d), retrying in %s", t.name, resp.StatusCode, attempt+1, t.maxRetry, wait)
 				_ = resp.Body.Close()

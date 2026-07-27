@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -10,9 +11,6 @@ import (
 	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	//nolint:misspell
-	c "github.com/gookit/color"
 )
 
 func ValidateParams(params []string) func(cmd *cobra.Command, args []string) error {
@@ -51,6 +49,16 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 
 			if viper.GetBool("all") && len(viper.GetStringSlice("add-tests")) > 0 {
 				return errors.New("cannot use --add-tests together with --all, --all already runs all tests")
+			}
+
+			// an empty entry would become an empty alternation in the generated regex and match every test
+			for _, t := range viper.GetStringSlice("add-tests") {
+				if strings.TrimSpace(t) == "" {
+					return errors.New("--add-tests contains an empty entry (check for stray commas)")
+				}
+				if _, err := regexp.Compile(t); err != nil {
+					return fmt.Errorf("--add-tests entry %q is not a valid regex: %w", t, err)
+				}
 			}
 
 			// TODO: remove once --buildtypeid is removed
@@ -128,14 +136,18 @@ Use --all to run all tests (sends TestAcc as the regex). A test_regex, --all, an
 
 			// parse list of prs
 			prTitles := make(map[int]string)
+			var invalid []string
 			for _, pr := range strings.Split(prs, ",") {
-				pri, err := strconv.Atoi(pr)
+				pri, err := strconv.Atoi(strings.TrimSpace(pr))
 				if err != nil {
-					c.Printf("<red>ERROR:</> parsing PRs: unable to convert '%s' into an integer: %v\n", pr, err)
+					invalid = append(invalid, pr)
 					continue
 				}
 
 				prTitles[pri] = "" // title unknown when passed via command line
+			}
+			if len(invalid) > 0 {
+				return fmt.Errorf("invalid PR number(s): '%s'", strings.Join(invalid, "', '"))
 			}
 
 			return GetFlags().GetAndRunPrsTests(prTitles, testRegExParam)
