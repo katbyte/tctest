@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/git"
 )

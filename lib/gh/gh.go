@@ -4,8 +4,9 @@ package gh
 import (
 	"context"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	common "github.com/katbyte/tctest/lib/chttp"
+	"github.com/katbyte/tctest/lib/clog"
 	"golang.org/x/oauth2"
 )
 
@@ -48,5 +49,11 @@ func (t Token) NewClient() (*github.Client, context.Context) {
 
 	httpClient.Transport = common.NewRetryTransport("GitHub", common.NewTransport("GitHub", httpClient.Transport), 3)
 
-	return github.NewClient(httpClient), ctx
+	client, err := github.NewClient(github.WithHTTPClient(httpClient))
+	if err != nil {
+		// only reachable if a client option fails, which WithHTTPClient never does
+		clog.Log.Fatalf("creating github client: %v", err)
+	}
+
+	return client, ctx
 }

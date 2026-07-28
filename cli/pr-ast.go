@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/gh"
