@@ -561,8 +561,7 @@ func TestPrsCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			scenario(t, "prs/azurerm", tt.name)
-			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
-			gh.openPRs = openPRs
+			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs, openPRs...)
 			tc := newMockTeamCity(t)
 
 			res := runTCTest(t, azurermEnv(gh, tc), tt.args...)

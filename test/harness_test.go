@@ -182,12 +182,13 @@ type mockGitHub struct {
 	openPRs []listPR // served by GET /repos/{o}/{r}/pulls for the prs command
 }
 
-func newMockGitHub(t *testing.T, fixtureDir string, prs []prDef) *mockGitHub {
+func newMockGitHub(t *testing.T, fixtureDir string, prs []prDef, openPRs ...listPR) *mockGitHub {
 	t.Helper()
-	m := &mockGitHub{fixture: fixtureDir, prs: map[int]prDef{}}
+	m := &mockGitHub{fixture: fixtureDir, prs: map[int]prDef{}, openPRs: openPRs}
 	for _, pr := range prs {
 		m.prs[pr.number] = pr
 	}
+	// openPRs must be set before the server starts: handler goroutines read it concurrently
 	m.srv = httptest.NewServer(http.HandlerFunc(m.handle))
 	t.Cleanup(m.srv.Close)
 	return m

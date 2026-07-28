@@ -1,9 +1,12 @@
+// Package provider understands the layout of terraform provider repositories: classifying changed files, extracting
+// acceptance tests, and tracing symbols and imports via the Go AST.
 package provider
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -76,7 +79,7 @@ func (f *File) GetContent() ([]byte, error) {
 		return nil, fmt.Errorf("file %s: no content and no local path", f.RelPath)
 	}
 
-	content, err := os.ReadFile(f.Path) //nolint:gosec
+	content, err := os.ReadFile(f.Path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", f.Path, err)
 	}
@@ -92,7 +95,7 @@ func (f *File) SetContent(content []byte) {
 }
 
 // InServicePackage returns true if the path is within a service directory.
-func (f File) InServicePackage() bool {
+func (f *File) InServicePackage() bool {
 	for _, prefix := range ServiceDirPrefixes {
 		if strings.Contains(f.RelPath, "/"+filepath.Base(prefix)+"/") {
 			return true
@@ -104,16 +107,14 @@ func (f File) InServicePackage() bool {
 // ResourcePrefix returns the prefix used for test file discovery.
 // For "batch_account_resource.go" → "batch_account".
 // For "batch_account_data_source.go" → "batch_account_data_source".
-func (f File) ResourcePrefix() string {
+func (f *File) ResourcePrefix() string {
 	return strings.TrimSuffix(f.BaseName, "_resource")
 }
 
 // AddDiscovery adds a discovery source label if it isn't already present.
 func (f *File) AddDiscovery(source string) {
-	for _, s := range f.DiscoveredBy {
-		if s == source {
-			return
-		}
+	if slices.Contains(f.DiscoveredBy, source) {
+		return
 	}
 	f.DiscoveredBy = append(f.DiscoveredBy, source)
 }

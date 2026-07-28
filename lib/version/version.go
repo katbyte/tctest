@@ -1,3 +1,4 @@
+// Package version exposes the tctest version, set at build time or derived from module build info.
 package version
 
 import "runtime/debug"

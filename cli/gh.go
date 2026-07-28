@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 
@@ -10,12 +11,12 @@ import (
 	"github.com/katbyte/tctest/lib/provider"
 )
 
-// wrap the common gh lib shared with my other tools. splits common GH code from this CLI tool's specific tooling code
+// GithubRepo wraps the common gh lib shared with my other tools, splitting common GH code from this CLI tool's tooling code.
 type GithubRepo struct {
 	gh.Repo
 }
 
-func (f FlagData) NewRepo() GithubRepo {
+func (f *FlagData) NewRepo() GithubRepo {
 	ownerrepo := f.GH.Repo
 
 	parts := strings.Split(ownerrepo, "/")
@@ -50,7 +51,7 @@ func (ghr GithubRepo) ListServices() ([]string, error) {
 		clog.Log.Debugf("listing services for %s/%s at %s...", ghr.Owner, ghr.Name, prefix)
 		_, dirContents, resp, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, prefix, nil)
 		if err != nil {
-			if resp != nil && resp.StatusCode == 404 {
+			if resp != nil && resp.StatusCode == http.StatusNotFound {
 				clog.Log.Debugf("  %s not found, trying next prefix", prefix)
 				continue
 			}

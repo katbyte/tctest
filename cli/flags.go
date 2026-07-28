@@ -313,7 +313,7 @@ func configureFlags(root *cobra.Command) error {
 // because pflags only parses command-line arguments. Viper merges environment variables
 // (and config files) on top of the CLI flags. By unmarshaling from Viper, we ensure
 // that environment variable overrides (e.g. TCTEST_GH_TOKEN) are properly applied.
-func GetFlags() FlagData {
+func GetFlags() *FlagData {
 	var f FlagData
 	if err := viper.Unmarshal(&f); err != nil {
 		clog.Log.Fatalf("failed to unmarshal configuration: %v", err)
@@ -337,7 +337,7 @@ func GetFlags() FlagData {
 		f.DiscoveryConfig.AccTestFileSuffixRegexes = append(f.DiscoveryConfig.AccTestFileSuffixRegexes, regexp.MustCompile(p))
 	}
 
-	return f
+	return &f
 }
 
 func (cfg DiscoveryConfig) AccTestFileSuffixRegexStrings() string {
@@ -348,6 +348,6 @@ func (cfg DiscoveryConfig) AccTestFileSuffixRegexStrings() string {
 	return strings.Join(s, ", ")
 }
 
-func (f FlagData) NewTCServer() tc.Server {
+func (f *FlagData) NewTCServer() tc.Server {
 	return tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)
 }

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/cout"
 )
 
@@ -15,7 +15,7 @@ type Filter struct {
 	PR   func(github.PullRequest) (bool, error) // todo shjould this return an error?
 }
 
-func (f FlagData) GetFilters() ([]Filter, error) {
+func (f *FlagData) GetFilters() ([]Filter, error) {
 	var filters []Filter
 
 	// should these return errors
@@ -200,8 +200,6 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 	}
 
 	cout.Printf("  labels %s: <blue>%s</>\n", action, strings.Join(labels, "</>,<blue>"))
-
-	//	found := false
 	return &Filter{
 		Name: "labels " + action,
 		PR: func(pr github.PullRequest) (bool, error) {

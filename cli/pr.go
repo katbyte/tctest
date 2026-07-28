@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/chttp"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
@@ -20,11 +21,11 @@ import (
 
 // GetPrTests discovers the tests that need to be run for a PR. It first checks if the PR title contains
 // a test override. If not, it delegates to GithubRepo.PrTestsFromAPI to discover tests based on changed files.
-func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
+func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, error) {
 	ghr := f.NewRepo()
 
 	prURL := ghr.PrURL(number)
-	var serviceTests *map[string][]string
+	var serviceTests map[string][]string
 	var err error
 
 	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.Mode, "AST") {
@@ -46,13 +47,13 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 	}
 
 	maxLen := 0
-	for service := range *serviceTests {
+	for service := range serviceTests {
 		if len(service) > maxLen {
 			maxLen = len(service)
 		}
 	}
 
-	for service, tests := range *serviceTests {
+	for service, tests := range serviceTests {
 		cout.Printf("  <yellow>%-*s</>: %s\n", maxLen, service, strings.Join(tests, ", "))
 	}
 
@@ -61,7 +62,7 @@ func (f FlagData) GetPrTests(number int, title string) (*map[string][]string, er
 
 // PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
 // It uses GetPullRequestTestFiles to get the files, groups them into packages, and returns a map of package names to a list of test names.
-func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][]string, error) {
 	client, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
@@ -72,7 +73,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 	}
 
 	clog.Log.Debugf("  checking pr state: %v", pr.GetState())
-	if pr.GetState() == "closed" {
+	if pr.GetState() == gh.PRStateClosed {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
 	if pr.MergeCommitSHA == nil {
@@ -167,13 +168,13 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 		sort.Strings(serviceTests[service])
 	}
 
-	return &serviceTests, nil
+	return serviceTests, nil
 }
 
 // CheckPrCanBuild verifies a PR exists, is open, and has a merge commit. Used by the
 // direct-trigger path (--service + --all/test regex), which skips discovery and would
 // otherwise happily trigger builds on a stale or missing refs/pull/N/merge ref.
-func (f FlagData) CheckPrCanBuild(number int) error {
+func (f *FlagData) CheckPrCanBuild(number int) error {
 	ghr := f.NewRepo()
 	client, ctx := ghr.NewClient()
 
@@ -181,7 +182,7 @@ func (f FlagData) CheckPrCanBuild(number int) error {
 	if err != nil {
 		return gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, number))
 	}
-	if pr.GetState() == "closed" {
+	if pr.GetState() == gh.PRStateClosed {
 		return errors.New("cannot start build for a closed pr")
 	}
 	if pr.MergeCommitSHA == nil {
@@ -362,11 +363,8 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 		sources := strings.Join(pf.DiscoveredBy, "+")
 
 		fileColour := provider.FileColourDerived
-		for _, s := range pf.DiscoveredBy {
-			if s == "CHANGED" {
-				fileColour = provider.FileColourTest
-				break
-			}
+		if slices.Contains(pf.DiscoveredBy, "CHANGED") {
+			fileColour = provider.FileColourTest
 		}
 
 		if showTestFiles {

@@ -12,8 +12,8 @@ import (
 
 var httpClient = chttp.NewHTTPClient("TC")
 
-// baseURL returns the server's base URL, defaulting to https:// when the
-// configured server string doesn't include an explicit scheme.
+// baseURL returns the server's base URL, defaulting to https:// when the configured server string doesn't include an
+// explicit scheme.
 func (s Server) baseURL() string {
 	if strings.Contains(s.Server, "://") {
 		return s.Server
@@ -21,10 +21,10 @@ func (s Server) baseURL() string {
 	return "https://" + s.Server
 }
 
-func (s Server) makeGetRequest(endpoint string) (int, string, error) {
+func (s Server) makeGetRequest(endpoint string) (statusCode int, respBody string, err error) {
 	uri := s.baseURL() + endpoint
 
-	req, err := http.NewRequestWithContext(context.Background(), "GET", uri, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, uri, http.NoBody)
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}
@@ -32,13 +32,13 @@ func (s Server) makeGetRequest(endpoint string) (int, string, error) {
 	return s.performRequest(req)
 }
 
-func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (int, string, error) {
+func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (statusCode int, respBody string, err error) {
 	return s.makePostRequestWithContentType(endpoint, body, "application/xml")
 }
 
-func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (int, string, error) {
+func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (statusCode int, respBody string, err error) {
 	uri := s.baseURL() + endpoint
-	req, err := http.NewRequestWithContext(context.Background(), "POST", uri, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, uri, strings.NewReader(body))
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}
@@ -46,11 +46,11 @@ func (s Server) makePostRequestWithContentType(endpoint, body, contentType strin
 	return s.performRequestWithContentType(req, contentType)
 }
 
-func (s Server) performRequest(req *http.Request) (int, string, error) {
+func (s Server) performRequest(req *http.Request) (statusCode int, respBody string, err error) {
 	return s.performRequestWithContentType(req, "application/xml")
 }
 
-func (s Server) performRequestWithContentType(req *http.Request, contentType string) (int, string, error) {
+func (s Server) performRequestWithContentType(req *http.Request, contentType string) (statusCode int, respBody string, err error) {
 	if s.token != nil {
 		req.Header.Set("Authorization", "Bearer "+*s.token)
 	} else if s.User != nil && s.Pass != nil {

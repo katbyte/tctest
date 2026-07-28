@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
+func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (buildID int, buildURL string, err error) {
 	tc := f.NewTCServer()
 
 	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
@@ -32,7 +32,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int,
 		return 0, "", nil
 	}
 
-	buildID, buildURL, err := tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
+	buildID, buildURL, err = tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to trigger build: %w", err)
 	}
@@ -73,7 +73,7 @@ func (f FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int,
 	return buildID, buildURL, nil
 }
 
-func (f FlagData) BuildResultsCmd(buildID int) error {
+func (f *FlagData) BuildResultsCmd(buildID int) error {
 	tc := f.NewTCServer()
 
 	statusCode, buildStatus, err := tc.BuildState(buildID)
@@ -88,8 +88,7 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 	}
 
 	if buildStatus != "finished" && f.TC.Build.Wait {
-		err := tc.WaitForBuild(buildID, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
-		if err != nil {
+		if err := tc.WaitForBuild(buildID, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout); err != nil {
 			return fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)
 		}
 	}
@@ -113,7 +112,7 @@ func (f FlagData) BuildResultsCmd(buildID int) error {
 	return nil
 }
 
-func (f FlagData) BuildResultsForPRCmd(pr int) error {
+func (f *FlagData) BuildResultsForPRCmd(pr int) error {
 	tc := f.NewTCServer()
 
 	builds, err := tc.GetBuildsForPR(f.TC.Build.TypeID, pr, f.TC.Build.Latest, f.TC.Build.Wait, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
@@ -147,7 +146,7 @@ func (f FlagData) BuildResultsForPRCmd(pr int) error {
 
 func outputTestResults(body string) {
 	r := regexp.MustCompile(`^\s*--- (FAIL|PASS|SKIP):`)
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		if r.MatchString(line) {
 			cout.Printf("%s\n", line)
 		}

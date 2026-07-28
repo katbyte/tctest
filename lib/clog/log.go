@@ -1,3 +1,4 @@
+// Package clog provides the shared logrus logger used across tctest.
 package clog
 
 import (

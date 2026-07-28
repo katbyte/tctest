@@ -1,3 +1,4 @@
+// Package chttp provides a shared HTTP client with request/response debug logging.
 package chttp
 
 import (
