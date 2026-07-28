@@ -1,11 +1,11 @@
 GIT_COMMIT=$(shell git describe --always --long --dirty)
 GIT_VERSION=$(shell git describe --tags --dirty 2>/dev/null | sed 's/-\([0-9]*\)-g/+\1@g/' || echo dev)
-GOLANGCI_LINT_VERSION?=v1.47.3
+GOLANGCI_LINT_VERSION?=v2.12.2
 TEST_TIMEOUT?=15m
 
 default: fmt build
 
-all: fmt imports build
+all: fmt build
 
 tools:
 	@echo "==> installing required tooling..."
@@ -16,26 +16,28 @@ fmt:
 	@echo "==> Fixing source code with gofmt..."
 	find . -name '*.go' | grep -v vendor | xargs gofmt -s -w
 	@echo "==> Fixing source code with gofumpt..."
-	find . -name '*.go' | grep -v vendor | xargs gofumpt -s -w
+	find . -name '*.go' | grep -v vendor | xargs gofumpt -w
+	@echo "==> Fixing imports with golangci-lint (goimports)..."
+	golangci-lint fmt -E goimports ./...
 
-imports:
-	@echo "==> Fixing imports code with goimports..."
-	goimports -w .
+goimports:
+	@echo "==> Fixing imports with golangci-lint (goimports)..."
+	golangci-lint fmt -E goimports ./...
 
 test: build
-	go test ./... -timeout ${TEST_TIMEOUT}
+	go test -race ./... -timeout ${TEST_TIMEOUT}
 
 build:
 	@echo "==> building..."
 	go build -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}"
 
-goimports:
-	@echo "==> Fixing imports code with goimports..."
-	@find . -name '*.go' | grep -v vendor | grep -v generator-resource-id | while read f; do ./scripts/goimport-file.sh "$$f"; done
-
 lint:
 	@echo "==> Checking source code against linters..."
 	golangci-lint run ./...
+
+lint-fix:
+	@echo "==> Checking source code against linters (applying autofixes)..."
+	golangci-lint run --fix ./...
 
 depscheck:
 	@echo "==> Checking source code with go mod tidy..."
@@ -47,11 +49,10 @@ depscheck:
 	@git diff --compact-summary --exit-code -- vendor || \
 		(echo; echo "Unexpected difference in vendor/ directory. Run 'go mod vendor' command or revert any go.mod/go.sum/vendor changes and commit."; exit 1)
 
-
 install:
 	@echo "==> installing..."
 	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
 
 check-all: build test lint depscheck
 
-.PHONY: fmt imports build lint depscheck check-all install tools
+.PHONY: fmt goimports build lint lint-fix depscheck check-all install tools

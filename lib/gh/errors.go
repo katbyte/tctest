@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 )
 
 // WrapGitHubError examines a GitHub API error and returns a more descriptive

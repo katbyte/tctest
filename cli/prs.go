@@ -9,7 +9,7 @@ import (
 	"github.com/katbyte/tctest/lib/cout"
 )
 
-func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) error {
+func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) error {
 	// Sort PR numbers to process them in increasing order
 	prNumbers := make([]int, 0, len(prs))
 	for number := range prs {
@@ -73,16 +73,10 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 			continue
 		}
 
-		if serviceTests == nil {
-			cout.Errorf("  <red>ERROR: service tests is nil</>\n\n")
-			failed++
-			continue
-		}
-
 		// check max-builds-per-pr limit
 		if f.TC.Build.MaxBuildsPerPR > 0 {
 			serviceCount := 0
-			for s := range *serviceTests {
+			for s := range serviceTests {
 				if serviceFilter != nil && !serviceFilter.set[s] {
 					continue
 				}
@@ -98,7 +92,7 @@ func (f FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) e
 		// trigger a build for each service
 		prBuilds := 0
 		prFailed := 0
-		for s, tests := range *serviceTests {
+		for s, tests := range serviceTests {
 			// if --service is set, skip services not in the filter
 			if serviceFilter != nil && !serviceFilter.set[s] {
 				servicesSkipped++
@@ -173,7 +167,7 @@ type serviceFilterResult struct {
 }
 
 // resolveServiceFilter validates --service values against the GitHub repo. Returns nil if --service is not set.
-func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
+func (f *FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 	if len(f.Services) == 0 {
 		return nil, nil
 	}
@@ -219,7 +213,7 @@ func (f FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 }
 
 // triggerServiceBuild triggers a build for a single service on a PR
-func (f FlagData) triggerServiceBuild(service string, prNumber int, testRegEx string) error {
+func (f *FlagData) triggerServiceBuild(service string, prNumber int, testRegEx string) error {
 	serviceInfo := ""
 	if service != "" {
 		serviceInfo = "[" + service + "]"

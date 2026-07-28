@@ -13,9 +13,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
+	"github.com/katbyte/tctest/lib/gh"
 	"github.com/katbyte/tctest/lib/git"
 	"github.com/katbyte/tctest/lib/provider"
 )
@@ -50,7 +51,7 @@ func NewAstDiscoveryContext(repoPath, modulePath string, cfg DiscoveryConfig) *A
 // It fetches the PR merge ref, checks out the code, and uses Go AST to discover
 // affected tests — including tracing imports from helper/validation files back to
 // resource files to find their tests.
-func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (map[string][]string, error) {
 	repoPath, err := filepath.Abs(cfg.LocalRepoPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving repo path: %w", err)
@@ -97,7 +98,7 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 	if err != nil {
 		return nil, err
 	}
-	if pr.GetState() == "closed" {
+	if pr.GetState() == gh.PRStateClosed {
 		return nil, errors.New("cannot start build for a closed pr")
 	}
 
@@ -135,7 +136,7 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 	}
 
 	clog.Log.Debugf("  FOUND %d services", len(tests))
-	return &tests, nil
+	return tests, nil
 }
 
 // --- Local test file discovery ---
@@ -404,12 +405,10 @@ func (dc *AstDiscoveryContext) AddTestFile(pf provider.File, source string) {
 	existing.AddDiscovery(source)
 }
 
-func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (map[string][]string, []provider.File, []provider.File, error) {
-	resourcePrefixesByPackage := map[string][]string{}
-	var helperFiles []provider.File
-	var vendorFiles []provider.File
+func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (resourcePrefixesByPackage map[string][]string, helperFiles, vendorFiles []provider.File, err error) {
+	resourcePrefixesByPackage = map[string][]string{}
 
-	err := ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
+	err = ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
@@ -717,7 +716,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 				// skip unreadable entries and keep walking; aborting here would silently
 				// drop every file after the error point
 				clog.Log.Debugf("    error walking %s: %v", path, walkErr)
-				return nil //nolint:nilerr
+				return nil
 			}
 			if d.IsDir() {
 				return nil
@@ -728,7 +727,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 			relPath, relErr := filepath.Rel(dc.RepoPath, path)
 			if relErr != nil {
-				return nil //nolint:nilerr
+				return nil //nolint:nilerr // intentional: skip paths that cannot be made repo-relative
 			}
 			relPath = filepath.ToSlash(relPath)
 
@@ -739,7 +738,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 			fset := token.NewFileSet()
 			parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 			if parseErr != nil {
-				return nil //nolint:nilerr
+				return nil //nolint:nilerr // intentional: skip files that fail to parse
 			}
 
 			for _, imp := range parsed.Imports {
@@ -756,7 +755,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 				discovered, findErr := dc.findLocalTestFiles(dir, []string{tracedFile.ResourcePrefix()})
 				if findErr != nil {
-					return nil //nolint:nilerr
+					return nil //nolint:nilerr // intentional: skip dirs where test discovery fails, keep tracing
 				}
 				for _, pf := range discovered {
 					dc.AddTestFile(pf, "VENDOR")

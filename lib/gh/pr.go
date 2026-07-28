@@ -5,9 +5,16 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/git"
+)
+
+// GitHub API pull request states, as returned by PullRequest.GetState()
+// and accepted by ListAllPullRequests/GetAllPullRequests.
+const (
+	PRStateOpen   = "open"
+	PRStateClosed = "closed"
 )
 
 func (r Repo) PrURL(pr int) string {

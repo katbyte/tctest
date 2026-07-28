@@ -1,5 +1,5 @@
 ---
-name: linting
+name: lint
 on:
   push:
     branches: [ 'main' ]
@@ -12,7 +12,7 @@ on:
       - '.github/workflows/**'
 
 jobs:
-  golint:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,5 +21,5 @@ jobs:
           go-version-file: ./.go-version
       - uses: golangci/golangci-lint-action@v7
         with:
-          version: 'v2.4.0'
+          version: 'v2.12.2'
           args: -v
