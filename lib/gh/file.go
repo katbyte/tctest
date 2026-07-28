@@ -12,7 +12,7 @@ import (
 func (r Repo) DownloadFile(ctx context.Context, httpClient *http.Client, path, ref string) (content []byte, statusCode int, err error) {
 	rawURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", r.Owner, r.Name, ref, path)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("creating request for %s: %w", path, err)
 	}

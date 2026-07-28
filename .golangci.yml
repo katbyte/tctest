@@ -62,6 +62,18 @@ linters:
     - noctx # finds sending http request without context.Context
     - makezero # finds slice declarations with non-zero initial length but capacity is initialized
 
+  exclusions:
+    rules:
+      # flag names ("repo", "build-type-id", ...) repeat across cobra/viper registration, env binding, and
+      # validation lists by design; hoisting them into constants would just add indirection
+      - path: 'cli/(flags|cmds)\.go'
+        linters:
+          - goconst
+      # the idiomatic `if err := f(); err != nil` scoping shadows err on purpose; still flag other variables
+      - text: 'shadow: declaration of "err"'
+        linters:
+          - govet
+
   settings:
     errcheck:
       check-type-assertions: true # unchecked x.(T) assertions panic on mismatch

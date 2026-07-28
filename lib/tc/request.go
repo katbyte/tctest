@@ -15,7 +15,7 @@ var httpClient = chttp.NewHTTPClient("TC")
 func (s Server) makeGetRequest(endpoint string) (statusCode int, respBody string, err error) {
 	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, uri, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, uri, http.NoBody)
 	if err != nil {
 		return 0, "", fmt.Errorf("building http request for url %s failed: %w", uri, err)
 	}

@@ -21,11 +21,11 @@ import (
 
 // GetPrTests discovers the tests that need to be run for a PR. It first checks if the PR title contains
 // a test override. If not, it delegates to GithubRepo.PrTestsFromAPI to discover tests based on changed files.
-func (f *FlagData) GetPrTests(number int, title string) (*map[string][]string, error) {
+func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, error) {
 	ghr := f.NewRepo()
 
 	prURL := ghr.PrURL(number)
-	var serviceTests *map[string][]string
+	var serviceTests map[string][]string
 	var err error
 
 	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.Mode, "AST") {
@@ -47,13 +47,13 @@ func (f *FlagData) GetPrTests(number int, title string) (*map[string][]string, e
 	}
 
 	maxLen := 0
-	for service := range *serviceTests {
+	for service := range serviceTests {
 		if len(service) > maxLen {
 			maxLen = len(service)
 		}
 	}
 
-	for service, tests := range *serviceTests {
+	for service, tests := range serviceTests {
 		cout.Printf("  <yellow>%-*s</>: %s\n", maxLen, service, strings.Join(tests, ", "))
 	}
 
@@ -62,7 +62,7 @@ func (f *FlagData) GetPrTests(number int, title string) (*map[string][]string, e
 
 // PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
 // It uses GetPullRequestTestFiles to get the files, groups them into packages, and returns a map of package names to a list of test names.
-func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][]string, error) {
 	client, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
@@ -168,7 +168,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (*map[string]
 		sort.Strings(serviceTests[service])
 	}
 
-	return &serviceTests, nil
+	return serviceTests, nil
 }
 
 // CheckPrCanBuild verifies a PR exists, is open, and has a merge commit. Used by the

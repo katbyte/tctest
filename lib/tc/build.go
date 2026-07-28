@@ -12,7 +12,7 @@ import (
 	"github.com/katbyte/tctest/lib/cout"
 )
 
-func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (int, string, error) {
+func (s Server) RunBuild(buildTypeID, buildProperties, branch, testRegEx string, skipQueue bool) (buildID int, buildURL string, err error) {
 	clog.Log.Debugf("triggering build for %q", buildTypeID)
 	statusCode, body, err := s.TriggerBuild(buildTypeID, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
@@ -41,7 +41,7 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx 
 
 // TriggerBuild queues a TeamCity build for the given build type and branch with the test pattern and additional properties.
 // todo is there any reason to not inline this into runbuild?
-func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
+func (s Server) TriggerBuild(buildTypeID, branch, testPattern, buildProperties string, skipQueue bool) (statusCode int, respBody string, err error) {
 	var additionalProps strings.Builder
 
 	if buildProperties != "" {
@@ -99,7 +99,7 @@ func (s Server) BuildState(buildID int) (statusCode int, body string, err error)
 	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%d/state", buildID))
 }
 
-func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
+func (s Server) WaitForBuild(buildID, queueTimeout, runTimeout int) error {
 	cout.Printf("Waiting for build %d status to be 'finished'...\n", buildID)
 
 	var queueTime, runningTime int
@@ -137,7 +137,7 @@ func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
 	}
 }
 
-func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
+func (s Server) CheckBuildLogStatus(statusCode, buildID int) error {
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
 		queueStatusCode, _, err := s.BuildQueue(buildID)

@@ -51,7 +51,7 @@ func NewAstDiscoveryContext(repoPath, modulePath string, cfg DiscoveryConfig) *A
 // It fetches the PR merge ref, checks out the code, and uses Go AST to discover
 // affected tests — including tracing imports from helper/validation files back to
 // resource files to find their tests.
-func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string][]string, error) {
+func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (map[string][]string, error) {
 	repoPath, err := filepath.Abs(cfg.LocalRepoPath)
 	if err != nil {
 		return nil, fmt.Errorf("resolving repo path: %w", err)
@@ -136,7 +136,7 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (*map[string]
 	}
 
 	clog.Log.Debugf("  FOUND %d services", len(tests))
-	return &tests, nil
+	return tests, nil
 }
 
 // --- Local test file discovery ---

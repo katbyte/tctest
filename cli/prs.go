@@ -82,7 +82,7 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 		// check max-builds-per-pr limit
 		if f.TC.Build.MaxBuildsPerPR > 0 {
 			serviceCount := 0
-			for s := range *serviceTests {
+			for s := range serviceTests {
 				if serviceFilter != nil && !serviceFilter.set[s] {
 					continue
 				}
@@ -98,7 +98,7 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 		// trigger a build for each service
 		prBuilds := 0
 		prFailed := 0
-		for s, tests := range *serviceTests {
+		for s, tests := range serviceTests {
 			// if --service is set, skip services not in the filter
 			if serviceFilter != nil && !serviceFilter.set[s] {
 				servicesSkipped++
