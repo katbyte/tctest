@@ -1,7 +1,0 @@
-{
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "enabledManagers": ["gomod"],
-  "postUpdateOptions": ["gomodTidy", "gomodVendor"],
-  "schedule": ["before 6am on monday"]
-}

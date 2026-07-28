@@ -1,9 +1,13 @@
 ---
 version: 2
 updates:
-  # actions only; go module updates are handled by renovate (renovate.json), which
-  # unlike dependabot runs `go mod vendor` so its PRs pass the depscheck workflow
   - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # dependabot auto-detects the vendor/ directory and runs `go mod tidy` + `go mod vendor` on updates
+  - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"

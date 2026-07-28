@@ -1,5 +1,5 @@
 ---
-name: vendor deps check
+name: vendor dependencies check
 on:
   push:
     branches: [ 'main' ]
