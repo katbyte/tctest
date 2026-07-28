@@ -25,7 +25,7 @@ goimports:
 	golangci-lint fmt -E goimports ./...
 
 test: build
-	go test ./... -timeout ${TEST_TIMEOUT}
+	go test -race ./... -timeout ${TEST_TIMEOUT}
 
 build:
 	@echo "==> building..."

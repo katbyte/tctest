@@ -1,5 +1,5 @@
 ---
-name: build
+name: test
 on:
   push:
     branches: [ 'main' ]
@@ -12,11 +12,11 @@ on:
       - '.github/workflows/**'
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: ./.go-version
-      - run: make build
+      - run: make test
