@@ -79,7 +79,7 @@ func (f *File) GetContent() ([]byte, error) {
 		return nil, fmt.Errorf("file %s: no content and no local path", f.RelPath)
 	}
 
-	content, err := os.ReadFile(f.Path) //nolint:gosec
+	content, err := os.ReadFile(f.Path)
 	if err != nil {
 		return nil, fmt.Errorf("reading %s: %w", f.Path, err)
 	}

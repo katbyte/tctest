@@ -12,7 +12,7 @@ import (
 
 var httpClient = chttp.NewHTTPClient("TC")
 
-func (s Server) makeGetRequest(endpoint string) (int, string, error) {
+func (s Server) makeGetRequest(endpoint string) (statusCode int, respBody string, err error) {
 	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, uri, nil)
@@ -23,11 +23,11 @@ func (s Server) makeGetRequest(endpoint string) (int, string, error) {
 	return s.performRequest(req)
 }
 
-func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (int, string, error) {
+func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (statusCode int, respBody string, err error) {
 	return s.makePostRequestWithContentType(endpoint, body, "application/xml")
 }
 
-func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (int, string, error) {
+func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (statusCode int, respBody string, err error) {
 	uri := fmt.Sprintf("https://%s%s", s.Server, endpoint)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, uri, strings.NewReader(body))
 	if err != nil {
@@ -37,11 +37,11 @@ func (s Server) makePostRequestWithContentType(endpoint, body, contentType strin
 	return s.performRequestWithContentType(req, contentType)
 }
 
-func (s Server) performRequest(req *http.Request) (int, string, error) {
+func (s Server) performRequest(req *http.Request) (statusCode int, respBody string, err error) {
 	return s.performRequestWithContentType(req, "application/xml")
 }
 
-func (s Server) performRequestWithContentType(req *http.Request, contentType string) (int, string, error) {
+func (s Server) performRequestWithContentType(req *http.Request, contentType string) (statusCode int, respBody string, err error) {
 	if s.token != nil {
 		req.Header.Set("Authorization", "Bearer "+*s.token)
 	} else if s.User != nil && s.Pass != nil {

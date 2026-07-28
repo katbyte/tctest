@@ -81,7 +81,6 @@ linters:
       enable-all: true # includes nilness and other checks off by default
       disable:
         - fieldalignment # too noisy/pedantic for most codebases
-        - shadow # flags the idiomatic `if err := f(); err != nil` scoping, which is a feature not a bug
     staticcheck:
       checks: ["all"] # adds the ST* style checks, off by default
     nakedret:

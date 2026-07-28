@@ -405,12 +405,10 @@ func (dc *AstDiscoveryContext) AddTestFile(pf provider.File, source string) {
 	existing.AddDiscovery(source)
 }
 
-func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (map[string][]string, []provider.File, []provider.File, error) {
-	resourcePrefixesByPackage := map[string][]string{}
-	var helperFiles []provider.File
-	var vendorFiles []provider.File
+func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (resourcePrefixesByPackage map[string][]string, helperFiles, vendorFiles []provider.File, err error) {
+	resourcePrefixesByPackage = map[string][]string{}
 
-	err := ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
+	err = ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
@@ -718,7 +716,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 				// skip unreadable entries and keep walking; aborting here would silently
 				// drop every file after the error point
 				clog.Log.Debugf("    error walking %s: %v", path, walkErr)
-				return nil //nolint:nilerr
+				return nil
 			}
 			if d.IsDir() {
 				return nil
@@ -729,7 +727,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 			relPath, relErr := filepath.Rel(dc.RepoPath, path)
 			if relErr != nil {
-				return nil //nolint:nilerr
+				return nil //nolint:nilerr // intentional: skip paths that cannot be made repo-relative
 			}
 			relPath = filepath.ToSlash(relPath)
 
@@ -740,7 +738,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 			fset := token.NewFileSet()
 			parsed, parseErr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 			if parseErr != nil {
-				return nil //nolint:nilerr
+				return nil //nolint:nilerr // intentional: skip files that fail to parse
 			}
 
 			for _, imp := range parsed.Imports {
@@ -757,7 +755,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 
 				discovered, findErr := dc.findLocalTestFiles(dir, []string{tracedFile.ResourcePrefix()})
 				if findErr != nil {
-					return nil //nolint:nilerr
+					return nil //nolint:nilerr // intentional: skip dirs where test discovery fails, keep tracing
 				}
 				for _, pf := range discovered {
 					dc.AddTestFile(pf, "VENDOR")

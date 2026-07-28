@@ -80,7 +80,7 @@ func EnsurePathIsRepo(repoPath, cloneURL string, force bool) error {
 
 // IsWorkingTreeDirty returns true if the repo has uncommitted changes,
 // along with the porcelain output describing them.
-func IsWorkingTreeDirty(repoPath string) (bool, string, error) {
+func IsWorkingTreeDirty(repoPath string) (dirty bool, output string, err error) {
 	out, err := Run(repoPath, "status", "--porcelain")
 	if err != nil {
 		return false, "", fmt.Errorf("checking repo status: %w", err)

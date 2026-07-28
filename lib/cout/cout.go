@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	c "github.com/gookit/color" //nolint:misspell
+	c "github.com/gookit/color"
 )
 
 // Verbosity levels (ordered from least to most output)

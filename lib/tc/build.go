@@ -87,15 +87,15 @@ func xmlEscape(s string) string {
 	return b.String()
 }
 
-func (s Server) BuildLog(buildID int) (int, string, error) {
+func (s Server) BuildLog(buildID int) (statusCode int, body string, err error) {
 	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildId=%d", buildID))
 }
 
-func (s Server) BuildQueue(buildID int) (int, string, error) {
+func (s Server) BuildQueue(buildID int) (statusCode int, body string, err error) {
 	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%d", buildID))
 }
 
-func (s Server) BuildState(buildID int) (int, string, error) {
+func (s Server) BuildState(buildID int) (statusCode int, body string, err error) {
 	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%d/state", buildID))
 }
 

@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int, string, error) {
+func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (buildID int, buildURL string, err error) {
 	tc := f.NewTCServer()
 
 	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
@@ -32,7 +32,7 @@ func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (int
 		return 0, "", nil
 	}
 
-	buildID, buildURL, err := tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
+	buildID, buildURL, err = tc.RunBuild(buildTypeID, properties, branch, testRegex, f.TC.Build.SkipQueue)
 	if err != nil {
 		return 0, "", fmt.Errorf("unable to trigger build: %w", err)
 	}
