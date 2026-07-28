@@ -73,12 +73,6 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 			continue
 		}
 
-		if serviceTests == nil {
-			cout.Errorf("  <red>ERROR: service tests is nil</>\n\n")
-			failed++
-			continue
-		}
-
 		// check max-builds-per-pr limit
 		if f.TC.Build.MaxBuildsPerPR > 0 {
 			serviceCount := 0

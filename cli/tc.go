@@ -88,8 +88,7 @@ func (f *FlagData) BuildResultsCmd(buildID int) error {
 	}
 
 	if buildStatus != "finished" && f.TC.Build.Wait {
-		err := tc.WaitForBuild(buildID, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout)
-		if err != nil {
+		if err := tc.WaitForBuild(buildID, f.TC.Build.QueueTimeout, f.TC.Build.RunTimeout); err != nil {
 			return fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)
 		}
 	}

@@ -70,7 +70,9 @@ linters:
         linters:
           - goconst
       # the idiomatic `if err := f(); err != nil` scoping shadows err on purpose; still flag other variables
+      # and err shadows outside the if-statement form (source scopes the rule to the if idiom only)
       - text: 'shadow: declaration of "err"'
+        source: 'if .*err :='
         linters:
           - govet
 
