@@ -200,8 +200,6 @@ func GetFilterForLabels(labels []string, and bool) *Filter {
 	}
 
 	cout.Printf("  labels %s: <blue>%s</>\n", action, strings.Join(labels, "</>,<blue>"))
-
-	//	found := false
 	return &Filter{
 		Name: "labels " + action,
 		PR: func(pr github.PullRequest) (bool, error) {
