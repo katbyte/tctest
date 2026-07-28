@@ -17,8 +17,8 @@ fmt:
 	find . -name '*.go' | grep -v vendor | xargs gofmt -s -w
 	@echo "==> Fixing source code with gofumpt..."
 	find . -name '*.go' | grep -v vendor | xargs gofumpt -w
-	@echo "==> Formatting source code with golangci-lint (gofmt, gofumpt, goimports)..."
-	golangci-lint fmt ./...
+	@echo "==> Fixing imports with golangci-lint (goimports)..."
+	golangci-lint fmt -E goimports ./...
 
 goimports:
 	@echo "==> Fixing imports with golangci-lint (goimports)..."
