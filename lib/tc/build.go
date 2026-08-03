@@ -12,7 +12,7 @@ import (
 	"github.com/katbyte/tctest/lib/cout"
 )
 
-func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx string, skipQueue bool) (int, string, error) {
+func (s Server) RunBuild(buildTypeID, buildProperties, branch, testRegEx string, skipQueue bool) (buildID int, buildURL string, err error) {
 	clog.Log.Debugf("triggering build for %q", buildTypeID)
 	statusCode, body, err := s.TriggerBuild(buildTypeID, branch, testRegEx, buildProperties, skipQueue)
 	if err != nil {
@@ -39,14 +39,15 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch string, testRegEx 
 	return bid, fmt.Sprintf("https://%s/viewQueued.html?itemId=%d", s.Server, bid), nil
 }
 
+// TriggerBuild queues a TeamCity build for the given build type and branch with the test pattern and additional properties.
 // todo is there any reason to not inline this into runbuild?
-func (s Server) TriggerBuild(buildTypeID, branch string, testPattern, buildProperties string, skipQueue bool) (int, string, error) {
+func (s Server) TriggerBuild(buildTypeID, branch, testPattern, buildProperties string, skipQueue bool) (statusCode int, respBody string, err error) {
 	var additionalProps strings.Builder
 
 	if buildProperties != "" {
 		clog.Log.Debugf("adding additional properties:")
 
-		for _, p := range strings.Split(buildProperties, ";") {
+		for p := range strings.SplitSeq(buildProperties, ";") {
 			// SplitN so values may themselves contain '=' (base64, -run=Foo, URLs)
 			parts := strings.SplitN(p, "=", 2)
 			if len(parts) != 2 {
@@ -86,19 +87,19 @@ func xmlEscape(s string) string {
 	return b.String()
 }
 
-func (s Server) BuildLog(buildID int) (int, string, error) {
+func (s Server) BuildLog(buildID int) (statusCode int, body string, err error) {
 	return s.makeGetRequest(fmt.Sprintf("/downloadBuildLog.html?buildId=%d", buildID))
 }
 
-func (s Server) BuildQueue(buildID int) (int, string, error) {
+func (s Server) BuildQueue(buildID int) (statusCode int, body string, err error) {
 	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/buildQueue/id:%d", buildID))
 }
 
-func (s Server) BuildState(buildID int) (int, string, error) {
+func (s Server) BuildState(buildID int) (statusCode int, body string, err error) {
 	return s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%d/state", buildID))
 }
 
-func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
+func (s Server) WaitForBuild(buildID, queueTimeout, runTimeout int) error {
 	cout.Printf("Waiting for build %d status to be 'finished'...\n", buildID)
 
 	var queueTime, runningTime int
@@ -136,19 +137,19 @@ func (s Server) WaitForBuild(buildID int, queueTimeout, runTimeout int) error {
 	}
 }
 
-func (s Server) CheckBuildLogStatus(statusCode int, buildID int) error {
+func (s Server) CheckBuildLogStatus(statusCode, buildID int) error {
 	if statusCode == http.StatusNotFound {
 		// Possibly a queued build, check for it
-		statusCode, _, err := s.BuildQueue(buildID)
+		queueStatusCode, _, err := s.BuildQueue(buildID)
 		if err != nil {
 			return fmt.Errorf("error checking for build %d in queue: %w", buildID, err)
 		}
 
-		if statusCode == http.StatusNotFound {
+		if queueStatusCode == http.StatusNotFound {
 			return fmt.Errorf("no build ID %d found in running builds or queue", buildID)
 		}
-		if statusCode != http.StatusOK {
-			return fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+		if queueStatusCode != http.StatusOK {
+			return fmt.Errorf("HTTP status NOT OK: %d", queueStatusCode)
 		}
 
 		return fmt.Errorf("build %d still queued, check results later", buildID)

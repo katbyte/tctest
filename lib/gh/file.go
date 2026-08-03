@@ -17,7 +17,7 @@ func (r Repo) DownloadFile(ctx context.Context, httpClient *http.Client, path, r
 	}
 	rawURL := fmt.Sprintf("%s/%s/%s/%s/%s", base, r.Owner, r.Name, ref, path)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
 		return nil, 0, fmt.Errorf("creating request for %s: %w", path, err)
 	}

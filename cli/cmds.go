@@ -1,3 +1,5 @@
+// Package cli implements the tctest command line interface: the cobra commands, flag and config handling, and the
+// workflows that discover PR tests and trigger TeamCity builds.
 package cli
 
 import (
@@ -8,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/katbyte/tctest/lib/cout"
+	"github.com/katbyte/tctest/lib/gh"
 	"github.com/katbyte/tctest/lib/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -137,7 +140,7 @@ Use --all to run all tests (sends TestAcc as the regex). A test_regex, --all, an
 			// parse list of prs
 			prTitles := make(map[int]string)
 			var invalid []string
-			for _, pr := range strings.Split(prs, ",") {
+			for pr := range strings.SplitSeq(prs, ",") {
 				pri, err := strconv.Atoi(strings.TrimSpace(pr))
 				if err != nil {
 					invalid = append(invalid, pr)
@@ -190,7 +193,7 @@ A test_regex, --all, and --add-tests are mutually exclusive.`,
 
 			// get all pull requests
 			cout.Printf("Retrieving all prs for <white>%s</>/<cyan>%s</>...", r.Owner, r.Name)
-			prs, err := r.GetAllPullRequests("open") // todo should this return a list not map? probably
+			prs, err := r.GetAllPullRequests(gh.PRStateOpen) // todo should this return a list not map? probably
 			if err != nil {
 				return fmt.Errorf("error retrieving PRs: %w", err)
 			}

@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	//nolint:misspell
+
 	c "github.com/gookit/color"
 	"github.com/katbyte/tctest/cli"
 	"github.com/katbyte/tctest/lib/clog"

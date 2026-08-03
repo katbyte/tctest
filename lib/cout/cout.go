@@ -1,3 +1,4 @@
+// Package cout provides verbosity-levelled, coloured console output.
 package cout
 
 import (
@@ -6,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	c "github.com/gookit/color" //nolint:misspell
+	c "github.com/gookit/color"
 )
 
 // Verbosity levels (ordered from least to most output)
@@ -72,7 +73,7 @@ func Writer() io.Writer {
 }
 
 // Printf prints normal output with color support (suppressed in quiet, json, and silent modes)
-func Printf(format string, args ...interface{}) {
+func Printf(format string, args ...any) {
 	if Level < VerbosityNormal {
 		return
 	}
@@ -80,7 +81,7 @@ func Printf(format string, args ...interface{}) {
 }
 
 // Println prints normal output (suppressed in quiet, json, and silent modes)
-func Println(args ...interface{}) {
+func Println(args ...any) {
 	if Level < VerbosityNormal {
 		return
 	}
@@ -89,7 +90,7 @@ func Println(args ...interface{}) {
 
 // Errorf prints an error to stderr in every mode except silent, so failures stay
 // visible even when stdout is machine-readable (quiet/json) or suppressed.
-func Errorf(format string, args ...interface{}) {
+func Errorf(format string, args ...any) {
 	if Level == VerbositySilent {
 		return
 	}
@@ -98,7 +99,7 @@ func Errorf(format string, args ...interface{}) {
 
 // Quietf prints output only in quiet mode with color support.
 // Use this for the minimal machine-readable output.
-func Quietf(format string, args ...interface{}) {
+func Quietf(format string, args ...any) {
 	if Level != VerbosityQuiet {
 		return
 	}
@@ -106,7 +107,7 @@ func Quietf(format string, args ...interface{}) {
 }
 
 // Verbosef prints detailed output only when -v is set (suppressed at normal and below).
-func Verbosef(format string, args ...interface{}) {
+func Verbosef(format string, args ...any) {
 	if Level < VerbosityVerbose {
 		return
 	}

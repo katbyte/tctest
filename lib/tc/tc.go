@@ -1,3 +1,4 @@
+// Package tc is a minimal TeamCity REST API client for triggering builds and fetching build status and results.
 package tc
 
 import (
