@@ -1,3 +1,8 @@
+## v1.0.1 (2026-08-02)
+
+- release binaries with goreleaser (linux/darwin/windows/freebsd/openbsd/solaris) on tagged releases
+- publish a homebrew formula to `katbyte/homebrew-tap` on release
+
 ## v1.0.0 (2026-07-22)
 
 - add local AST-based test discovery via `--local-repo-path` with Go AST parsing, import tracing, and vendor file tracing ([#87](https://github.com/katbyte/tctest/pull/87))
