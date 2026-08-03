@@ -57,9 +57,8 @@ depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 		(echo; echo "Unexpected difference in vendor/ directory. Run 'go mod vendor' command or revert any go.mod/go.sum/vendor changes and commit."; exit 1)
 
 ##@ Testing
-test: build ## Run the unit tests (with -race) and integration tests
-	go test -race $$(go list ./... | grep -v '/test$$') -timeout ${TEST_TIMEOUT}
-	@set -o pipefail; go test -race ./test/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
+test: build ## Run the unit tests (with -race)
+	go test -race ./... -timeout ${TEST_TIMEOUT}
 
 check-all: build test lint depscheck ## Run build + test + lint + depscheck
 
