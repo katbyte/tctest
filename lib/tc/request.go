@@ -21,7 +21,7 @@ func (s Server) baseURL() string {
 	return "https://" + s.Server
 }
 
-func (s Server) makeGetRequest(endpoint string) (int, string, error) {
+func (s Server) makeGetRequest(endpoint string) (statusCode int, respBody string, err error) {
 	uri := s.baseURL() + endpoint
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, uri, http.NoBody)
@@ -36,7 +36,7 @@ func (s Server) makePostRequestWithXMLContentType(endpoint, body string) (status
 	return s.makePostRequestWithContentType(endpoint, body, "application/xml")
 }
 
-func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (int, string, error) {
+func (s Server) makePostRequestWithContentType(endpoint, body, contentType string) (statusCode int, respBody string, err error) {
 	uri := s.baseURL() + endpoint
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, uri, strings.NewReader(body))
 	if err != nil {

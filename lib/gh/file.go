@@ -10,7 +10,7 @@ import (
 
 // DownloadFile fetches the raw content of a file from GitHub at a specific ref (commit SHA or branch).
 // Returns the file content bytes, the HTTP status code, and any error.
-func (r Repo) DownloadFile(ctx context.Context, httpClient *http.Client, path, ref string) ([]byte, int, error) {
+func (r Repo) DownloadFile(ctx context.Context, httpClient *http.Client, path, ref string) (content []byte, statusCode int, err error) {
 	base := "https://raw.githubusercontent.com"
 	if r.RawURL != "" {
 		base = strings.TrimSuffix(r.RawURL, "/")
@@ -31,7 +31,7 @@ func (r Repo) DownloadFile(ctx context.Context, httpClient *http.Client, path, r
 		return nil, 0, fmt.Errorf("downloading file (%s): %w", path, err)
 	}
 
-	content, err := io.ReadAll(resp.Body)
+	content, err = io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil {
 		return nil, resp.StatusCode, fmt.Errorf("reading file (%s): %w", path, err)

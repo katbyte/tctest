@@ -11,7 +11,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'makefile'
-      - 'test/testdata/**'
+      - 'integration/testdata/**'
       - 'vendor/**'
       - '.github/workflows/**'
 

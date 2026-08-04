@@ -61,8 +61,8 @@ depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 
 ##@ Testing
 test: build ## Run unit and integration tests
-	go test $$(go list ./... | grep -v '/test$$') -timeout ${TEST_TIMEOUT}
-	@set -o pipefail; go test ./test/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
+	go test $$(go list ./... | grep -v '/integration$$') -timeout ${TEST_TIMEOUT}
+	@set -o pipefail; go test ./integration/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
 check-all: build test lint depscheck ## Run build + test + lint + depscheck
 

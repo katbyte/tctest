@@ -1,10 +1,10 @@
-// Package test contains integration tests: they run the real tctest binary against mock GitHub and
+// Package integration contains integration tests: they run the real tctest binary against mock GitHub and
 // TeamCity servers, using fixture provider repositories under testdata/.
 //
 // The binary is built once in TestMain. Each test spins up its own mock
 // servers, runs the real binary with a fully-controlled environment, and
 // asserts on the build-trigger requests TeamCity received.
-package test
+package integration
 
 import (
 	"bytes"
@@ -61,12 +61,12 @@ func TestMain(m *testing.M) {
 
 		// build the git upstreams used by the AST-mode tests
 		azurermUpstream = filepath.Join(tmp, "azurerm-upstream")
-		if err := buildGitUpstream("testdata/azurerm", azurermUpstream, 300, 320); err != nil {
+		if err := buildGitUpstream("testdata/azurerm", azurermUpstream, 2000, 2020); err != nil {
 			fmt.Fprintf(os.Stderr, "integration test setup: git fixture: %v\n", err)
 			return 1
 		}
 		awsUpstream = filepath.Join(tmp, "aws-upstream")
-		if err := buildGitUpstream("testdata/aws", awsUpstream, 400, 430); err != nil {
+		if err := buildGitUpstream("testdata/aws", awsUpstream, 20000, 20020); err != nil {
 			fmt.Fprintf(os.Stderr, "integration test setup: git fixture: %v\n", err)
 			return 1
 		}
@@ -95,7 +95,7 @@ func runGit(dir string, args ...string) error {
 	return nil
 }
 
-// buildGitUpstream copies a testdata tree into dst, commits it, and points
+// buildGitUpstream copies a fixture tree into dst, commits it, and points
 // refs/pull/N/merge at HEAD for every N in [prFrom, prTo] so tctest's
 // `git fetch origin pull/N/merge` works against it as a local remote.
 func buildGitUpstream(src, dst string, prFrom, prTo int) error {
@@ -177,7 +177,7 @@ type listPR struct {
 
 type mockGitHub struct {
 	srv     *httptest.Server
-	fixture string // testdata tree that backs raw downloads and contents listings
+	fixture string // fixture tree that backs raw downloads and contents listings
 	prs     map[int]prDef
 	openPRs []listPR // served by GET /repos/{o}/{r}/pulls for the prs command
 }
