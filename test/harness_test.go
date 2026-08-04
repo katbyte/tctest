@@ -199,6 +199,12 @@ func (m *mockGitHub) rawURL() string { return m.srv.URL + "/raw" }
 func (m *mockGitHub) handle(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
+	// go-github's WithEnterpriseURLs appends /api/v3/ to the configured base URL, so API requests
+	// arrive as /api/v3/repos/... — strip the prefix before routing
+	if len(parts) >= 2 && parts[0] == "api" && parts[1] == "v3" {
+		parts = parts[2:]
+	}
+
 	switch {
 	// /raw/{owner}/{repo}/{ref}/{path...} — raw file downloads
 	case parts[0] == "raw" && len(parts) >= 5:
