@@ -10,12 +10,25 @@ default: fmt build
 
 all: fmt build
 
-tools:
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-24s\033[0m%s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
+
+##@ Build
+build: ## Compile tctest with version info from git
+	@echo "==> building..."
+	go build -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}"
+
+install: ## Install tctest into GOPATH/bin with version info from git
+	@echo "==> installing..."
+	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
+
+tools: ## Install the tools required for development (golangci-lint)
 	@echo "==> installing required tooling..."
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
 		sh -s -- -b $(shell go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
 
-fmt:
+##@ Formatting
+fmt: ## Fix Go formatting (gofmt, gofumpt, goimports)
 	@echo "==> Fixing source code with gofmt..."
 	find . -name '*.go' | grep -v vendor | xargs gofmt -s -w
 	@echo "==> Fixing source code with gofumpt..."
@@ -23,27 +36,20 @@ fmt:
 	@echo "==> Fixing imports with golangci-lint (goimports)..."
 	golangci-lint fmt -E goimports ./...
 
-goimports:
+goimports: ## Fix imports with golangci-lint (goimports)
 	@echo "==> Fixing imports with golangci-lint (goimports)..."
 	golangci-lint fmt -E goimports ./...
 
-test: build
-	go test $$(go list ./... | grep -v '/test$$') -timeout ${TEST_TIMEOUT}
-	@set -o pipefail; go test ./test/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
-
-build:
-	@echo "==> building..."
-	go build -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}"
-
-lint:
+##@ Linting & Dependencies
+lint: ## Check source code with the golangci linters
 	@echo "==> Checking source code against linters..."
 	golangci-lint run ./...
 
-lint-fix:
+lint-fix: ## Fix source code with all golangci linters
 	@echo "==> Checking source code against linters (applying autofixes)..."
 	golangci-lint run --fix ./...
 
-depscheck:
+depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 	@echo "==> Checking source code with go mod tidy..."
 	@go mod tidy
 	@git diff --exit-code -- go.mod go.sum || \
@@ -53,10 +59,11 @@ depscheck:
 	@git diff --compact-summary --exit-code -- vendor || \
 		(echo; echo "Unexpected difference in vendor/ directory. Run 'go mod vendor' command or revert any go.mod/go.sum/vendor changes and commit."; exit 1)
 
-install:
-	@echo "==> installing..."
-	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
+##@ Testing
+test: build ## Run unit and integration tests
+	go test $$(go list ./... | grep -v '/test$$') -timeout ${TEST_TIMEOUT}
+	@set -o pipefail; go test ./test/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
-check-all: build test lint depscheck
+check-all: build test lint depscheck ## Run build + test + lint + depscheck
 
-.PHONY: fmt goimports build lint lint-fix depscheck check-all install tools test
+.PHONY: default all help fmt goimports build lint lint-fix depscheck check-all install tools test
