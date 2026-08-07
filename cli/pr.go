@@ -236,7 +236,15 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 			if pf.Type == provider.FileTypeHelper {
 				// track service files that don't match the regex (e.g. client helpers)
 				changedServiceFiles = append(changedServiceFiles, pf)
-				skippedFiles[pf.RelPath] = true
+
+				// Azure migration files live in a subdirectory/separate package. These files are _usually_ prefixed with the resource name
+				// which can be used to determine a test prefix.
+				if pf.IsMigrationFile() {
+					parentDir := path.Dir(path.Dir(pf.RelPath))
+					resourcePrefixesByPackage[parentDir] = append(resourcePrefixesByPackage[parentDir], pf.MigrationResourcePrefix())
+				} else {
+					skippedFiles[pf.RelPath] = true
+				}
 				continue
 			}
 

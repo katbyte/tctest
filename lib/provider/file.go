@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -109,6 +110,19 @@ func (f *File) InServicePackage() bool {
 // For "batch_account_data_source.go" → "batch_account_data_source".
 func (f *File) ResourcePrefix() string {
 	return strings.TrimSuffix(f.BaseName, "_resource")
+}
+
+// IsMigrationFile returns true if this file lives inside a known state migration subdirectory
+// of a service package (e.g. internal/services/storage/migration/storage_queue_v1_to_v2.go).
+func (f *File) IsMigrationFile() bool {
+	return strings.Contains(f.RelPath, "/migration/")
+}
+
+// MigrationResourcePrefix extracts the resource name from a migration filename by stripping
+// the version-transition suffix (e.g. "_v0_to_v1").
+// For "storage_queue_v1_to_v2" -> "storage_queue".
+func (f *File) MigrationResourcePrefix() string {
+	return regexp.MustCompile(`_v\d+_to_v\d+$`).ReplaceAllString(f.BaseName, "")
 }
 
 // AddDiscovery adds a discovery source label if it isn't already present.
