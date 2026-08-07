@@ -69,6 +69,11 @@ linters:
       - path: 'cli/(flags|cmds)\.go'
         linters:
           - goconst
+      # integration test tables repeat fixture paths, cli args, and expected trigger regexes across cases by
+      # design; hoisting them into constants would obscure what each case exercises
+      - path: 'integration/'
+        linters:
+          - goconst
       # the idiomatic `if err := f(); err != nil` scoping shadows err on purpose; still flag other variables
       # and err shadows outside the if-statement form (source scopes the rule to the if idiom only)
       - text: 'shadow: declaration of "err"'

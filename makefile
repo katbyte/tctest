@@ -1,3 +1,6 @@
+# recipes use bash for pipefail support (ubuntu's default sh is dash)
+SHELL := /bin/bash
+
 GIT_COMMIT=$(shell git describe --always --long --dirty)
 GIT_VERSION=$(shell git describe --tags --dirty 2>/dev/null | sed 's/-\([0-9]*\)-g/+\1@g/' || echo dev)
 GOLANGCI_LINT_VERSION?=v2.12.2
@@ -57,8 +60,9 @@ depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 		(echo; echo "Unexpected difference in vendor/ directory. Run 'go mod vendor' command or revert any go.mod/go.sum/vendor changes and commit."; exit 1)
 
 ##@ Testing
-test: build ## Run the unit tests (with -race)
-	go test -race ./... -timeout ${TEST_TIMEOUT}
+test: build ## Run unit and integration tests
+	go test $$(go list ./... | grep -v '/integration$$') -timeout ${TEST_TIMEOUT}
+	@set -o pipefail; go test ./integration/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
 check-all: build test lint depscheck ## Run build + test + lint + depscheck
 

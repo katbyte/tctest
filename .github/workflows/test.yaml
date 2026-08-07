@@ -8,6 +8,10 @@ on:
     paths:
       - '.github/**'
       - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'makefile'
+      - 'integration/testdata/**'
       - 'vendor/**'
       - '.github/workflows/**'
 

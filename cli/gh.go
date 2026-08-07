@@ -28,7 +28,11 @@ func (f *FlagData) NewRepo() GithubRepo {
 	token := f.GH.Token
 	clog.Log.Debugf("new gh: %s@%s/%s", maskToken(token), owner, repo)
 
-	return GithubRepo{gh.NewRepo(owner, repo, token)}
+	r := gh.NewRepo(owner, repo, token)
+	r.APIURL = f.GH.APIURL
+	r.RawURL = f.GH.RawURL
+
+	return GithubRepo{r}
 }
 
 func maskToken(token string) string {
