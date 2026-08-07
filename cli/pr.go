@@ -33,16 +33,18 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 	mode := f.DiscoveryConfig.Mode
 	if strings.EqualFold(mode, "AST") {
 		repoPath := f.DiscoveryConfig.LocalRepoPath
+		cwdWarning := ""
 		if repoPath == "" {
 			cwd, cwdErr := os.Getwd()
 			if cwdErr == nil && git.IsRepoForRemote(cwd, ghr.CloneURL()) {
 				repoPath = cwd
+				cwdWarning = fmt.Sprintf(" <red>IN CURRENT WORKING DIRECTORY</>")
 			}
 		}
 
 		if repoPath != "" {
 			f.DiscoveryConfig.LocalRepoPath = repoPath
-			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=AST]</>\n", number, title, prURL)
+			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=AST]</>%s\n", number, title, prURL, cwdWarning)
 			serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
 		} else {
 			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=api (fallback)]</>\n", number, title, prURL)
