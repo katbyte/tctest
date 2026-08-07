@@ -38,7 +38,7 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 			cwd, cwdErr := os.Getwd()
 			if cwdErr == nil && git.IsRepoForRemote(cwd, ghr.CloneURL()) {
 				repoPath = cwd
-				cwdWarning = fmt.Sprintf(" <red>IN CURRENT WORKING DIRECTORY</>")
+				cwdWarning = " <red>IN CWD</>"
 			}
 		}
 
