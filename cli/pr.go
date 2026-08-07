@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path"
 	"slices"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/gh"
+	"github.com/katbyte/tctest/lib/git"
 	"github.com/katbyte/tctest/lib/provider"
 	"github.com/pkg/browser"
 )
@@ -28,11 +30,26 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 	var serviceTests map[string][]string
 	var err error
 
-	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.Mode, "AST") {
-		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
-		serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
+	mode := f.DiscoveryConfig.Mode
+	if strings.EqualFold(mode, "AST") {
+		repoPath := f.DiscoveryConfig.LocalRepoPath
+		if repoPath == "" {
+			cwd, err := os.Getwd()
+			if err == nil && git.IsRepoForRemote(cwd, ghr.CloneURL()) {
+				repoPath = cwd
+			}
+		}
+
+		if repoPath != "" {
+			f.DiscoveryConfig.LocalRepoPath = repoPath
+			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=AST]</>\n", number, title, prURL)
+			serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
+		} else {
+			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=api (fallback)]</>\n", number, title, prURL)
+			serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
+		}
 	} else {
-		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
+		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=api]</>\n", number, title, prURL)
 		serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
 	}
 

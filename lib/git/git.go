@@ -124,3 +124,58 @@ func Clone(parentDir, cloneURL, targetPath string) error {
 	_, err := Run(parentDir, "clone", cloneURL, targetPath)
 	return err
 }
+
+// GetCurrentRef returns the current branch name, tag name, or commit SHA (in that order of preference).
+func GetCurrentRef(repoPath string) (string, error) {
+	if branch, err := Run(repoPath, "symbolic-ref", "--short", "HEAD"); err == nil {
+		return branch, nil
+	}
+	if tag, err := Run(repoPath, "describe", "--exact-match", "--tags", "HEAD"); err == nil {
+		return tag, nil
+	}
+	sha, err := Run(repoPath, "rev-parse", "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("getting current ref: %w", err)
+	}
+	return sha, nil
+}
+
+// CheckoutRef checks out the given branch name or commit SHA.
+func CheckoutRef(repoPath, ref string) error {
+	if _, err := Run(repoPath, "checkout", ref); err != nil {
+		return fmt.Errorf("git checkout %s: %w", ref, err)
+	}
+	return nil
+}
+
+// IsRepoForRemote returns true if the git repo at repoPath has a remote URL
+// that refers to the same GitHub repository as cloneURL. It normalises both
+// URLs to "host/owner/repo" before comparing so that SSH and HTTPS forms match.
+func IsRepoForRemote(repoPath, cloneURL string) bool {
+	out, err := Run(repoPath, "remote", "get-url", "origin")
+	if err != nil {
+		return false
+	}
+	return normaliseGitURL(out) == normaliseGitURL(cloneURL)
+}
+
+// normaliseGitURL strips protocol/host boilerplate and a trailing .git so that
+// SSH ("git@github.com:owner/repo.git") and HTTPS ("https://github.com/owner/repo")
+// forms of the same URL compare equal.
+func normaliseGitURL(u string) string {
+	u = strings.ToLower(strings.TrimSpace(u))
+	u = strings.TrimSuffix(u, ".git")
+	// SSH: git@github.com:owner/repo -> github.com/owner/repo
+	if strings.HasPrefix(u, "git@") {
+		u = strings.TrimPrefix(u, "git@")
+		u = strings.Replace(u, ":", "/", 1)
+		return u
+	}
+	// HTTPS: https://github.com/owner/repo -> github.com/owner/repo
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(u, prefix) {
+			return strings.TrimPrefix(u, prefix)
+		}
+	}
+	return u
+}
