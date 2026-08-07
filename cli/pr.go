@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"path"
 	"slices"
 	"sort"
@@ -15,6 +16,7 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
 	"github.com/katbyte/tctest/lib/gh"
+	"github.com/katbyte/tctest/lib/git"
 	"github.com/katbyte/tctest/lib/provider"
 	"github.com/pkg/browser"
 )
@@ -28,11 +30,28 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 	var serviceTests map[string][]string
 	var err error
 
-	if f.DiscoveryConfig.LocalRepoPath != "" && strings.EqualFold(f.DiscoveryConfig.Mode, "AST") {
-		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[AST]</>\n", number, title, prURL)
-		serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
+	mode := f.DiscoveryConfig.Mode
+	if strings.EqualFold(mode, "AST") {
+		repoPath := f.DiscoveryConfig.LocalRepoPath
+		cwdWarning := ""
+		if repoPath == "" {
+			cwd, cwdErr := os.Getwd()
+			if cwdErr == nil && git.IsRepoForRemote(cwd, ghr.CloneURL()) {
+				repoPath = cwd
+				cwdWarning = " <red>IN CWD</>"
+			}
+		}
+
+		if repoPath != "" {
+			f.DiscoveryConfig.LocalRepoPath = repoPath
+			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=AST]</>%s\n", number, title, prURL, cwdWarning)
+			serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
+		} else {
+			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=api (fallback)]</>\n", number, title, prURL)
+			serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
+		}
 	} else {
-		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</>\n", number, title, prURL)
+		cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=api]</>\n", number, title, prURL)
 		serviceTests, err = ghr.PrTestsFromAPI(number, f.DiscoveryConfig)
 	}
 
@@ -236,7 +255,15 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 			if pf.Type == provider.FileTypeHelper {
 				// track service files that don't match the regex (e.g. client helpers)
 				changedServiceFiles = append(changedServiceFiles, pf)
-				skippedFiles[pf.RelPath] = true
+
+				// Azure migration files live in a subdirectory/separate package. These files are _usually_ prefixed with the resource name
+				// which can be used to determine a test prefix.
+				if pf.IsMigrationFile() {
+					parentDir := path.Dir(path.Dir(pf.RelPath))
+					resourcePrefixesByPackage[parentDir] = append(resourcePrefixesByPackage[parentDir], pf.MigrationResourcePrefix())
+				} else {
+					skippedFiles[pf.RelPath] = true
+				}
 				continue
 			}
 

@@ -83,6 +83,18 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (map[string][
 		return nil, err
 	}
 
+	// capture current ref so we can restore it when done
+	originalRef, err := git.GetCurrentRef(repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("getting current ref: %w", err)
+	}
+	defer func() {
+		cout.Printf("  restoring repo to <darkGray>%s</>\n", originalRef)
+		if err := git.CheckoutRef(repoPath, originalRef); err != nil {
+			cout.Printf("  <yellow>WARNING:</> failed to restore repo to %s: %v\n", originalRef, err)
+		}
+	}()
+
 	// fetch PR merge ref and checkout
 	cout.Printf("  fetching PR <cyan>#%d</> merge ref...\n", pri)
 	sha, err := ghr.CheckoutPR(repoPath, pri)

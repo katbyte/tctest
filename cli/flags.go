@@ -176,7 +176,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.String("local-repo-path", "", "path to a local git clone for AST-based test detection (enables import tracing from helper files, and changes default mode to AST)")
 	pflags.Int("local-trace-depth", 10, "how many levels of import tracing to perform for helper file changes (0 to disable)")
 	pflags.String("local-vendor-mode", "basic", "mode for vendor AST detection: 'basic' (package-based import tracing) or 'none' (disabled)")
-	pflags.String("mode", "AST", "mode for local test detection: 'api' (default) or 'AST' (default when --local-repo-path is provided). Note: 'SSA' (super slow analyse) to be added in the future")
+	pflags.String("mode", "AST", "mode for local test detection: 'AST' (default, uses local repo; falls back to 'api' if current working directory is not the provider repo and --local-repo-path is not set) or 'api'. Note: 'SSA' (super slow analyse) to be added in the future")
 
 	// GitHub Flags (FlagsGitHub)
 	pflags.String("token-gh", "", "github oauth token (consider exporting token to GITHUB_TOKEN instead)")
