@@ -34,8 +34,8 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 	if strings.EqualFold(mode, "AST") {
 		repoPath := f.DiscoveryConfig.LocalRepoPath
 		if repoPath == "" {
-			cwd, err := os.Getwd()
-			if err == nil && git.IsRepoForRemote(cwd, ghr.CloneURL()) {
+			cwd, cwdErr := os.Getwd()
+			if cwdErr == nil && git.IsRepoForRemote(cwd, ghr.CloneURL()) {
 				repoPath = cwd
 			}
 		}

@@ -166,15 +166,13 @@ func normaliseGitURL(u string) string {
 	u = strings.ToLower(strings.TrimSpace(u))
 	u = strings.TrimSuffix(u, ".git")
 	// SSH: git@github.com:owner/repo -> github.com/owner/repo
-	if strings.HasPrefix(u, "git@") {
-		u = strings.TrimPrefix(u, "git@")
-		u = strings.Replace(u, ":", "/", 1)
-		return u
+	if after, ok := strings.CutPrefix(u, "git@"); ok {
+		return strings.Replace(after, ":", "/", 1)
 	}
 	// HTTPS: https://github.com/owner/repo -> github.com/owner/repo
 	for _, prefix := range []string{"https://", "http://"} {
-		if strings.HasPrefix(u, prefix) {
-			return strings.TrimPrefix(u, prefix)
+		if after, ok := strings.CutPrefix(u, prefix); ok {
+			return after
 		}
 	}
 	return u
