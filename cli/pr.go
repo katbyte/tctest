@@ -57,7 +57,7 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 
 	if f.OpenInBrowser {
 		if err := browser.OpenURL(prURL); err != nil {
-			cout.Printf("failed to open build %s in browser", prURL)
+			cout.Errorf("  <yellow>WARNING:</> failed to open pr %s in browser: %v\n", prURL, err)
 		}
 	}
 

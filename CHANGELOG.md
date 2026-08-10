@@ -1,3 +1,14 @@
+## v1.2.0 (unreleased)
+
+- discover AzureRM tests when state migration files (`{service}/migration/{resource_name}_v{N}_to_v{N}.go`) are modified in API mode ([#105](https://github.com/katbyte/tctest/pull/105))
+- always output the discovery mode to avoid confusion from silent fallback to API mode ([#105](https://github.com/katbyte/tctest/pull/105))
+- AST mode no longer requires `--local-repo-path`; detects whether the current working dir is the provider repo and falls back to API mode otherwise ([#105](https://github.com/katbyte/tctest/pull/105))
+- AST mode reverts to the previously checked out revision/branch/tag instead of leaving the repo on a merge commit ([#105](https://github.com/katbyte/tctest/pull/105))
+- bump go to 1.26.5 ([#105](https://github.com/katbyte/tctest/pull/105))
+- add integration tests ([#89](https://github.com/katbyte/tctest/pull/89))
+- fix code scanning alerts ([#104](https://github.com/katbyte/tctest/pull/104))
+- fix duplicate json output ([#102](https://github.com/katbyte/tctest/pull/102))
+
 ## v1.0.1 (2026-08-02)
 
 - release binaries with goreleaser (linux/darwin/windows/freebsd/openbsd/solaris) on tagged releases

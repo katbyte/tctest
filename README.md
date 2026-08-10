@@ -127,7 +127,7 @@ tctest pr 3232 --service network TestAccVirtualNetwork_basic
 tctest pr 3232 --service network --all
 
 # run ALL tests for ALL services (no discovery)
-# note: triggers one build per service, so --max-builds-per-pr (default 5) applies
+# note: triggers one build per service, so --max-builds-per-pr (default 7) applies
 tctest pr 3232 --service all --all --max-builds-per-pr 0
 
 # invalid service names will error with a list of valid services

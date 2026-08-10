@@ -63,8 +63,10 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (map[string][
 	force := false
 	dirty, dirtyOutput, err := git.IsWorkingTreeDirty(repoPath)
 	if err == nil && dirty {
-		cout.Printf("  <yellow>WARNING:</> repo has uncommitted changes:\n%s\n", dirtyOutput)
-		cout.Printf("  reset and continue? [y/N]: ")
+		// stderr so the warning and prompt stay visible (and the Scanln below doesn't block
+		// invisibly) when stdout is machine-readable (quiet/json)
+		cout.Errorf("  <yellow>WARNING:</> repo has uncommitted changes:\n%s\n", dirtyOutput)
+		cout.Errorf("  reset and continue? [y/N]: ")
 
 		var answer string
 		if _, err := fmt.Scanln(&answer); err != nil {
@@ -91,7 +93,7 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (map[string][
 	defer func() {
 		cout.Printf("  restoring repo to <darkGray>%s</>\n", originalRef)
 		if err := git.CheckoutRef(repoPath, originalRef); err != nil {
-			cout.Printf("  <yellow>WARNING:</> failed to restore repo to %s: %v\n", originalRef, err)
+			cout.Errorf("  <yellow>WARNING:</> failed to restore repo to %s: %v\n", originalRef, err)
 		}
 	}()
 
@@ -780,7 +782,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 	}
 
 	if !foundServiceDir {
-		cout.Printf("  <yellow>WARNING:</> no service directory found (tried %s)\n", strings.Join(provider.ServiceDirPrefixes, ", "))
+		cout.Errorf("  <yellow>WARNING:</> no service directory found (tried %s)\n", strings.Join(provider.ServiceDirPrefixes, ", "))
 	}
 
 	vendorTracedCount := 0

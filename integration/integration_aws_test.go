@@ -215,7 +215,7 @@ func TestASTDiscoveryAWS(t *testing.T) {
 			if res.exitCode != 0 {
 				t.Fatalf("exit code = %d, want 0\noutput:\n%s", res.exitCode, res.output)
 			}
-			if !strings.Contains(res.output, "[AST]") {
+			if !strings.Contains(res.output, "[mode=AST]") {
 				t.Fatalf("expected AST discovery mode to be used\noutput:\n%s", res.output)
 			}
 			assertTriggers(t, tc, res, tt.want)

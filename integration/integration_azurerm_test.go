@@ -330,7 +330,7 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			if res.exitCode != tt.wantExit {
 				t.Fatalf("exit code = %d, want %d\noutput:\n%s", res.exitCode, tt.wantExit, res.output)
 			}
-			if !strings.Contains(res.output, "[AST]") {
+			if !strings.Contains(res.output, "[mode=AST]") {
 				t.Fatalf("expected AST discovery mode to be used\noutput:\n%s", res.output)
 			}
 			assertTriggers(t, tc, res, tt.want)
