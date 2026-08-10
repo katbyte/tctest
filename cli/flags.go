@@ -225,7 +225,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.BoolP("comment", "c", false, "Post a GitHub comment on the PR with test results (adds POST_GITHUB_COMMENT=true property)")
 	pflags.Bool("build-link-force-old-ui", false, "Append &fromSakuraUI=true to build URLs to force the classic TeamCity UI")
 	pflags.StringSliceP("tag", "", []string{}, "TeamCity build tags to add to the triggered build, ie 'tag1,tag2'")
-	pflags.Int("max-builds-per-pr", 5, "maximum number of service builds to trigger per PR (0 = no limit, errors if exceeded)")
+	pflags.Int("max-builds-per-pr", 7, "maximum number of service builds to trigger per PR (0 = no limit, errors if exceeded)")
 
 	// binding map for viper/pflag -> env
 	m := map[string]string{ //nolint:gosec // G101: these are env var names, not credentials
