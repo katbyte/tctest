@@ -25,8 +25,8 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 
 	// the direct-trigger path (--service + --all/test regex) triggers one build per service,
 	// so enforce --max-builds-per-pr up front
-	if serviceFilter != nil && (f.RunAllTests || testRegExParam != "") && f.TC.Build.MaxBuildsPerPR > 0 && len(serviceFilter.services) > f.TC.Build.MaxBuildsPerPR {
-		return fmt.Errorf("--service would trigger %d builds per PR, exceeding --max-builds-per-pr limit of %d (use --max-builds-per-pr 0 for no limit)", len(serviceFilter.services), f.TC.Build.MaxBuildsPerPR)
+	if !f.Force && serviceFilter != nil && (f.RunAllTests || testRegExParam != "") && f.TC.Build.MaxBuildsPerPR > 0 && len(serviceFilter.services) > f.TC.Build.MaxBuildsPerPR {
+		return fmt.Errorf("--service would trigger %d builds per PR, exceeding --max-builds-per-pr limit of %d (use --force to bypass)", len(serviceFilter.services), f.TC.Build.MaxBuildsPerPR)
 	}
 
 	ok := 0
@@ -74,7 +74,7 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 		}
 
 		// check max-builds-per-pr limit
-		if f.TC.Build.MaxBuildsPerPR > 0 {
+		if !f.Force && f.TC.Build.MaxBuildsPerPR > 0 {
 			serviceCount := 0
 			for s := range serviceTests {
 				if serviceFilter != nil && !serviceFilter.set[s] {
@@ -83,7 +83,7 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 				serviceCount++
 			}
 			if serviceCount > f.TC.Build.MaxBuildsPerPR {
-				cout.Errorf("  <red>ERROR:</> would trigger <yellow>%d</> service builds, exceeding --max-builds-per-pr limit of <yellow>%d</>\n\n", serviceCount, f.TC.Build.MaxBuildsPerPR)
+				cout.Errorf("  <red>ERROR:</> would trigger <yellow>%d</> service builds, exceeding --max-builds-per-pr limit of <yellow>%d</> (use --force to bypass)\n\n", serviceCount, f.TC.Build.MaxBuildsPerPR)
 				failed++
 				continue
 			}

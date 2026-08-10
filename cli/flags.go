@@ -85,6 +85,7 @@ type FlagData struct {
 	Services        []string        `mapstructure:"service"`
 	DryRun          bool            `mapstructure:"dry-run"`
 	AddTests        []string        `mapstructure:"add-tests"`
+	Force           bool            `mapstructure:"force"`
 }
 
 type DiscoveryConfig struct {
@@ -156,6 +157,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.StringSlice("service", []string{}, "target specific services: with --all or test_regex, skips discovery and triggers directly; alone, filters discovered services")
 	pflags.StringSlice("add-tests", []string{}, "additional test names to append to the discovered test regex (comma-separated, incompatible with --all or an explicit test regex)")
 	pflags.Bool("quiet", false, "minimal machine-readable output (pr@service@build url)")
+	pflags.BoolP("force", "f", false, "bypass the --max-builds-per-pr safety check")
 
 	// Output Flags
 	pflags.Bool("json", false, "output build results as JSON array")
@@ -276,6 +278,7 @@ func configureFlags(root *cobra.Command) error {
 		"build-link-force-old-ui":          "TCTEST_FORCE_OLD_UI",
 		"tag":                              "TCTEST_BUILD_TAGS",
 		"max-builds-per-pr":                "",
+		"force":                            "",
 		"collapse-files-after":             "",
 	}
 
