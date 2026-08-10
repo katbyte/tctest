@@ -1,5 +1,7 @@
 ## v1.2.0 (unreleased)
 
+- add `--force`/`-f` flag to bypass the `--max-builds-per-pr` check
+- include the build type id and TeamCity's error response in the "unable to trigger build" error instead of just the HTTP status code
 - discover AzureRM tests when state migration files (`{service}/migration/{resource_name}_v{N}_to_v{N}.go`) are modified in API mode ([#105](https://github.com/katbyte/tctest/pull/105))
 - always output the discovery mode to avoid confusion from silent fallback to API mode ([#105](https://github.com/katbyte/tctest/pull/105))
 - AST mode no longer requires `--local-repo-path`; detects whether the current working dir is the provider repo and falls back to API mode otherwise ([#105](https://github.com/katbyte/tctest/pull/105))

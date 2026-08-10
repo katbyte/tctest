@@ -181,6 +181,14 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			wantExit: 1,
 		},
 		{
+			name: "--force bypasses the max-builds-per-pr limit",
+			args: []string{"pr", "1004", "--max-builds-per-pr", "1", "--force"},
+			want: []trigger{
+				{"TF_E2E_DNS", "refs/pull/1004/merge", "(TestAccDnsARecord)"},
+				{"TF_E2E_POSTGRES", "refs/pull/1004/merge", "(TestAccPostgresqlFlexibleServer)"},
+			},
+		},
+		{
 			name: "--dry-run triggers nothing and exits cleanly",
 			args: []string{"pr", "1001", "--dry-run"},
 			want: nil,

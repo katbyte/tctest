@@ -20,7 +20,10 @@ func (s Server) RunBuild(buildTypeID, buildProperties, branch, testRegEx string,
 	}
 
 	if statusCode != http.StatusOK {
-		return 0, "", fmt.Errorf("HTTP status NOT OK: %d", statusCode)
+		if details := condenseBody(body); details != "" {
+			return 0, "", fmt.Errorf("HTTP status NOT OK: %d for build type %q: %s", statusCode, buildTypeID, details)
+		}
+		return 0, "", fmt.Errorf("HTTP status NOT OK: %d for build type %q", statusCode, buildTypeID)
 	}
 
 	data := struct {
@@ -77,6 +80,18 @@ func (s Server) TriggerBuild(buildTypeID, branch, testPattern, buildProperties s
 `, xmlEscape(buildTypeID), xmlEscape(branch), xmlEscape(testPattern), bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
 	return s.makePostRequestWithXMLContentType("/app/rest/2018.1/buildQueue", body)
+}
+
+// condenseBody flattens a TeamCity error response body onto a single line so it can be included in an error message;
+// bodies are multiline (e.g. "Responding with error, status code: 404 (Not Found).\nDetails: ...NotFoundException:
+// No build type nor template is found by id 'X'.") and can trail off into long request dumps, so cap the length
+func condenseBody(body string) string {
+	const maxLen = 400
+	body = strings.Join(strings.Fields(body), " ")
+	if len(body) > maxLen {
+		body = body[:maxLen] + "..."
+	}
+	return body
 }
 
 // xmlEscape escapes a string for use in an XML attribute value; regexes and
