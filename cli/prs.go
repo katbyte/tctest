@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -155,6 +156,12 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 	}
 	if buildsFailed > 0 {
 		return fmt.Errorf("%d build(s) failed to trigger", buildsFailed)
+	}
+	// zero builds for one or more PRs is a failure, not a quiet no-op — wrappers like
+	// the /test comment workflow treat exit 0 as "builds are running", so exiting
+	// clean here would eat the "no tests found" errors printed above
+	if buildsTriggered == 0 && len(prNumbers) > 0 {
+		return errors.New("no builds were triggered")
 	}
 
 	return nil

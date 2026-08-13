@@ -37,6 +37,9 @@ var azurermPRs = []prDef{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
 		{"internal/services/postgres/validate/database_charset.go", "modified"},
 	}},
+	{1009, "open", "conflicted pr", []changedFile{
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+	}},
 	{1020, "open", "postgres improvement", []changedFile{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
 	}},
@@ -84,7 +87,13 @@ var azurermASTPRs = []prDef{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
 		{"internal/services/postgres/validate/database_charset.go", "modified"},
 	}},
+	{2012, "open", "conflicted pr", []changedFile{
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+	}},
 }
+
+// conflictedPRs marks the PR numbers the mock serves with mergeable=false
+var conflictedPRs = map[int]bool{1009: true, 2012: true}
 
 func azurermEnv(gh *mockGitHub, tc *mockTeamCity) map[string]string {
 	return map[string]string{
@@ -119,9 +128,26 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/1002/merge", "(TestAccDataSourcePostgresqlflexibleServer|TestAccPostgresqlFlexibleServer)"}},
 		},
 		{
-			name: "helper-only change discovers nothing in API mode",
-			args: []string{"pr", "1003"},
-			want: nil,
+			// discovering nothing must exit non-zero so wrappers (the /test comment
+			// workflow) report it instead of reacting as if builds were triggered
+			name:     "helper-only change discovers nothing in API mode and fails",
+			args:     []string{"pr", "1003"},
+			want:     nil,
+			wantExit: 1,
+		},
+		{
+			name:     "conflicted pr errors and triggers nothing",
+			args:     []string{"pr", "1009"},
+			want:     nil,
+			wantExit: 1,
+		},
+		{
+			// the --service direct-trigger path skips discovery but must still
+			// refuse to trigger builds for a conflicted pr
+			name:     "conflicted pr errors on the --service direct path",
+			args:     []string{"pr", "1009", "--service", "postgres", "--all"},
+			want:     nil,
+			wantExit: 1,
 		},
 		{
 			name: "multi-service pr triggers one build per service",
@@ -209,6 +235,7 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			t.Parallel()
 			scenario(t, "api/azurerm", tt.name)
 			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
+			gh.conflicted = conflictedPRs
 			tc := newMockTeamCity(t)
 
 			res := runTCTest(t, azurermEnv(gh, tc), tt.args...)
@@ -320,6 +347,14 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			args: []string{"pr", "2011"},
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/2011/merge", "(TestAccDataSourcePostgresqlflexibleServer|TestAccPostgresqlFlexibleServer|TestAccPostgresqlFlexibleServerDatabase)"}},
 		},
+		{
+			// the mergeable check must run before the AST path fetches the merge
+			// ref, which can succeed on a stale ref for a conflicted pr
+			name:     "conflicted pr errors and triggers nothing",
+			args:     []string{"pr", "2012"},
+			want:     nil,
+			wantExit: 1,
+		},
 	}
 
 	for _, tt := range cases {
@@ -327,6 +362,7 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			t.Parallel()
 			scenario(t, "ast/azurerm", tt.name)
 			gh := newMockGitHub(t, "testdata/azurerm", azurermASTPRs)
+			gh.conflicted = conflictedPRs
 			tc := newMockTeamCity(t)
 			clone := cloneUpstream(t, azurermUpstream)
 
@@ -342,6 +378,48 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 				t.Fatalf("expected AST discovery mode to be used\noutput:\n%s", res.output)
 			}
 			assertTriggers(t, tc, res, tt.want)
+		})
+	}
+}
+
+// TestErrorMessages locks the wording of the errors that comment workflows surface
+// on PRs — they must clearly say WHY nothing was triggered, not just fail.
+func TestErrorMessages(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "conflicted pr names the conflict",
+			args: []string{"pr", "1009"},
+			want: "has merge conflicts that must be resolved before tests can be run",
+		},
+		{
+			name: "no discovered tests reports no builds were triggered",
+			args: []string{"pr", "1003"},
+			want: "no builds were triggered",
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			scenario(t, "errors/azurerm", tt.name)
+			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
+			gh.conflicted = conflictedPRs
+			tc := newMockTeamCity(t)
+
+			res := runTCTest(t, azurermEnv(gh, tc), tt.args...)
+			if res.exitCode == 0 {
+				t.Fatalf("exit code = 0, want non-zero\noutput:\n%s", res.output)
+			}
+			if !strings.Contains(res.output, tt.want) {
+				t.Fatalf("output missing %q:\n%s", tt.want, res.output)
+			}
+			assertTriggers(t, tc, res, nil)
 		})
 	}
 }
