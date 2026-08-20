@@ -51,7 +51,7 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 | `TCTEST_ACCTEST_FILE_SUFFIX_REGEXES` | `--acctest-file-suffix-regexes` | Comma-separated regex suffix (without `.go`) to find relevant acceptance-test files for a resource. |
 | `TCTEST_SPLIT_TESTS_ON` | `--splitteston` | Character to split test names on (default: `_`) |
 | `TCTEST_REAPPEND_SPLIT_CHARACTER` | `--reappend-split-character` | Whether to append the split character to the resulting test filter for more precise filtering |
-| `TCTEST_INDIVIDUAL` | `--individual`, `-i` | For directly changed test files, discover only the individual test functions the PR modifies (full names instead of prefixes) |
+| `TCTEST_INDIVIDUAL` | `--individual`, `-i` | Discover individual test functions by full name instead of split prefixes: directly changed test files yield only the tests the PR modifies, indirectly discovered files yield every test they contain |
 | `TCTEST_WAIT` | `--wait`, `-w` | Wait for builds to complete |
 | `TCTEST_LATESTBUILD` | `--latest` | Get the latest build |
 | `TCTEST_SKIP_QUEUE` | `--skip-queue`, `-q` | Put the build to the top of the queue |
@@ -232,8 +232,9 @@ tctest list -i 3232
 # TestAccPostgresqlFlexibleServer_complete
 ```
 
-Test files discovered indirectly (e.g. via a changed resource file, where any of the resource's tests could be
-affected) keep the prefix behaviour. The flag also works with `pr` and `prs` to trigger only the modified tests.
+With `-i`, prefixes are never used: test files discovered indirectly (e.g. via a changed resource file, where any of
+the resource's tests could be affected) list every test function they contain, by full name. The flag also works with
+`pr` and `prs` to trigger only the discovered tests.
 
 ### `results` — Show build results
 

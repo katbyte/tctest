@@ -178,7 +178,7 @@ func configureFlags(root *cobra.Command) error {
 		`^_data_source_test$`,  // data-source tests (both providers)
 	}, "comma-separated list of regex patterns to match acceptance test filenames suffix (without '.go')")
 	pflags.Bool("reappend-split-character", false, "whether to append the split character to the resulting test filter for more precise filtering")
-	pflags.BoolP("individual", "i", false, "discover the individual test functions a PR modifies in directly changed test files (full names instead of prefixes); files discovered indirectly (e.g. via a changed resource) keep prefix discovery")
+	pflags.BoolP("individual", "i", false, "discover individual test functions by full name instead of split prefixes: directly changed test files yield only the tests the PR modifies, files discovered indirectly (e.g. via a changed resource) yield every test they contain")
 	pflags.Int("concurrency", 5, "maximum number of concurrent file downloads during test discovery")
 	pflags.Int("collapse-files-after", 20, "collapse file listings to a count when there are more than this many files (0 to always show)")
 

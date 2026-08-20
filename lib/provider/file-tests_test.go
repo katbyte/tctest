@@ -140,15 +140,15 @@ func TestDiscoverTests(t *testing.T) {
 			individual: true,
 			want:       []string{testNameComplete},
 		},
-		"individual without patch falls back to prefixes": {
+		"individual without patch lists all full names": {
 			patch:      "",
 			individual: true,
-			want:       []string{testNamePrefix, testNamePrefix, testNamePrefix},
+			want:       []string{"TestAccPostgresqlFlexibleServer_basic", testNameComplete, "TestAccPostgresqlFlexibleServer_requiresImport"},
 		},
-		"individual with helper-only diff falls back to prefixes": {
+		"individual with helper-only diff lists all full names": {
 			patch:      "@@ -15,3 +15,3 @@",
 			individual: true,
-			want:       []string{testNamePrefix, testNamePrefix, testNamePrefix},
+			want:       []string{"TestAccPostgresqlFlexibleServer_basic", testNameComplete, "TestAccPostgresqlFlexibleServer_requiresImport"},
 		},
 	}
 

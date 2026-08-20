@@ -122,26 +122,38 @@ func (f *File) changedLineRanges() []lineRange {
 	return ranges
 }
 
-// DiscoverTests extracts a file's test names for build triggering. With individual set, a directly changed test file
-// (which carries its PR patch) yields only the full names of the test functions the PR modifies; everything else —
-// individual off, no patch (e.g. a file discovered via a sibling resource), or a diff touching only non-test code —
-// falls back to ExtractTests' split-prefix behaviour over the whole file.
+// DiscoverTests extracts a file's test names for build triggering. With individual set, only full test function
+// names are ever returned — never split prefixes: a directly changed test file (which carries its PR patch) yields
+// just the test functions the PR modifies, while a file without a patch (e.g. discovered via a sibling resource) or
+// one whose diff touches only non-test code yields every test function in the file. With individual off, all files
+// get ExtractTests' split-prefix behaviour.
 func (f *File) DiscoverTests(splitOn string, reappend, individual bool) ([]string, error) {
-	if individual {
-		tests, ok, err := f.ExtractChangedTests()
-		if err != nil {
-			return nil, err
-		}
-		if ok && len(tests) > 0 {
-			return tests, nil
-		}
-		if ok {
-			// the diff only touched non-test code in the file (e.g. a shared helper), so any of its tests could be
-			// affected — better to fall back to whole-file discovery than silently discover nothing
-			clog.Log.Debugf("    %s: no test functions overlap the PR diff, falling back to whole-file discovery", f.RelPath)
-		}
+	if !individual {
+		return f.ExtractTests(splitOn, reappend)
 	}
-	return f.ExtractTests(splitOn, reappend)
+
+	tests, ok, err := f.ExtractChangedTests()
+	if err != nil {
+		return nil, err
+	}
+	if ok && len(tests) > 0 {
+		return tests, nil
+	}
+	if ok {
+		// the diff only touched non-test code in the file (e.g. a shared helper), so any of its tests could be
+		// affected — better to fall back to every test in the file than silently discover nothing
+		clog.Log.Debugf("    %s: no test functions overlap the PR diff, falling back to all tests in the file", f.RelPath)
+	}
+
+	funcs, err := f.testFuncs()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(funcs))
+	for _, fn := range funcs {
+		names = append(names, fn.Name)
+	}
+	return names, nil
 }
 
 // ExtractChangedTests returns the full (unsplit) names of the acceptance test functions whose declarations overlap

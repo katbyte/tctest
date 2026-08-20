@@ -174,6 +174,11 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/1001/merge", "(TestAccPostgresqlFlexibleServer_complete)"}},
 		},
 		{
+			name: "individual flag lists every test of derived files by full name",
+			args: []string{"pr", "1002", "-i"},
+			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/1002/merge", "(TestAccDataSourcePostgresqlflexibleServer_basic|TestAccPostgresqlFlexibleServer_basic|TestAccPostgresqlFlexibleServer_complete|TestAccPostgresqlFlexibleServer_requiresImport)"}},
+		},
+		{
 			name: "--all overrides the discovered regex with TestAcc",
 			args: []string{"pr", "1001", "--all"},
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/1001/merge", "TestAcc"}},
@@ -284,6 +289,11 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			name: "individual flag narrows changed test file to the modified test functions",
 			args: []string{"pr", "2005", "-i"},
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/2005/merge", "(TestAccPostgresqlFlexibleServer_complete)"}},
+		},
+		{
+			name: "individual flag lists every test of derived files by full name",
+			args: []string{"pr", "2006", "-i"},
+			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/2006/merge", "(TestAccDataSourcePostgresqlflexibleServer_basic|TestAccPostgresqlFlexibleServer_basic|TestAccPostgresqlFlexibleServer_complete|TestAccPostgresqlFlexibleServer_requiresImport)"}},
 		},
 		{
 			name: "two-level helper chain traces only symbol users",
