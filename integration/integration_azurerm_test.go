@@ -38,7 +38,7 @@ var azurermPRs = []prDef{
 		{"internal/services/postgres/validate/database_charset.go", "modified", ""},
 	}},
 	{1009, "open", "conflicted pr", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
 	}},
 	{1020, "open", "postgres improvement", []changedFile{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
@@ -88,7 +88,7 @@ var azurermASTPRs = []prDef{
 		{"internal/services/postgres/validate/database_charset.go", "modified", ""},
 	}},
 	{2012, "open", "conflicted pr", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
 	}},
 }
 
