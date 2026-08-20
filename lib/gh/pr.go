@@ -1,9 +1,11 @@
 package gh
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/clog"
@@ -36,6 +38,56 @@ func (r Repo) CheckoutPR(repoPath string, prNumber int) (string, error) {
 		return "", fmt.Errorf("failed to checkout merge commit: %w", err)
 	}
 	return sha, nil
+}
+
+// mergeableAttempts and mergeableRetryDelay control how long GetPrForBuild waits for
+// GitHub to finish computing a PR's mergeability (the computation is asynchronous and
+// a GET on the PR is what kicks it off).
+const (
+	mergeableAttempts   = 5
+	mergeableRetryDelay = 3 * time.Second
+)
+
+// GetPrForBuild fetches a PR and verifies builds can be triggered on its merge ref: it
+// must be open, mergeable, and have a merge commit SHA. Mergeable has to be checked
+// explicitly — GitHub keeps returning a stale merge_commit_sha for a PR that has
+// *become* conflicted, so a nil-SHA check alone lets conflicted PRs through to trigger
+// builds on a stale or missing refs/pull/N/merge ref, which then fail (or silently test
+// outdated code) inside TeamCity where nobody sees it.
+func (r Repo) GetPrForBuild(number int) (*github.PullRequest, error) {
+	client, ctx := r.NewClient()
+
+	for attempt := 1; ; attempt++ {
+		clog.Log.Debugf("fetching data for PR %s/%s/#%d...", r.Owner, r.Name, number)
+		pr, _, err := client.PullRequests.Get(ctx, r.Owner, r.Name, number)
+		if err != nil {
+			return nil, WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", r.Owner, r.Name, number))
+		}
+
+		clog.Log.Debugf("  checking pr state: %v", pr.GetState())
+		if pr.GetState() == PRStateClosed {
+			return nil, errors.New("cannot start build for a closed pr")
+		}
+
+		if pr.Mergeable == nil {
+			if attempt < mergeableAttempts {
+				clog.Log.Debugf("  mergeability of PR #%d not yet computed by github, retrying (%d/%d)...", number, attempt, mergeableAttempts)
+				time.Sleep(mergeableRetryDelay)
+				continue
+			}
+			return nil, fmt.Errorf("github has not finished computing mergeability for PR #%d, try again shortly", number)
+		}
+
+		if !pr.GetMergeable() {
+			return nil, fmt.Errorf("PR #%d has merge conflicts that must be resolved before tests can be run", number)
+		}
+
+		if pr.MergeCommitSHA == nil {
+			return nil, fmt.Errorf("PR #%d is mergeable but github has no merge commit SHA for it yet, try again shortly", number)
+		}
+
+		return pr, nil
+	}
 }
 
 func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *github.Response) error) error {

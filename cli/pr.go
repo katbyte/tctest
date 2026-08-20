@@ -10,13 +10,11 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/google/go-github/v89/github"
 	"github.com/katbyte/tctest/lib/chttp"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
-	"github.com/katbyte/tctest/lib/gh"
 	"github.com/katbyte/tctest/lib/git"
 	"github.com/katbyte/tctest/lib/provider"
 	"github.com/pkg/browser"
@@ -83,56 +81,6 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 	}
 
 	return serviceTests, nil
-}
-
-// mergeableAttempts and mergeableRetryDelay control how long GetPrForBuild waits for
-// GitHub to finish computing a PR's mergeability (the computation is asynchronous and
-// a GET on the PR is what kicks it off).
-const (
-	mergeableAttempts   = 5
-	mergeableRetryDelay = 3 * time.Second
-)
-
-// GetPrForBuild fetches a PR and verifies builds can be triggered on its merge ref: it
-// must be open, mergeable, and have a merge commit SHA. Mergeable has to be checked
-// explicitly — GitHub keeps returning a stale merge_commit_sha for a PR that has
-// *become* conflicted, so a nil-SHA check alone lets conflicted PRs through to trigger
-// builds on a stale or missing refs/pull/N/merge ref, which then fail (or silently test
-// outdated code) inside TeamCity where nobody sees it.
-func (ghr GithubRepo) GetPrForBuild(number int) (*github.PullRequest, error) {
-	client, ctx := ghr.NewClient()
-
-	for attempt := 1; ; attempt++ {
-		clog.Log.Debugf("fetching data for PR %s/%s/#%d...", ghr.Owner, ghr.Name, number)
-		pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, number)
-		if err != nil {
-			return nil, gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, number))
-		}
-
-		clog.Log.Debugf("  checking pr state: %v", pr.GetState())
-		if pr.GetState() == gh.PRStateClosed {
-			return nil, errors.New("cannot start build for a closed pr")
-		}
-
-		if pr.Mergeable == nil {
-			if attempt < mergeableAttempts {
-				clog.Log.Debugf("  mergeability of PR #%d not yet computed by github, retrying (%d/%d)...", number, attempt, mergeableAttempts)
-				time.Sleep(mergeableRetryDelay)
-				continue
-			}
-			return nil, fmt.Errorf("github has not finished computing mergeability for PR #%d, try again shortly", number)
-		}
-
-		if !pr.GetMergeable() {
-			return nil, fmt.Errorf("PR #%d has merge conflicts that must be resolved before tests can be run", number)
-		}
-
-		if pr.MergeCommitSHA == nil {
-			return nil, fmt.Errorf("PR #%d is mergeable but github has no merge commit SHA for it yet, try again shortly", number)
-		}
-
-		return pr, nil
-	}
 }
 
 // PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
