@@ -176,10 +176,11 @@ type listPR struct {
 }
 
 type mockGitHub struct {
-	srv     *httptest.Server
-	fixture string // fixture tree that backs raw downloads and contents listings
-	prs     map[int]prDef
-	openPRs []listPR // served by GET /repos/{o}/{r}/pulls for the prs command
+	srv        *httptest.Server
+	fixture    string // fixture tree that backs raw downloads and contents listings
+	prs        map[int]prDef
+	openPRs    []listPR     // served by GET /repos/{o}/{r}/pulls for the prs command
+	conflicted map[int]bool // PRs served with mergeable=false (and, like real GitHub, a stale merge_commit_sha)
 }
 
 func newMockGitHub(t *testing.T, fixtureDir string, prs []prDef) *mockGitHub {
@@ -256,10 +257,13 @@ func (m *mockGitHub) handleAPI(w http.ResponseWriter, rest []string) {
 			jsonNotFound(w)
 			return
 		}
+		// merge_commit_sha stays populated even when mergeable is false — real GitHub
+		// keeps serving the stale test-merge SHA for a PR that has become conflicted
 		writeJSON(w, map[string]any{
 			"number":           pr.number,
 			"state":            pr.state,
 			"title":            pr.title,
+			"mergeable":        !m.conflicted[n],
 			"merge_commit_sha": mergeSHA,
 		})
 

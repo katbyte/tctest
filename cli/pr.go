@@ -15,7 +15,6 @@ import (
 	"github.com/katbyte/tctest/lib/chttp"
 	"github.com/katbyte/tctest/lib/clog"
 	"github.com/katbyte/tctest/lib/cout"
-	"github.com/katbyte/tctest/lib/gh"
 	"github.com/katbyte/tctest/lib/git"
 	"github.com/katbyte/tctest/lib/provider"
 	"github.com/pkg/browser"
@@ -45,6 +44,11 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 		if repoPath != "" {
 			f.DiscoveryConfig.LocalRepoPath = repoPath
 			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=AST]</>%s\n", number, title, prURL, cwdWarning)
+			// the AST path fetches refs/pull/N/merge via git, which can succeed on a
+			// stale merge ref for a conflicted PR — verify mergeability via the API first
+			if _, err := ghr.GetPrForBuild(number); err != nil {
+				return nil, err
+			}
 			serviceTests, err = ghr.PrTestsFromAst(number, f.DiscoveryConfig)
 		} else {
 			cout.Printf("Discovering tests for pr <cyan>#%d</> %s <darkGray>%s</> <yellow>[mode=api (fallback)]</>\n", number, title, prURL)
@@ -82,21 +86,12 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 // PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
 // It uses GetPullRequestTestFiles to get the files, groups them into packages, and returns a map of package names to a list of test names.
 func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][]string, error) {
-	client, ctx := ghr.NewClient()
+	_, ctx := ghr.NewClient()
 	httpClient := chttp.NewHTTPClient("HTTP")
 
-	clog.Log.Debugf("fetching data for PR %s/%s/#%d...", ghr.Owner, ghr.Name, pri)
-	pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, pri)
+	pr, err := ghr.GetPrForBuild(pri)
 	if err != nil {
-		return nil, gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, pri))
-	}
-
-	clog.Log.Debugf("  checking pr state: %v", pr.GetState())
-	if pr.GetState() == gh.PRStateClosed {
-		return nil, errors.New("cannot start build for a closed pr")
-	}
-	if pr.MergeCommitSHA == nil {
-		return nil, errors.New("merge commit SHA is nil, is there a merge conflict?")
+		return nil, err
 	}
 
 	clog.Log.Tracef("listing files...")
@@ -190,24 +185,12 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 	return serviceTests, nil
 }
 
-// CheckPrCanBuild verifies a PR exists, is open, and has a merge commit. Used by the
+// CheckPrCanBuild verifies a PR exists, is open, and is mergeable. Used by the
 // direct-trigger path (--service + --all/test regex), which skips discovery and would
 // otherwise happily trigger builds on a stale or missing refs/pull/N/merge ref.
 func (f *FlagData) CheckPrCanBuild(number int) error {
-	ghr := f.NewRepo()
-	client, ctx := ghr.NewClient()
-
-	pr, _, err := client.PullRequests.Get(ctx, ghr.Owner, ghr.Name, number)
-	if err != nil {
-		return gh.WrapGitHubError(err, fmt.Sprintf("fetching PR %s/%s/#%d", ghr.Owner, ghr.Name, number))
-	}
-	if pr.GetState() == gh.PRStateClosed {
-		return errors.New("cannot start build for a closed pr")
-	}
-	if pr.MergeCommitSHA == nil {
-		return errors.New("merge commit SHA is nil, is there a merge conflict?")
-	}
-	return nil
+	_, err := f.NewRepo().GetPrForBuild(number)
+	return err
 }
 
 // GetPullRequestTestFiles fetches all changed files in a PR and determines the related test files.

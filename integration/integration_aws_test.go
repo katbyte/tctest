@@ -72,9 +72,10 @@ func TestAPIDiscoveryAWS(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		args []string
-		want []trigger
+		name     string
+		args     []string
+		want     []trigger
+		wantExit int
 	}{
 		{
 			name: "resource change derives plain and generated test files",
@@ -110,9 +111,10 @@ func TestAPIDiscoveryAWS(t *testing.T) {
 			},
 		},
 		{
-			name: "generated and export files only trigger nothing",
-			args: []string{"pr", "10006"},
-			want: nil,
+			name:     "generated and export files only trigger nothing and fail",
+			args:     []string{"pr", "10006"},
+			want:     nil,
+			wantExit: 1,
 		},
 		{
 			name: "plural data source derives only its own test",
@@ -124,9 +126,10 @@ func TestAPIDiscoveryAWS(t *testing.T) {
 			// service dir (stream_processor_migrate.go), the prefix match finds no
 			// sibling tests, so nothing runs even though stream_processor tests
 			// arguably should
-			name: "flat migrate helper alone triggers nothing",
-			args: []string{"pr", "10008"},
-			want: nil,
+			name:     "flat migrate helper alone triggers nothing and fails",
+			args:     []string{"pr", "10008"},
+			want:     nil,
+			wantExit: 1,
 		},
 		{
 			name: "--service filters a multi-service pr",
@@ -153,8 +156,8 @@ func TestAPIDiscoveryAWS(t *testing.T) {
 			tc := newMockTeamCity(t)
 
 			res := runTCTest(t, awsEnv(gh, tc), tt.args...)
-			if res.exitCode != 0 {
-				t.Fatalf("exit code = %d, want 0\noutput:\n%s", res.exitCode, res.output)
+			if res.exitCode != tt.wantExit {
+				t.Fatalf("exit code = %d, want %d\noutput:\n%s", res.exitCode, tt.wantExit, res.output)
 			}
 			assertTriggers(t, tc, res, tt.want)
 		})
@@ -168,9 +171,10 @@ func TestASTDiscoveryAWS(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name string
-		args []string
-		want []trigger
+		name     string
+		args     []string
+		want     []trigger
+		wantExit int
 	}{
 		{
 			name: "sdk resource without _resource suffix derives its test family",
@@ -194,9 +198,10 @@ func TestASTDiscoveryAWS(t *testing.T) {
 			// exports_test.go is classified as a unit test here because AST mode
 			// reads its content (no TestAcc funcs), unlike the API path's
 			// filename-based fallback
-			name: "generated and export files only trigger nothing",
-			args: []string{"pr", "20004"},
-			want: nil,
+			name:     "generated and export files only trigger nothing and fail",
+			args:     []string{"pr", "20004"},
+			want:     nil,
+			wantExit: 1,
 		},
 	}
 
@@ -212,8 +217,8 @@ func TestASTDiscoveryAWS(t *testing.T) {
 			env["TCTEST_LOCAL_REPO_PATH"] = clone
 
 			res := runTCTest(t, env, tt.args...)
-			if res.exitCode != 0 {
-				t.Fatalf("exit code = %d, want 0\noutput:\n%s", res.exitCode, res.output)
+			if res.exitCode != tt.wantExit {
+				t.Fatalf("exit code = %d, want %d\noutput:\n%s", res.exitCode, tt.wantExit, res.output)
 			}
 			if !strings.Contains(res.output, "[mode=AST]") {
 				t.Fatalf("expected AST discovery mode to be used\noutput:\n%s", res.output)
