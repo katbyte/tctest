@@ -5,6 +5,10 @@
 - exit non-zero with `no builds were triggered` when discovery finds nothing to run, so CI wrappers (e.g. the azurerm `/test` comment workflow) report it instead of treating a no-op run as success
 - the AST discovery path verifies mergeability via the API before fetching the merge ref, which could otherwise succeed on a stale ref
 
+## v1.3.0 (unreleased)
+
+- add `--individual`/`-i` flag: for directly changed test files, discover only the individual test functions the PR modifies (by intersecting the PR diff with parsed test declarations) instead of split prefixes that match the whole test family; indirectly discovered test files keep prefix discovery ([#38](https://github.com/katbyte/tctest/issues/38))
+
 ## v1.2.0 (2026-08-10)
 
 - add `--force`/`-f` flag to bypass the `--max-builds-per-pr` check ([#107](https://github.com/katbyte/tctest/pull/107))

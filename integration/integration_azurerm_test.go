@@ -11,40 +11,40 @@ import (
 // azurermPRs defines the PRs the mock GitHub serves for the azurerm fixture.
 var azurermPRs = []prDef{
 	{1001, "open", "changed test file", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", "@@ -55,3 +55,3 @@"},
 	}},
 	{1002, "open", "changed resource file", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified", ""},
 	}},
 	{1003, "open", "changed cross-package helper only", []changedFile{
-		{"internal/services/postgres/validate/database_charset.go", "modified"},
+		{"internal/services/postgres/validate/database_charset.go", "modified", ""},
 	}},
 	{1004, "open", "multiple services", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
-		{"internal/services/dns/dns_a_record_resource.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
+		{"internal/services/dns/dns_a_record_resource.go", "modified", ""},
 	}},
 	{1005, "closed", "closed pr", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
 	}},
 	{1006, "open", "changed untyped data source", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_data_source.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_data_source.go", "modified", ""},
 	}},
 	{1007, "open", "changed typed data source", []changedFile{
-		{"internal/services/dns/dns_zone_data_source.go", "modified"},
+		{"internal/services/dns/dns_zone_data_source.go", "modified", ""},
 	}},
 	{1008, "open", "mixed resource, test, and helper", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified"},
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
-		{"internal/services/postgres/validate/database_charset.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified", ""},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
+		{"internal/services/postgres/validate/database_charset.go", "modified", ""},
 	}},
 	{1009, "open", "conflicted pr", []changedFile{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
 	}},
 	{1020, "open", "postgres improvement", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
 	}},
 	{1021, "open", "dns bug fix", []changedFile{
-		{"internal/services/dns/dns_a_record_resource.go", "modified"},
+		{"internal/services/dns/dns_a_record_resource.go", "modified", ""},
 	}},
 }
 
@@ -52,40 +52,40 @@ var azurermPRs = []prDef{
 // numbers exist in the git fixture upstream.
 var azurermASTPRs = []prDef{
 	{2001, "open", "same-package helper changed", []changedFile{
-		{"internal/services/dns/ipv6_address.go", "modified"},
+		{"internal/services/dns/ipv6_address.go", "modified", ""},
 	}},
 	{2002, "open", "cross-package helper changed", []changedFile{
-		{"internal/services/postgres/validate/database_charset.go", "modified"},
+		{"internal/services/postgres/validate/database_charset.go", "modified", ""},
 	}},
 	{2003, "open", "two-level helper chain changed", []changedFile{
-		{"internal/services/postgres/parse/postgresql_aad_administrator.go", "modified"},
+		{"internal/services/postgres/parse/postgresql_aad_administrator.go", "modified", ""},
 	}},
 	{2004, "open", "vendored dependency changed", []changedFile{
-		{"vendor/github.com/hashicorp/go-azure-sdk/resource-manager/cosmosdb/2024-08-15/cosmosdb/client.go", "modified"},
+		{"vendor/github.com/hashicorp/go-azure-sdk/resource-manager/cosmosdb/2024-08-15/cosmosdb/client.go", "modified", ""},
 	}},
 	{2005, "open", "changed test file", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", "@@ -55,3 +55,3 @@"},
 	}},
 	{2006, "open", "changed resource file", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified", ""},
 	}},
 	{2007, "open", "multiple services", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
-		{"internal/services/dns/dns_a_record_resource.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
+		{"internal/services/dns/dns_a_record_resource.go", "modified", ""},
 	}},
 	{2008, "closed", "closed pr", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
 	}},
 	{2009, "open", "changed untyped data source", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_data_source.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_data_source.go", "modified", ""},
 	}},
 	{2010, "open", "changed typed data source", []changedFile{
-		{"internal/services/dns/dns_zone_data_source.go", "modified"},
+		{"internal/services/dns/dns_zone_data_source.go", "modified", ""},
 	}},
 	{2011, "open", "mixed resource, test, and helper", []changedFile{
-		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified"},
-		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
-		{"internal/services/postgres/validate/database_charset.go", "modified"},
+		{"internal/services/postgres/postgresql_flexible_server_resource.go", "modified", ""},
+		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
+		{"internal/services/postgres/validate/database_charset.go", "modified", ""},
 	}},
 	{2012, "open", "conflicted pr", []changedFile{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified"},
@@ -167,6 +167,11 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			name: "explicit test regex overrides discovery",
 			args: []string{"pr", "1001", "TestAccPostgresqlFlexibleServer_complete"},
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/1001/merge", "TestAccPostgresqlFlexibleServer_complete"}},
+		},
+		{
+			name: "individual flag narrows changed test file to the modified test functions",
+			args: []string{"pr", "1001", "-i"},
+			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/1001/merge", "(TestAccPostgresqlFlexibleServer_complete)"}},
 		},
 		{
 			name: "--all overrides the discovered regex with TestAcc",
@@ -274,6 +279,11 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			name: "cross-package helper traces through import symbol usage",
 			args: []string{"pr", "2002"},
 			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/2002/merge", "(TestAccPostgresqlFlexibleServerDatabase)"}},
+		},
+		{
+			name: "individual flag narrows changed test file to the modified test functions",
+			args: []string{"pr", "2005", "-i"},
+			want: []trigger{{"TF_E2E_POSTGRES", "refs/pull/2005/merge", "(TestAccPostgresqlFlexibleServer_complete)"}},
 		},
 		{
 			name: "two-level helper chain traces only symbol users",

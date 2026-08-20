@@ -28,6 +28,7 @@ type File struct {
 	Type         FileType
 	DiscoveredBy []string // e.g. CHANGED, DERIVED, TRACED, VENDOR
 	content      []byte   // optional file content for self-reading methods
+	patch        string   // unified diff for directly changed files (from the GitHub PR file listing), used for individual test discovery
 }
 
 // NewFileWithPath creates a File from a relative path and a local repository root.
@@ -93,6 +94,12 @@ func (f *File) GetContent() ([]byte, error) {
 func (f *File) SetContent(content []byte) {
 	f.content = content
 	f.Classify()
+}
+
+// SetPatch stores the file's unified diff from the GitHub PR file listing, enabling individual test discovery
+// (ExtractChangedTests) for directly changed test files.
+func (f *File) SetPatch(patch string) {
+	f.patch = patch
 }
 
 // InServicePackage returns true if the path is within a service directory.
