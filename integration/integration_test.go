@@ -157,6 +157,7 @@ func cloneUpstream(t *testing.T, upstream string) string {
 type changedFile struct {
 	path   string
 	status string // "modified", "added", "removed"
+	patch  string // unified diff served in the files listing, used by --individual test discovery
 }
 
 type prDef struct {
@@ -277,7 +278,11 @@ func (m *mockGitHub) handleAPI(w http.ResponseWriter, rest []string) {
 		}
 		files := make([]map[string]any, 0, len(pr.files))
 		for _, f := range pr.files {
-			files = append(files, map[string]any{"filename": f.path, "status": f.status})
+			entry := map[string]any{"filename": f.path, "status": f.status}
+			if f.patch != "" {
+				entry["patch"] = f.patch
+			}
+			files = append(files, entry)
 		}
 		writeJSON(w, files)
 

@@ -138,7 +138,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 			}
 
 			f.SetContent(content)
-			tests, err := f.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
+			tests, err := f.DiscoverTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter, cfg.IndividualTests)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)
@@ -251,6 +251,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 			}
 
 			if pf.Type == provider.FileTypeTest {
+				pf.SetPatch(f.GetPatch()) // keep the diff so --individual can narrow discovery to the modified test functions
 				changedServiceFiles = append(changedServiceFiles, pf)
 				addTestFile(pf, "CHANGED")
 				continue

@@ -7,32 +7,32 @@ import (
 
 var awsPRs = []prDef{
 	{10001, "open", "changed resource file", []changedFile{
-		{"internal/service/rekognition/collection.go", "modified"},
+		{"internal/service/rekognition/collection.go", "modified", ""},
 	}},
 	{10002, "open", "two resources one service", []changedFile{
-		{"internal/service/rekognition/collection.go", "modified"},
-		{"internal/service/rekognition/project.go", "modified"},
+		{"internal/service/rekognition/collection.go", "modified", ""},
+		{"internal/service/rekognition/project.go", "modified", ""},
 	}},
 	{10003, "open", "changed sdk resource without _resource suffix", []changedFile{
-		{"internal/service/s3/bucket.go", "modified"},
+		{"internal/service/s3/bucket.go", "modified", ""},
 	}},
 	{10004, "open", "changed test file", []changedFile{
-		{"internal/service/s3/bucket_test.go", "modified"},
+		{"internal/service/s3/bucket_test.go", "modified", ""},
 	}},
 	{10005, "open", "multiple services", []changedFile{
-		{"internal/service/rekognition/collection.go", "modified"},
-		{"internal/service/s3/bucket.go", "modified"},
+		{"internal/service/rekognition/collection.go", "modified", ""},
+		{"internal/service/s3/bucket.go", "modified", ""},
 	}},
 	{10006, "open", "generated and export files only", []changedFile{
-		{"internal/service/rekognition/service_package_gen.go", "modified"},
-		{"internal/service/rekognition/exports_test.go", "modified"},
-		{"internal/service/rekognition/tags_gen.go", "modified"},
+		{"internal/service/rekognition/service_package_gen.go", "modified", ""},
+		{"internal/service/rekognition/exports_test.go", "modified", ""},
+		{"internal/service/rekognition/tags_gen.go", "modified", ""},
 	}},
 	{10007, "open", "changed plural data source", []changedFile{
-		{"internal/service/s3/buckets_data_source.go", "modified"},
+		{"internal/service/s3/buckets_data_source.go", "modified", ""},
 	}},
 	{10008, "open", "changed flat migrate helper", []changedFile{
-		{"internal/service/rekognition/stream_processor_migrate.go", "modified"},
+		{"internal/service/rekognition/stream_processor_migrate.go", "modified", ""},
 	}},
 }
 
@@ -40,19 +40,19 @@ var awsPRs = []prDef{
 // numbers exist in the aws git fixture upstream.
 var awsASTPRs = []prDef{
 	{20001, "open", "changed sdk resource without _resource suffix", []changedFile{
-		{"internal/service/s3/bucket.go", "modified"},
+		{"internal/service/s3/bucket.go", "modified", ""},
 	}},
 	{20002, "open", "changed framework resource", []changedFile{
-		{"internal/service/rekognition/stream_processor.go", "modified"},
+		{"internal/service/rekognition/stream_processor.go", "modified", ""},
 	}},
 	{20003, "open", "multiple services", []changedFile{
-		{"internal/service/rekognition/collection.go", "modified"},
-		{"internal/service/s3/bucket.go", "modified"},
+		{"internal/service/rekognition/collection.go", "modified", ""},
+		{"internal/service/s3/bucket.go", "modified", ""},
 	}},
 	{20004, "open", "generated and export files only", []changedFile{
-		{"internal/service/rekognition/service_package_gen.go", "modified"},
-		{"internal/service/rekognition/exports_test.go", "modified"},
-		{"internal/service/rekognition/tags_gen.go", "modified"},
+		{"internal/service/rekognition/service_package_gen.go", "modified", ""},
+		{"internal/service/rekognition/exports_test.go", "modified", ""},
+		{"internal/service/rekognition/tags_gen.go", "modified", ""},
 	}},
 }
 

@@ -444,7 +444,7 @@ func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (res
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>%s</>\n", pf.ColouredFileName(), pf.TypeLabel()))
 
 			case provider.FileTypeTest:
-
+				pf.SetPatch(f.GetPatch()) // keep the diff so --individual can narrow discovery to the modified test functions
 				dc.AddTestFile(pf, "CHANGED")
 				dc.ChangedFileLines = append(dc.ChangedFileLines, fmt.Sprintf("    %s <darkGray>[TEST]</>\n", pf.ColouredFileName()))
 
@@ -860,7 +860,7 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			tests, err := pfile.ExtractTests(dc.Config.SplitTestsOn, dc.Config.ReappendSplitCharacter)
+			tests, err := pfile.DiscoverTests(dc.Config.SplitTestsOn, dc.Config.ReappendSplitCharacter, dc.Config.IndividualTests)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)

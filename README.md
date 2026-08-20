@@ -51,6 +51,7 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 | `TCTEST_ACCTEST_FILE_SUFFIX_REGEXES` | `--acctest-file-suffix-regexes` | Comma-separated regex suffix (without `.go`) to find relevant acceptance-test files for a resource. |
 | `TCTEST_SPLIT_TESTS_ON` | `--splitteston` | Character to split test names on (default: `_`) |
 | `TCTEST_REAPPEND_SPLIT_CHARACTER` | `--reappend-split-character` | Whether to append the split character to the resulting test filter for more precise filtering |
+| `TCTEST_INDIVIDUAL` | `--individual`, `-i` | Discover individual test functions by full name instead of split prefixes: directly changed test files yield only the tests the PR modifies, indirectly discovered files yield every test they contain |
 | `TCTEST_WAIT` | `--wait`, `-w` | Wait for builds to complete |
 | `TCTEST_LATESTBUILD` | `--latest` | Get the latest build |
 | `TCTEST_SKIP_QUEUE` | `--skip-queue`, `-q` | Put the build to the top of the queue |
@@ -221,6 +222,19 @@ tctest list 3232 -r hashicorp/terraform-provider-aws
 ```
 For custom usecases, you can override `--fileregex` and `--acctest-file-suffix-regexes` flags.
 run `tctest --help` to see their defaults.
+
+By default a changed test file contributes all of its tests as split prefixes (e.g. `TestAccPostgresqlFlexibleServer`,
+which matches the whole test family). With `--individual`/`-i`, tctest reads the PR diff and narrows directly changed
+test files to just the test functions the PR actually modifies, listed by their full names:
+
+```bash
+tctest list -i 3232
+# TestAccPostgresqlFlexibleServer_complete
+```
+
+With `-i`, prefixes are never used: test files discovered indirectly (e.g. via a changed resource file, where any of
+the resource's tests could be affected) list every test function they contain, by full name. The flag also works with
+`pr` and `prs` to trigger only the discovered tests.
 
 ### `results` — Show build results
 
