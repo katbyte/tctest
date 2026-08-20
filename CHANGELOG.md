@@ -1,4 +1,4 @@
-## v1.2.0 (unreleased)
+## v1.2.0 (2026-08-10)
 
 - add `--force`/`-f` flag to bypass the `--max-builds-per-pr` check ([#107](https://github.com/katbyte/tctest/pull/107))
 - include the build type id and TeamCity's error response in the "unable to trigger build" error instead of just the HTTP status code ([#107](https://github.com/katbyte/tctest/pull/107))
