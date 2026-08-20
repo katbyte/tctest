@@ -223,13 +223,13 @@ tctest list 3232 -r hashicorp/terraform-provider-aws
 For custom usecases, you can override `--fileregex` and `--acctest-file-suffix-regexes` flags.
 run `tctest --help` to see their defaults.
 
-By default a changed test file contributes all of its tests as split prefixes (e.g. `TestAccAWSInstance`, which matches
-the whole test family). With `--individual`/`-i`, tctest reads the PR diff and narrows directly changed test files to
-just the test functions the PR actually modifies, listed by their full names:
+By default a changed test file contributes all of its tests as split prefixes (e.g. `TestAccPostgresqlFlexibleServer`,
+which matches the whole test family). With `--individual`/`-i`, tctest reads the PR diff and narrows directly changed
+test files to just the test functions the PR actually modifies, listed by their full names:
 
 ```bash
 tctest list -i 3232
-# TestAccAWSInstance_RootBlockDevice_KmsKeyArn
+# TestAccPostgresqlFlexibleServer_complete
 ```
 
 Test files discovered indirectly (e.g. via a changed resource file, where any of the resource's tests could be
