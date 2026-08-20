@@ -7,7 +7,9 @@ import (
 
 const (
 	testNamePrefix   = "TestAccPostgresqlFlexibleServer"
+	testNameBasic    = "TestAccPostgresqlFlexibleServer_basic"
 	testNameComplete = "TestAccPostgresqlFlexibleServer_complete"
+	testNameImport   = "TestAccPostgresqlFlexibleServer_requiresImport"
 )
 
 const testFileContent = `package example
@@ -83,7 +85,7 @@ func TestExtractChangedTests(t *testing.T) {
 		},
 		"changes across two tests": {
 			patch:  "@@ -5,3 +5,3 @@\n@@ -19,2 +19,2 @@",
-			want:   []string{"TestAccPostgresqlFlexibleServer_basic", "TestAccPostgresqlFlexibleServer_requiresImport"},
+			want:   []string{testNameBasic, testNameImport},
 			wantOk: true,
 		},
 		"change only to non-test helper": {
@@ -93,7 +95,7 @@ func TestExtractChangedTests(t *testing.T) {
 		},
 		"hunk with no count (single line)": {
 			patch:  "@@ -6 +6 @@",
-			want:   []string{"TestAccPostgresqlFlexibleServer_basic"},
+			want:   []string{testNameBasic},
 			wantOk: true,
 		},
 		"pure deletion still marks position": {
@@ -143,12 +145,12 @@ func TestDiscoverTests(t *testing.T) {
 		"individual without patch lists all full names": {
 			patch:      "",
 			individual: true,
-			want:       []string{"TestAccPostgresqlFlexibleServer_basic", testNameComplete, "TestAccPostgresqlFlexibleServer_requiresImport"},
+			want:       []string{testNameBasic, testNameComplete, testNameImport},
 		},
 		"individual with helper-only diff lists all full names": {
 			patch:      "@@ -15,3 +15,3 @@",
 			individual: true,
-			want:       []string{"TestAccPostgresqlFlexibleServer_basic", testNameComplete, "TestAccPostgresqlFlexibleServer_requiresImport"},
+			want:       []string{testNameBasic, testNameComplete, testNameImport},
 		},
 	}
 
