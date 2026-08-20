@@ -1,3 +1,7 @@
+## v1.3.0 (unreleased)
+
+- `--wait` now errors when a build is cancelled (e.g. by TeamCity on a temporary VCS error) instead of treating it as a successful run with no results, and includes TeamCity's cancellation reason ([#31](https://github.com/katbyte/tctest/issues/31))
+
 ## v1.2.0 (2026-08-10)
 
 - add `--force`/`-f` flag to bypass the `--max-builds-per-pr` check ([#107](https://github.com/katbyte/tctest/pull/107))

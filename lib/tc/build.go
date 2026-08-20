@@ -145,11 +145,57 @@ func (s Server) WaitForBuild(buildID, queueTimeout, runTimeout int) error {
 		}
 
 		if body == "finished" {
-			return nil
+			// 'finished' alone isn't success — cancelled builds (e.g. TeamCity hitting a temporary VCS error like
+			// "cannot find commit") also report state 'finished', and would otherwise look like a clean run with no results
+			return s.CheckFinishedBuild(buildID)
 		}
 
 		time.Sleep(1 * time.Minute)
 	}
+}
+
+// finishedBuildResp is the subset of a build's detail needed to tell a cancelled build apart from one that ran
+type finishedBuildResp struct {
+	XMLName      xml.Name `xml:"build"`
+	Status       string   `xml:"status,attr"`
+	StatusText   string   `xml:"statusText"`
+	CanceledInfo *struct {
+		Text string `xml:"text"`
+	} `xml:"canceledInfo"`
+}
+
+// CheckFinishedBuild returns an error if a finished build was cancelled instead of run to completion, including
+// TeamCity's cancellation reason when it provides one. Cancelled builds carry a canceledInfo element and status
+// UNKNOWN, either of which is treated as cancellation.
+func (s Server) CheckFinishedBuild(buildID int) error {
+	statusCode, body, err := s.makeGetRequest(fmt.Sprintf("/app/rest/2018.1/builds/%d", buildID))
+	if err != nil {
+		return fmt.Errorf("error fetching status for build %d: %w", buildID, err)
+	}
+	if statusCode != http.StatusOK {
+		return fmt.Errorf("HTTP status NOT OK: %d fetching status for build %d", statusCode, buildID)
+	}
+
+	var build finishedBuildResp
+	if err := xml.Unmarshal([]byte(body), &build); err != nil {
+		return fmt.Errorf("unable to decode XML for build %d: %w", buildID, err)
+	}
+
+	if build.CanceledInfo == nil && build.Status != "UNKNOWN" {
+		return nil
+	}
+
+	reason := ""
+	if build.CanceledInfo != nil {
+		reason = build.CanceledInfo.Text
+	}
+	if reason == "" {
+		reason = build.StatusText
+	}
+	if reason == "" {
+		return fmt.Errorf("build %d was cancelled", buildID)
+	}
+	return fmt.Errorf("build %d was cancelled: %s", buildID, reason)
 }
 
 func (s Server) CheckBuildLogStatus(statusCode, buildID int) error {
