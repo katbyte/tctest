@@ -860,7 +860,7 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			tests, err := extractTests(pfile, dc.Config)
+			tests, err := pfile.DiscoverTests(dc.Config.SplitTestsOn, dc.Config.ReappendSplitCharacter, dc.Config.IndividualTests)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)

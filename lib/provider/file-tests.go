@@ -122,6 +122,28 @@ func (f *File) changedLineRanges() []lineRange {
 	return ranges
 }
 
+// DiscoverTests extracts a file's test names for build triggering. With individual set, a directly changed test file
+// (which carries its PR patch) yields only the full names of the test functions the PR modifies; everything else —
+// individual off, no patch (e.g. a file discovered via a sibling resource), or a diff touching only non-test code —
+// falls back to ExtractTests' split-prefix behaviour over the whole file.
+func (f *File) DiscoverTests(splitOn string, reappend, individual bool) ([]string, error) {
+	if individual {
+		tests, ok, err := f.ExtractChangedTests()
+		if err != nil {
+			return nil, err
+		}
+		if ok && len(tests) > 0 {
+			return tests, nil
+		}
+		if ok {
+			// the diff only touched non-test code in the file (e.g. a shared helper), so any of its tests could be
+			// affected — better to fall back to whole-file discovery than silently discover nothing
+			clog.Log.Debugf("    %s: no test functions overlap the PR diff, falling back to whole-file discovery", f.RelPath)
+		}
+	}
+	return f.ExtractTests(splitOn, reappend)
+}
+
 // ExtractChangedTests returns the full (unsplit) names of the acceptance test functions whose declarations overlap
 // the file's PR patch — i.e. only the tests actually modified, not every test in the file. It returns ok=false when
 // the file has no stored patch (it wasn't directly changed in the PR, e.g. discovered via a sibling resource file),

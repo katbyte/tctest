@@ -121,3 +121,49 @@ func TestExtractChangedTests(t *testing.T) {
 		})
 	}
 }
+
+func TestDiscoverTests(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		patch      string
+		individual bool
+		want       []string
+	}{
+		"individual off splits to prefixes": {
+			patch:      "@@ -10,2 +10,2 @@",
+			individual: false,
+			want:       []string{testNamePrefix, testNamePrefix, testNamePrefix},
+		},
+		"individual with patch yields modified full names": {
+			patch:      "@@ -10,2 +10,2 @@",
+			individual: true,
+			want:       []string{testNameComplete},
+		},
+		"individual without patch falls back to prefixes": {
+			patch:      "",
+			individual: true,
+			want:       []string{testNamePrefix, testNamePrefix, testNamePrefix},
+		},
+		"individual with helper-only diff falls back to prefixes": {
+			patch:      "@@ -15,3 +15,3 @@",
+			individual: true,
+			want:       []string{testNamePrefix, testNamePrefix, testNamePrefix},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newTestFile(t, tc.patch)
+			got, err := f.DiscoverTests("_", false, tc.individual)
+			if err != nil {
+				t.Fatalf("DiscoverTests() error: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("DiscoverTests() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

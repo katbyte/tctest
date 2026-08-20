@@ -83,27 +83,6 @@ func (f *FlagData) GetPrTests(number int, title string) (map[string][]string, er
 	return serviceTests, nil
 }
 
-// extractTests extracts test names from a discovered test file honouring --individual: a directly changed test file
-// (which carries its PR patch) yields only the full names of the test functions the PR modifies, while everything else
-// (and --individual off) falls back to ExtractTests' split-prefix behaviour.
-func extractTests(pf *provider.File, cfg DiscoveryConfig) ([]string, error) {
-	if cfg.IndividualTests {
-		tests, ok, err := pf.ExtractChangedTests()
-		if err != nil {
-			return nil, err
-		}
-		if ok && len(tests) > 0 {
-			return tests, nil
-		}
-		if ok {
-			// the diff only touched non-test code in the file (e.g. a shared helper), so any of its tests could be
-			// affected — better to fall back to whole-file discovery than silently discover nothing
-			clog.Log.Debugf("    %s: no test functions overlap the PR diff, falling back to whole-file discovery", pf.RelPath)
-		}
-	}
-	return pf.ExtractTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter)
-}
-
 // PrTestsFromAPI fetches the list of files changed in a PR and determines which tests should be run.
 // It uses GetPullRequestTestFiles to get the files, groups them into packages, and returns a map of package names to a list of test names.
 func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][]string, error) {
@@ -159,7 +138,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 			}
 
 			f.SetContent(content)
-			tests, err := extractTests(&f, cfg)
+			tests, err := f.DiscoverTests(cfg.SplitTestsOn, cfg.ReappendSplitCharacter, cfg.IndividualTests)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)
