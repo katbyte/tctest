@@ -4,9 +4,6 @@
 - error clearly when a PR has merge conflicts: check the PR's `mergeable` state (retrying while GitHub computes it) instead of relying on `merge_commit_sha`, which GitHub keeps serving stale for PRs that become conflicted — previously builds were triggered on a stale or missing merge ref and failed invisibly inside TeamCity
 - exit non-zero with `no builds were triggered` when discovery finds nothing to run, so CI wrappers (e.g. the azurerm `/test` comment workflow) report it instead of treating a no-op run as success
 - the AST discovery path verifies mergeability via the API before fetching the merge ref, which could otherwise succeed on a stale ref
-
-## v1.3.0 (unreleased)
-
 - add `--individual`/`-i` flag: for directly changed test files, discover only the individual test functions the PR modifies (by intersecting the PR diff with parsed test declarations) instead of split prefixes that match the whole test family; indirectly discovered test files keep prefix discovery ([#38](https://github.com/katbyte/tctest/issues/38))
 
 ## v1.2.0 (2026-08-10)

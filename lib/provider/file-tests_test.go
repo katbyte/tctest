@@ -6,36 +6,36 @@ import (
 )
 
 const (
-	testNamePrefix = "TestAccAWSInstance"
-	testNameKms    = "TestAccAWSInstance_RootBlockDevice_KmsKeyArn"
+	testNamePrefix   = "TestAccPostgresqlFlexibleServer"
+	testNameComplete = "TestAccPostgresqlFlexibleServer_complete"
 )
 
 const testFileContent = `package example
 
 import "testing"
 
-func TestAccAWSInstance_basic(t *testing.T) {
+func TestAccPostgresqlFlexibleServer_basic(t *testing.T) {
 	t.Log("basic")
 }
 
-// TestAccAWSInstance_RootBlockDevice_KmsKeyArn tests the kms key arn
-func TestAccAWSInstance_RootBlockDevice_KmsKeyArn(t *testing.T) {
-	t.Log("kms")
+// TestAccPostgresqlFlexibleServer_complete tests the complete configuration
+func TestAccPostgresqlFlexibleServer_complete(t *testing.T) {
+	t.Log("complete")
 	t.Log("more")
 }
 
-func testAccCheckInstanceExists(t *testing.T) {
+func testAccCheckPostgresqlFlexibleServerExists(t *testing.T) {
 	t.Log("helper")
 }
 
-func TestAccAWSInstance_disappears(t *testing.T) {
-	t.Log("disappears")
+func TestAccPostgresqlFlexibleServer_requiresImport(t *testing.T) {
+	t.Log("import")
 }
 `
 
 func newTestFile(t *testing.T, patch string) *File {
 	t.Helper()
-	f := NewFile("internal/service/ec2/instance_test.go")
+	f := NewFile("internal/services/postgres/postgresql_flexible_server_resource_test.go")
 	f.SetContent([]byte(testFileContent))
 	if patch != "" {
 		f.SetPatch(patch)
@@ -71,19 +71,19 @@ func TestExtractChangedTests(t *testing.T) {
 			wantOk: false,
 		},
 		"change inside one test": {
-			// lines 10-11 are inside TestAccAWSInstance_RootBlockDevice_KmsKeyArn (doc comment starts line 9)
+			// lines 10-11 are inside TestAccPostgresqlFlexibleServer_complete (doc comment starts line 9)
 			patch:  "@@ -10,2 +10,2 @@\n-	t.Log(\"kms\")\n+	t.Log(\"kms!\")",
-			want:   []string{testNameKms},
+			want:   []string{testNameComplete},
 			wantOk: true,
 		},
 		"change to doc comment counts": {
 			patch:  "@@ -9,1 +9,1 @@",
-			want:   []string{testNameKms},
+			want:   []string{testNameComplete},
 			wantOk: true,
 		},
 		"changes across two tests": {
 			patch:  "@@ -5,3 +5,3 @@\n@@ -19,2 +19,2 @@",
-			want:   []string{"TestAccAWSInstance_basic", "TestAccAWSInstance_disappears"},
+			want:   []string{"TestAccPostgresqlFlexibleServer_basic", "TestAccPostgresqlFlexibleServer_requiresImport"},
 			wantOk: true,
 		},
 		"change only to non-test helper": {
@@ -93,12 +93,12 @@ func TestExtractChangedTests(t *testing.T) {
 		},
 		"hunk with no count (single line)": {
 			patch:  "@@ -6 +6 @@",
-			want:   []string{"TestAccAWSInstance_basic"},
+			want:   []string{"TestAccPostgresqlFlexibleServer_basic"},
 			wantOk: true,
 		},
 		"pure deletion still marks position": {
 			patch:  "@@ -12,1 +12,0 @@",
-			want:   []string{testNameKms},
+			want:   []string{testNameComplete},
 			wantOk: true,
 		},
 	}
