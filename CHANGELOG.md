@@ -8,6 +8,7 @@
 
 ## v1.2.0 (2026-08-10)
 
+- send the discovered service package name as a TeamCity build property, `SERVICE_PACKAGE` by default; rename it with `--properties-service-package`/`TCTEST_PROPERTIES_SERVICE_PACKAGE` or set it empty to not send it ([#116](https://github.com/katbyte/tctest/pull/116))
 - add `--force`/`-f` flag to bypass the `--max-builds-per-pr` check ([#107](https://github.com/katbyte/tctest/pull/107))
 - include the build type id and TeamCity's error response in the "unable to trigger build" error instead of just the HTTP status code ([#107](https://github.com/katbyte/tctest/pull/107))
 - discover AzureRM tests when state migration files (`{service}/migration/{resource_name}_v{N}_to_v{N}.go`) are modified in API mode ([#105](https://github.com/katbyte/tctest/pull/105))

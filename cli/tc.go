@@ -11,10 +11,17 @@ import (
 	"github.com/pkg/browser"
 )
 
+// BuildCmd triggers a TeamCity build. service is the raw service package name ("" when not building per-service);
+// it is used for display and, when --properties-service-package is set, sent as a build property under that name.
 func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (buildID int, buildURL string, err error) {
 	tc := f.NewTCServer()
 
-	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, service, buildTypeID)
+	serviceInfo := ""
+	if service != "" {
+		serviceInfo = "[" + service + "]"
+	}
+
+	cout.Printf("triggering <magenta>%s</>%s @ <darkGray>%s...</>\n", branch, serviceInfo, buildTypeID)
 
 	properties := f.TC.Build.Parameters
 	if f.TC.Build.Comment {
@@ -22,6 +29,17 @@ func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (bui
 			properties += ";"
 		}
 		properties += "POST_GITHUB_COMMENT=true"
+	}
+
+	if name := f.TC.Build.ServicePackageProperty; name != "" && service != "" {
+		// the properties string is parsed on ';' and '=', so either character in the name would corrupt it
+		if strings.ContainsAny(name, ";=") {
+			return 0, "", fmt.Errorf("invalid --properties-service-package property name %q: must not contain ';' or '='", name)
+		}
+		if properties != "" {
+			properties += ";"
+		}
+		properties += name + "=" + service
 	}
 
 	if f.DryRun {

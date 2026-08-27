@@ -221,11 +221,6 @@ func (f *FlagData) resolveServiceFilter() (*serviceFilterResult, error) {
 
 // triggerServiceBuild triggers a build for a single service on a PR
 func (f *FlagData) triggerServiceBuild(service string, prNumber int, testRegEx string) error {
-	serviceInfo := ""
-	if service != "" {
-		serviceInfo = "[" + service + "]"
-	}
-
 	buildTypeID := f.TC.Build.TypeID
 	if service != "" && f.TC.Build.AddServiceSuffix {
 		buildTypeID += "_" + strings.ToUpper(service)
@@ -233,7 +228,7 @@ func (f *FlagData) triggerServiceBuild(service string, prNumber int, testRegEx s
 
 	branch := fmt.Sprintf("refs/pull/%d/merge", prNumber)
 
-	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, serviceInfo)
+	buildID, buildURL, err := f.BuildCmd(buildTypeID, branch, testRegEx, service)
 	if err != nil {
 		cout.Errorf("  <red>ERROR: Unable to trigger build:</> %v\n", err)
 		cout.Println()

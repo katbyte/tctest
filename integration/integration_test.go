@@ -333,6 +333,7 @@ type mockTeamCity struct {
 
 	mu       sync.Mutex
 	triggers []trigger
+	props    []map[string]string // all properties of each trigger, parallel to triggers
 	nextID   int
 }
 
@@ -385,6 +386,7 @@ func (m *mockTeamCity) handle(w http.ResponseWriter, r *http.Request) {
 		Branch:      props["teamcity.build.branch"],
 		TestPattern: props["TEST_PATTERN"],
 	})
+	m.props = append(m.props, props)
 	m.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/xml")
@@ -396,6 +398,15 @@ func (m *mockTeamCity) Triggers() []trigger {
 	defer m.mu.Unlock()
 	out := make([]trigger, len(m.triggers))
 	copy(out, m.triggers)
+	return out
+}
+
+// Properties returns the full property set of each triggered build, in trigger order.
+func (m *mockTeamCity) Properties() []map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]map[string]string, len(m.props))
+	copy(out, m.props)
 	return out
 }
 
