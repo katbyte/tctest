@@ -445,3 +445,80 @@ func TestPrsCommand(t *testing.T) {
 		})
 	}
 }
+
+// TestServicePackageProperty covers --properties-service-package / TCTEST_PROPERTIES_SERVICE_PACKAGE: the discovered
+// service package name is sent as a build property, named SERVICE_PACKAGE by default, renameable, and disableable
+// with an empty value (via the flag; an empty env var falls back to the default as viper treats it as unset).
+func TestServicePackageProperty(t *testing.T) {
+	t.Parallel()
+
+	t.Run("default sends SERVICE_PACKAGE per service", func(t *testing.T) {
+		t.Parallel()
+		scenario(t, "api/azurerm", "properties-service-package default")
+		gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
+		tc := newMockTeamCity(t)
+
+		res := runTCTest(t, azurermEnv(gh, tc), "pr", "1004")
+		if res.exitCode != 0 {
+			t.Fatalf("exit code = %d, want 0\noutput:\n%s", res.exitCode, res.output)
+		}
+
+		props := tc.Properties()
+		if len(props) != 2 {
+			t.Fatalf("expected 2 triggered builds, got %d\noutput:\n%s", len(props), res.output)
+		}
+		got := map[string]bool{}
+		for _, p := range props {
+			got[p["SERVICE_PACKAGE"]] = true
+		}
+		if !got["postgres"] || !got["dns"] {
+			t.Fatalf("expected SERVICE_PACKAGE properties for postgres and dns, got %v\noutput:\n%s", got, res.output)
+		}
+	})
+
+	t.Run("env renames the property", func(t *testing.T) {
+		t.Parallel()
+		scenario(t, "api/azurerm", "properties-service-package renamed")
+		gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
+		tc := newMockTeamCity(t)
+
+		env := azurermEnv(gh, tc)
+		env["TCTEST_PROPERTIES_SERVICE_PACKAGE"] = "PKG"
+
+		res := runTCTest(t, env, "pr", "1001")
+		if res.exitCode != 0 {
+			t.Fatalf("exit code = %d, want 0\noutput:\n%s", res.exitCode, res.output)
+		}
+
+		props := tc.Properties()
+		if len(props) != 1 {
+			t.Fatalf("expected 1 triggered build, got %d\noutput:\n%s", len(props), res.output)
+		}
+		if got := props[0]["PKG"]; got != "postgres" {
+			t.Fatalf("expected PKG=postgres, got %q\noutput:\n%s", got, res.output)
+		}
+		if v, ok := props[0]["SERVICE_PACKAGE"]; ok {
+			t.Fatalf("expected no SERVICE_PACKAGE property when renamed, got %q\noutput:\n%s", v, res.output)
+		}
+	})
+
+	t.Run("empty flag disables the property", func(t *testing.T) {
+		t.Parallel()
+		scenario(t, "api/azurerm", "properties-service-package disabled")
+		gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
+		tc := newMockTeamCity(t)
+
+		res := runTCTest(t, azurermEnv(gh, tc), "pr", "1001", "--properties-service-package", "")
+		if res.exitCode != 0 {
+			t.Fatalf("exit code = %d, want 0\noutput:\n%s", res.exitCode, res.output)
+		}
+
+		props := tc.Properties()
+		if len(props) != 1 {
+			t.Fatalf("expected 1 triggered build, got %d\noutput:\n%s", len(props), res.output)
+		}
+		if v, ok := props[0]["SERVICE_PACKAGE"]; ok {
+			t.Fatalf("expected no SERVICE_PACKAGE property, got %q\noutput:\n%s", v, res.output)
+		}
+	})
+}

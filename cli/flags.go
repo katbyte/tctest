@@ -133,19 +133,20 @@ type FlagsTeamCity struct {
 }
 
 type FlagsTeamCityBuild struct {
-	TypeID           string   `mapstructure:"build-type-id"`
-	LegacyTypeID     string   `mapstructure:"buildtypeid"`
-	Parameters       string   `mapstructure:"properties"`
-	SkipQueue        bool     `mapstructure:"skip-queue"`
-	Wait             bool     `mapstructure:"wait"`
-	Latest           bool     `mapstructure:"latest"`
-	Comment          bool     `mapstructure:"comment"`
-	ForceOldUI       bool     `mapstructure:"build-link-force-old-ui"`
-	AddServiceSuffix bool     `mapstructure:"build-type-id-add-service-suffix"`
-	QueueTimeout     int      `mapstructure:"queue-timeout"`
-	RunTimeout       int      `mapstructure:"run-timeout"`
-	MaxBuildsPerPR   int      `mapstructure:"max-builds-per-pr"`
-	Tags             []string `mapstructure:"tag"`
+	TypeID                 string   `mapstructure:"build-type-id"`
+	LegacyTypeID           string   `mapstructure:"buildtypeid"`
+	Parameters             string   `mapstructure:"properties"`
+	SkipQueue              bool     `mapstructure:"skip-queue"`
+	Wait                   bool     `mapstructure:"wait"`
+	Latest                 bool     `mapstructure:"latest"`
+	Comment                bool     `mapstructure:"comment"`
+	ForceOldUI             bool     `mapstructure:"build-link-force-old-ui"`
+	AddServiceSuffix       bool     `mapstructure:"build-type-id-add-service-suffix"`
+	ServicePackageProperty string   `mapstructure:"properties-service-package"`
+	QueueTimeout           int      `mapstructure:"queue-timeout"`
+	RunTimeout             int      `mapstructure:"run-timeout"`
+	MaxBuildsPerPR         int      `mapstructure:"max-builds-per-pr"`
+	Tags                   []string `mapstructure:"tag"`
 }
 
 func configureFlags(root *cobra.Command) error {
@@ -219,6 +220,7 @@ func configureFlags(root *cobra.Command) error {
 	pflags.String("build-type-id", "", "the TeamCity BuildTypeId to trigger")
 	pflags.Bool("build-type-id-add-service-suffix", false, "append _SERVICE to the build type ID for per-service build configurations (previously appended automatically by --buildtypeid)")
 	pflags.StringP("properties", "p", "", "the TeamCity build parameters to use in 'KEY1=VALUE1;KEY2=VALUE2' format")
+	pflags.String("properties-service-package", "SERVICE_PACKAGE", "build property name to send the discovered service package name as (set empty to not send it)")
 	pflags.BoolP("skip-queue", "q", false, "Put the build to the queue top")
 	pflags.BoolP("wait", "w", false, "Wait for the build to complete before tctest exits")
 	pflags.BoolP("latest", "", false, "gets the latest build in TeamCity")
@@ -242,6 +244,7 @@ func configureFlags(root *cobra.Command) error {
 		"username":                         "TCTEST_USER",
 		"password":                         "TCTEST_PASS",
 		"properties":                       "TCTEST_PROPERTIES",
+		"properties-service-package":       "TCTEST_PROPERTIES_SERVICE_PACKAGE",
 		"repo":                             "TCTEST_REPO",
 		"fileregex":                        "TCTEST_FILEREGEX",
 		"acctest-file-suffix-regexes":      "TCTEST_ACCTEST_FILE_SUFFIX_REGEXES",

@@ -45,6 +45,7 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 | `TCTEST_USER` | `--username` | TeamCity username (alternative to token) |
 | `TCTEST_PASS` | `--password` | TeamCity password (alternative to token) |
 | `TCTEST_PROPERTIES` | `--properties`, `-p` | Default build parameters in `KEY=VALUE;KEY2=VALUE2` format |
+| `TCTEST_PROPERTIES_SERVICE_PACKAGE` | `--properties-service-package` | Build property name to send the discovered service package name as (default: `SERVICE_PACKAGE`) |
 | `GITHUB_TOKEN` | `--token-gh` | GitHub OAuth token |
 | `TCTEST_REPO` | `--repo`, `-r` | GitHub repository (e.g. `hashicorp/terraform-provider-azurerm`) |
 | `TCTEST_FILEREGEX` | `--fileregex` | Regex to filter PR files for test discovery |
@@ -260,6 +261,7 @@ These flags apply to any command that triggers a build:
 | Flag | Short | Description |
 |---|---|---|
 | `--properties` | `-p` | Build parameters in `KEY=VALUE;KEY2=VALUE2` format |
+| `--properties-service-package` | | Build property name to send the discovered service package name as (default: `SERVICE_PACKAGE`; set empty via the flag or config file to not send it) |
 | `--comment` | `-c` | Post a GitHub comment with test results (`POST_GITHUB_COMMENT=true`) |
 | `--skip-queue` | `-q` | Put the build to the top of the queue |
 | `--wait` | `-w` | Wait for the build to complete before exiting |
