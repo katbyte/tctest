@@ -1,14 +1,14 @@
-## v1.3.0 (unreleased)
+## v1.3.0 (2026-08-27)
 
-- `--wait` now errors when a build is cancelled (e.g. by TeamCity on a temporary VCS error) instead of treating it as a successful run with no results, and includes TeamCity's cancellation reason ([#31](https://github.com/katbyte/tctest/issues/31))
-- error clearly when a PR has merge conflicts: check the PR's `mergeable` state (retrying while GitHub computes it) instead of relying on `merge_commit_sha`, which GitHub keeps serving stale for PRs that become conflicted — previously builds were triggered on a stale or missing merge ref and failed invisibly inside TeamCity
-- exit non-zero with `no builds were triggered` when discovery finds nothing to run, so CI wrappers (e.g. the azurerm `/test` comment workflow) report it instead of treating a no-op run as success
-- the AST discovery path verifies mergeability via the API before fetching the merge ref, which could otherwise succeed on a stale ref
-- add `--individual`/`-i` flag to discover individual test functions by full name instead of split prefixes: directly changed test files yield only the tests the PR modifies (by intersecting the PR diff with parsed test declarations), while indirectly discovered test files (e.g. via a changed resource) yield every test they contain ([#38](https://github.com/katbyte/tctest/issues/38))
+- `--wait` now errors when a build is cancelled (e.g. by TeamCity on a temporary VCS error) instead of treating it as a successful run with no results, and includes TeamCity's cancellation reason ([#31](https://github.com/katbyte/tctest/issues/31), [#113](https://github.com/katbyte/tctest/pull/113))
+- error clearly when a PR has merge conflicts: check the PR's `mergeable` state (retrying while GitHub computes it) instead of relying on `merge_commit_sha`, which GitHub keeps serving stale for PRs that become conflicted — previously builds were triggered on a stale or missing merge ref and failed invisibly inside TeamCity ([#110](https://github.com/katbyte/tctest/pull/110))
+- exit non-zero with `no builds were triggered` when discovery finds nothing to run, so CI wrappers (e.g. the azurerm `/test` comment workflow) report it instead of treating a no-op run as success ([#110](https://github.com/katbyte/tctest/pull/110))
+- the AST discovery path verifies mergeability via the API before fetching the merge ref, which could otherwise succeed on a stale ref ([#110](https://github.com/katbyte/tctest/pull/110))
+- add `--individual`/`-i` flag to discover individual test functions by full name instead of split prefixes: directly changed test files yield only the tests the PR modifies (by intersecting the PR diff with parsed test declarations), while indirectly discovered test files (e.g. via a changed resource) yield every test they contain ([#38](https://github.com/katbyte/tctest/issues/38), [#114](https://github.com/katbyte/tctest/pull/114))
+- send the discovered service package name as a TeamCity build property, `SERVICE_PACKAGE` by default; rename it with `--properties-service-package`/`TCTEST_PROPERTIES_SERVICE_PACKAGE` or set it empty to not send it ([#116](https://github.com/katbyte/tctest/pull/116))
 
 ## v1.2.0 (2026-08-10)
 
-- send the discovered service package name as a TeamCity build property, `SERVICE_PACKAGE` by default; rename it with `--properties-service-package`/`TCTEST_PROPERTIES_SERVICE_PACKAGE` or set it empty to not send it ([#116](https://github.com/katbyte/tctest/pull/116))
 - add `--force`/`-f` flag to bypass the `--max-builds-per-pr` check ([#107](https://github.com/katbyte/tctest/pull/107))
 - include the build type id and TeamCity's error response in the "unable to trigger build" error instead of just the HTTP status code ([#107](https://github.com/katbyte/tctest/pull/107))
 - discover AzureRM tests when state migration files (`{service}/migration/{resource_name}_v{N}_to_v{N}.go`) are modified in API mode ([#105](https://github.com/katbyte/tctest/pull/105))
