@@ -4,3 +4,4 @@
 dist/
 tctest
 .tools/bin/
+.tools/venv/

@@ -12,11 +12,32 @@ ACTIONLINT=$(TOOLS_BIN)/actionlint
 GOFUMPT=$(TOOLS_BIN)/gofumpt
 GOLANGCI_LINT=$(TOOLS_BIN)/golangci-lint
 
-# one rule builds any tool: the import path comes from the tool directives in .tools/go.mod
+# non-Go tools also live in .tools/bin at pinned versions, but the pins are here (dependabot
+# cannot bump them): shellcheck is a static haskell binary downloaded from its github release,
+# yamllint is python installed into a repo-local venv. both rebuild when this makefile changes.
+SHELLCHECK_VERSION=v0.11.0
+YAMLLINT_VERSION=1.38.0
+SHELLCHECK=$(TOOLS_BIN)/shellcheck
+YAMLLINT=$(TOOLS_BIN)/yamllint
+
+# one rule builds any Go tool: the import path comes from the tool directives in .tools/go.mod
 # (via go list tool), so the makefile never repeats it - add a tool there and a variable above
 $(TOOLS_BIN)/%: .tools/go.mod .tools/go.sum
 	@echo "==> building $* (version pinned in .tools/go.mod)..."
 	@cd .tools && go build -o bin/$* $$(go list tool | grep "/$*$$")
+
+# explicit rules take precedence over the pattern rule above for the non-Go tools
+$(SHELLCHECK): makefile
+	@echo "==> downloading shellcheck $(SHELLCHECK_VERSION)..."
+	@mkdir -p $(TOOLS_BIN)
+	@os=$$(uname | tr 'A-Z' 'a-z'); arch=$$(uname -m); [ "$$arch" = "arm64" ] && arch=aarch64; \
+		curl -sSfL "https://github.com/koalaman/shellcheck/releases/download/$(SHELLCHECK_VERSION)/shellcheck-$(SHELLCHECK_VERSION).$$os.$$arch.tar.xz" \
+		| tar -xJ -O shellcheck-$(SHELLCHECK_VERSION)/shellcheck > $@ && chmod +x $@
+
+$(YAMLLINT): makefile
+	@echo "==> installing yamllint $(YAMLLINT_VERSION) into .tools/venv..."
+	@mkdir -p $(TOOLS_BIN)
+	@python3 -m venv .tools/venv && .tools/venv/bin/pip install -q yamllint==$(YAMLLINT_VERSION) && ln -sf ../venv/bin/yamllint $@
 
 default: fmt build
 
@@ -34,7 +55,7 @@ install: ## Install tctest into GOPATH/bin with version info from git
 	@echo "==> installing..."
 	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
 
-tools: $(ACTIONLINT) $(GOFUMPT) $(GOLANGCI_LINT) ## Build the pinned dev tools from .tools/go.mod into .tools/bin (shellcheck and yamllint come from brew/apt)
+tools: $(ACTIONLINT) $(GOFUMPT) $(GOLANGCI_LINT) $(SHELLCHECK) $(YAMLLINT) ## Install all pinned dev tools into .tools/bin
 
 ##@ Formatting
 fmt: $(GOFUMPT) $(GOLANGCI_LINT) ## Fix Go formatting (gofmt, gofumpt, goimports)
@@ -54,23 +75,21 @@ lint: $(GOLANGCI_LINT) ## Check source code with the golangci linters
 	@echo "==> Checking source code against linters..."
 	$(GOLANGCI_LINT) run ./...
 
-actionlint: $(ACTIONLINT) ## Check GitHub workflows with actionlint (shellcheck rule is skipped if shellcheck is not installed)
+actionlint: $(ACTIONLINT) $(SHELLCHECK) ## Check GitHub workflows with actionlint (incl. shellcheck on run blocks)
 	@echo "==> Checking workflows with actionlint..."
-	@$(ACTIONLINT) -shellcheck=shellcheck
+	@$(ACTIONLINT) -shellcheck=$(SHELLCHECK)
 
 lint-fix: $(GOLANGCI_LINT) ## Fix source code with all golangci linters
 	@echo "==> Checking source code against linters (applying autofixes)..."
 	$(GOLANGCI_LINT) run --fix ./...
 
-yamllint: ## Check YAML files with yamllint (config in .yamllint.yml)
-	@command -v yamllint >/dev/null || (echo "yamllint not installed. Install via: brew install yamllint (macOS) or apt/pip install yamllint (Linux)" && exit 1)
+yamllint: $(YAMLLINT) ## Check YAML files with yamllint (config in .yamllint.yml)
 	@echo "==> Checking YAML files with yamllint..."
-	@yamllint -s .
+	@$(YAMLLINT) -s .
 
-shellcheck: ## Check shell scripts with shellcheck
-	@command -v shellcheck >/dev/null || (echo "shellcheck not installed. Install via: brew install shellcheck (macOS) or apt install shellcheck (Linux)" && exit 1)
+shellcheck: $(SHELLCHECK) ## Check shell scripts with shellcheck
 	@echo "==> Checking shell scripts with shellcheck..."
-	@shellcheck scripts/*.sh .github/images/*.sh
+	@$(SHELLCHECK) scripts/*.sh .github/images/*.sh
 
 depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 	@echo "==> Checking source code with go mod tidy..."
