@@ -4,8 +4,6 @@
 ![build](https://github.com/katbyte/tctest/actions/workflows/build.yaml/badge.svg)
 ![test](https://github.com/katbyte/tctest/actions/workflows/pr-tests.yaml/badge.svg)
 ![lint](https://github.com/katbyte/tctest/actions/workflows/pr-golangci-lint.yaml/badge.svg)
-![shellcheck](https://github.com/katbyte/tctest/actions/workflows/pr-shellcheck.yaml/badge.svg)
-![govulncheck](https://github.com/katbyte/tctest/actions/workflows/pr-govulncheck.yaml/badge.svg)
 ![CodeQL](https://github.com/katbyte/tctest/actions/workflows/codeql-analysis.yml/badge.svg)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/katbyte/tctest?color=00ADD8)](https://github.com/katbyte/tctest/blob/main/go.mod)
 [![License](https://img.shields.io/github/license/katbyte/tctest?color=blue)](https://github.com/katbyte/tctest/blob/main/LICENSE)
