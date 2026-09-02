@@ -5,13 +5,23 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 )
 
-const TeamCityAPIVersion = "2026.1"
+// DefaultAPIVersion is the TeamCity REST API version used in request paths when Server.APIVersion is not set.
+const DefaultAPIVersion = "2026.1"
 
 type Server struct {
-	Server string
-	token  *string
-	User   *string
-	Pass   *string
+	Server     string
+	APIVersion string
+	token      *string
+	User       *string
+	Pass       *string
+}
+
+// apiVersion returns the REST API version segment for request paths, falling back to DefaultAPIVersion when unset.
+func (s Server) apiVersion() string {
+	if s.APIVersion != "" {
+		return s.APIVersion
+	}
+	return DefaultAPIVersion
 }
 
 func NewServer(server, token, username, password string) Server {
