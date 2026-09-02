@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/katbyte/tctest/lib/tc"
 )
 
 const mergeSHA = "0123456789abcdef0123456789abcdef01234567"
@@ -346,7 +348,7 @@ func newMockTeamCity(t *testing.T) *mockTeamCity {
 }
 
 func (m *mockTeamCity) handle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/2018.1/buildQueue" {
+	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/"+tc.TeamCityAPIVersion+"/buildQueue" {
 		http.NotFound(w, r)
 		return
 	}
@@ -470,10 +472,10 @@ func scenario(t *testing.T, kind, name string) {
 
 // assertTriggers compares the builds TeamCity received against want,
 // ignoring order (service iteration order is not defined).
-func assertTriggers(t *testing.T, tc *mockTeamCity, res runResult, want []trigger) {
+func assertTriggers(t *testing.T, mock *mockTeamCity, res runResult, want []trigger) {
 	t.Helper()
 
-	got := tc.Triggers()
+	got := mock.Triggers()
 	byKey := func(s []trigger) {
 		sort.Slice(s, func(i, j int) bool {
 			if s[i].BuildTypeID != s[j].BuildTypeID {
