@@ -3,7 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/katbyte/tctest/lib/clog"
@@ -16,7 +16,7 @@ func (f *FlagData) GetAndRunPrsTests(prs map[int]string, testRegExParam string) 
 	for number := range prs {
 		prNumbers = append(prNumbers, number)
 	}
-	sort.Ints(prNumbers)
+	slices.Sort(prNumbers)
 
 	// if --service is specified, resolve and validate services up front
 	serviceFilter, err := f.resolveServiceFilter()

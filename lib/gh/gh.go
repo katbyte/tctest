@@ -48,11 +48,11 @@ func (t Token) NewClient() (*github.Client, context.Context) {
 	ctx := context.Background()
 	httpClient := common.NewHTTPClient("GitHub")
 
-	if t := t.Token; t != nil {
-		t := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: *t},
+	if tok := t.Token; tok != nil {
+		src := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: *tok},
 		)
-		httpClient = oauth2.NewClient(ctx, t)
+		httpClient = oauth2.NewClient(ctx, src)
 	}
 
 	httpClient.Transport = common.NewRetryTransport("GitHub", common.NewTransport("GitHub", httpClient.Transport), 3)

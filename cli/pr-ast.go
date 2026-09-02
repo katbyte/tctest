@@ -9,7 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -73,11 +73,10 @@ func (ghr GithubRepo) PrTestsFromAst(pri int, cfg DiscoveryConfig) (map[string][
 			return nil, fmt.Errorf("reading input: %w", err)
 		}
 
-		if strings.EqualFold(answer, "y") || strings.EqualFold(answer, "yes") {
-			force = true
-		} else {
+		if !strings.EqualFold(answer, "y") && !strings.EqualFold(answer, "yes") {
 			return nil, fmt.Errorf("repo at %s has uncommitted changes, aborting", repoPath)
 		}
+		force = true
 	}
 
 	// ensure repo path is a clean git clone (cloning if needed)
@@ -404,8 +403,8 @@ func (dc *AstDiscoveryContext) SortedTestFiles() []*provider.File {
 	for _, pf := range dc.TestFiles {
 		files = append(files, pf)
 	}
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].RelPath < files[j].RelPath
+	slices.SortFunc(files, func(a, b *provider.File) int {
+		return strings.Compare(a.RelPath, b.RelPath)
 	})
 	return files
 }
@@ -854,13 +853,11 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 	sem := make(chan struct{}, dc.Config.Concurrency)
 
 	for _, pf := range dc.SortedTestFiles() {
-		wg.Add(1)
-		go func(pfile *provider.File) {
-			defer wg.Done()
+		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			tests, err := pfile.DiscoverTests(dc.Config.SplitTestsOn, dc.Config.ReappendSplitCharacter, dc.Config.IndividualTests)
+			tests, err := pf.DiscoverTests(dc.Config.SplitTestsOn, dc.Config.ReappendSplitCharacter, dc.Config.IndividualTests)
 			if err != nil {
 				mu.Lock()
 				errs = append(errs, err)
@@ -871,13 +868,13 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 			mu.Lock()
 			for _, t := range tests {
 				clog.Log.Debugf("test: %s", t)
-				if _, ok := serviceTestMap[pfile.Service]; !ok {
-					serviceTestMap[pfile.Service] = make(map[string]bool)
+				if _, ok := serviceTestMap[pf.Service]; !ok {
+					serviceTestMap[pf.Service] = make(map[string]bool)
 				}
-				serviceTestMap[pfile.Service][t] = true
+				serviceTestMap[pf.Service][t] = true
 			}
 			mu.Unlock()
-		}(pf)
+		})
 	}
 
 	wg.Wait()
@@ -891,7 +888,7 @@ func (dc *AstDiscoveryContext) ParseTestsConcurrently() (map[string][]string, er
 			serviceTests[service] = append(serviceTests[service], test)
 		}
 		// map iteration order is random; sort so the generated test regex is deterministic
-		sort.Strings(serviceTests[service])
+		slices.Sort(serviceTests[service])
 	}
 	return serviceTests, nil
 }

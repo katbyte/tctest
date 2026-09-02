@@ -1,3 +1,4 @@
+// Package main implements tctest, a CLI to trigger TeamCity acceptance-test builds for provider PRs and branches.
 package main
 
 import (

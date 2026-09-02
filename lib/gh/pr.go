@@ -1,9 +1,10 @@
 package gh
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strconv"
 	"time"
 
@@ -29,7 +30,7 @@ func (r Repo) CloneURL() string {
 
 // CheckoutPR fetches the merge ref for a PR and checks out FETCH_HEAD in the given repo path.
 // Returns the short SHA of the checked-out merge commit.
-func (r Repo) CheckoutPR(repoPath string, prNumber int) (string, error) {
+func (Repo) CheckoutPR(repoPath string, prNumber int) (string, error) {
 	if err := git.FetchPRMergeRef(repoPath, prNumber); err != nil {
 		return "", fmt.Errorf("failed to fetch PR merge ref: %w", err)
 	}
@@ -146,8 +147,8 @@ func (r Repo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
 		return nil, fmt.Errorf("failed to get all prs for %s/%s: %w", r.Owner, r.Name, err)
 	}
 
-	sort.Slice(allPRs, func(i, j int) bool {
-		return allPRs[i].GetNumber() < allPRs[j].GetNumber()
+	slices.SortFunc(allPRs, func(a, b github.PullRequest) int {
+		return cmp.Compare(a.GetNumber(), b.GetNumber())
 	})
 
 	return &allPRs, nil

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 
@@ -110,9 +109,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 	sem := make(chan struct{}, cfg.Concurrency)
 
 	for _, f := range filesFiltered {
-		wg.Add(1)
-		go func(f provider.File) {
-			defer wg.Done()
+		wg.Go(func() {
 			sem <- struct{}{}        // acquire semaphore
 			defer func() { <-sem }() // release semaphore
 
@@ -158,7 +155,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 				serviceTestMap[service][t] = true
 			}
 			mu.Unlock()
-		}(f)
+		})
 	}
 
 	wg.Wait()
@@ -179,7 +176,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 			serviceTests[service] = append(serviceTests[service], test)
 		}
 		// map iteration order is random; sort so the generated test regex is deterministic
-		sort.Strings(serviceTests[service])
+		slices.Sort(serviceTests[service])
 	}
 
 	return serviceTests, nil
@@ -363,8 +360,8 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 	for _, pf := range testFiles {
 		sortedTestFiles = append(sortedTestFiles, pf)
 	}
-	sort.Slice(sortedTestFiles, func(i, j int) bool {
-		return sortedTestFiles[i].RelPath < sortedTestFiles[j].RelPath
+	slices.SortFunc(sortedTestFiles, func(a, b *provider.File) int {
+		return strings.Compare(a.RelPath, b.RelPath)
 	})
 
 	// print test files

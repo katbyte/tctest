@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/katbyte/tctest/lib/clog"
@@ -65,7 +65,7 @@ func (ghr GithubRepo) ListServices() ([]string, error) {
 			}
 		}
 
-		sort.Strings(services)
+		slices.Sort(services)
 		return services, nil
 	}
 

@@ -68,7 +68,7 @@ Complete documentation is available at https://github.com/katbyte/tctest`,
 			return resolveBuildTypeID(cmd)
 		},
 		RunE: func(_ *cobra.Command, _ []string) error {
-			fmt.Printf("Run \"tctest help\" for more information about available tctest commands.\n")
+			fmt.Println("Run \"tctest help\" for more information about available tctest commands.")
 			return nil
 		},
 	}
