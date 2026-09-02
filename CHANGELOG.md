@@ -1,3 +1,7 @@
+## v1.3.0 (2026-09-02)
+
+- update TeamCity API versions to latest supported by server [#119](https://github.com/katbyte/tctest/pull/119))
+
 ## v1.3.0 (2026-08-27)
 
 - `--wait` now errors when a build is cancelled (e.g. by TeamCity on a temporary VCS error) instead of treating it as a successful run with no results, and includes TeamCity's cancellation reason ([#31](https://github.com/katbyte/tctest/issues/31), [#113](https://github.com/katbyte/tctest/pull/113))
