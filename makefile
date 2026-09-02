@@ -58,7 +58,7 @@ lint-fix: ## Fix source code with all golangci linters
 yamllint: ## Check YAML files with yamllint (config in .yamllint.yml)
 	@command -v yamllint >/dev/null || (echo "yamllint not installed. Install via: brew install yamllint (macOS) or apt/pip install yamllint (Linux)" && exit 1)
 	@echo "==> Checking YAML files with yamllint..."
-	@yamllint .
+	@yamllint -s .
 
 shellcheck: ## Check shell scripts with shellcheck
 	@command -v shellcheck >/dev/null || (echo "shellcheck not installed. Install via: brew install shellcheck (macOS) or apt install shellcheck (Linux)" && exit 1)

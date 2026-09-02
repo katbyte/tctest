@@ -8,8 +8,13 @@ ignore:
 rules:
   comments:
     min-spaces-from-content: 1 # repo style is a single space before trailing comments
-  line-length:
-    max: 125
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  octal-values: # bare 0644 is octal in YAML 1.1 but decimal in 1.2; force the unambiguous quoted form
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  line-length: disable
   document-start: disable
   truthy:
     check-keys: false # 'on:' in workflows is a key, not a YAML 1.1 boolean

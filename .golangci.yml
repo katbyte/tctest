@@ -35,7 +35,7 @@ linters:
     - intrange # finds for loops that could use Go 1.22+ integer ranges (for i := range n)
     - misspell # finds commonly misspelled English words.
     - mirror # reports mismatched bytes/strings function pairs causing needless conversions
-    - modernize # suggests simplifications using modern Go language and library features (any, slices.Contains, etc.)
+    - modernize # suggests simplifications using modern Go language and library features (any, slices.Contains, strings.CutPrefix, etc.)
     - nilerr # Finds code that returns nil after it checks that the error is not nil.
     - nilnesserr # finds code that checks one error but mistakenly returns a different nil error
     - nakedret # Checks that functions with naked returns are not longer than a maximum size
@@ -89,7 +89,7 @@ linters:
     exhaustive:
       default-signifies-exhaustive: true # a default: case satisfies the exhaustiveness check
     gocritic:
-      enabled-tags: [diagnostic, style, performance] # extra checks like hugeParam and rangeValCopy beyond the defaults
+      enabled-tags: [diagnostic, style, performance] # enables extra checks like hugeParam and rangeValCopy beyond the default set
       settings:
         # this is a network-bound CLI; only flag genuinely huge copies, not every mid-size struct
         rangeValCopy:
