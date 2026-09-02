@@ -449,8 +449,7 @@ func runTCTest(t *testing.T, env map[string]string, args ...string) runResult {
 	err := cmd.Run()
 	res := runResult{output: out.String()}
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			res.exitCode = exitErr.ExitCode()
 		} else {
 			t.Fatalf("running tctest %v: %v\n%s", args, err, out.String())

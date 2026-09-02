@@ -22,10 +22,12 @@ install: ## Install tctest into GOPATH/bin with version info from git
 	@echo "==> installing..."
 	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
 
-tools: ## Install the tools required for development (golangci-lint)
+tools: ## Install the tools required for development (golangci-lint, actionlint; shellcheck comes from brew/apt)
 	@echo "==> installing required tooling..."
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
 		sh -s -- -b $(shell go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
+	@echo "==> installing go.mod tool directive tools (actionlint)..."
+	go install tool
 
 ##@ Formatting
 fmt: ## Fix Go formatting (gofmt, gofumpt, goimports)
@@ -41,13 +43,22 @@ goimports: ## Fix imports with golangci-lint (goimports)
 	golangci-lint fmt -E goimports ./...
 
 ##@ Linting & Dependencies
-lint: ## Check source code with the golangci linters
+lint: actionlint ## Check source code with the golangci linters and workflows with actionlint
 	@echo "==> Checking source code against linters..."
 	golangci-lint run ./...
+
+actionlint: ## Check GitHub workflows with actionlint (shellcheck rule is skipped if shellcheck is not installed)
+	@echo "==> Checking workflows with actionlint..."
+	@go tool actionlint -shellcheck=shellcheck
 
 lint-fix: ## Fix source code with all golangci linters
 	@echo "==> Checking source code against linters (applying autofixes)..."
 	golangci-lint run --fix ./...
+
+shellcheck: ## Check shell scripts with shellcheck
+	@command -v shellcheck >/dev/null || (echo "shellcheck not installed. Install via: brew install shellcheck (macOS) or apt install shellcheck (Linux)" && exit 1)
+	@echo "==> Checking shell scripts with shellcheck..."
+	@shellcheck scripts/*.sh .github/images/*.sh
 
 depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 	@echo "==> Checking source code with go mod tidy..."
@@ -64,6 +75,6 @@ test: build ## Run unit and integration tests
 	go test $$(go list ./... | grep -v '/integration$$') -timeout ${TEST_TIMEOUT}
 	@set -o pipefail; go test ./integration/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
-check-all: build test lint depscheck ## Run build + test + lint + depscheck
+check-all: build test lint shellcheck depscheck ## Run build + test + lint + shellcheck + depscheck
 
-.PHONY: default all help fmt goimports build lint lint-fix depscheck check-all install tools test
+.PHONY: default all help fmt goimports build lint lint-fix actionlint shellcheck depscheck check-all install tools test
