@@ -1,7 +1,7 @@
 name: Workflow Action Lint
 
 # Lints .github/workflows/ with rhysd/actionlint (expression/context errors, shellcheck on run:
-# blocks, action input validation). actionlint is pinned via the tool directive in go.mod so the
+# blocks, action input validation). actionlint is pinned in .tools/go.mod (built by make) so the
 # gomod dependabot config keeps it up to date; its config lives in .github/actionlint.yaml.
 
 permissions:
@@ -15,7 +15,7 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/actionlint*'
-      - 'go.mod'
+      - '.tools/**'
       - 'makefile'
 
 concurrency:

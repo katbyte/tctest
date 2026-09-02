@@ -9,6 +9,7 @@ on:
       - '.github/**'
       - '**.go'
       - 'vendor/**'
+      - '.tools/**'
       - '.github/workflows/**'
 
 permissions:
@@ -22,7 +23,13 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ./.go-version
+      # build the version pinned in .tools/go.mod so CI and make use the same binary, then hand
+      # it to the action (install-mode: none) which still provides caching and inline annotations
+      - name: Build golangci-lint from .tools/go.mod
+        run: |
+          make .tools/bin/golangci-lint
+          echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: 'v2.12.2'
+          install-mode: none
           args: -v
