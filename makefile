@@ -56,7 +56,7 @@ goimports: $(GOLANGCI_LINT) ## Fix imports with golangci-lint (goimports)
 	$(GOLANGCI_LINT) fmt -E goimports ./...
 
 ##@ Linting & Dependencies
-lint: actionlint yamllint shellcheck $(GOLANGCI_LINT) ## Check source code with the golangci linters, workflows with actionlint, YAML with yamllint, and shell scripts with shellcheck
+lint: $(GOLANGCI_LINT) ## Check source code with the golangci linters
 	@echo "==> Checking source code against linters..."
 	$(GOLANGCI_LINT) run ./...
 
@@ -97,6 +97,6 @@ test: build ## Run unit and integration tests
 	go test $$(go list ./... | grep -v '/integration$$') -timeout ${TEST_TIMEOUT}
 	@set -o pipefail; go test ./integration/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
-check-all: build test lint depscheck ## Run build + test + lint (incl. shellcheck) + depscheck
+check-all: build test lint actionlint yamllint shellcheck depscheck ## Run build + test + all linters + depscheck
 
 .PHONY: default all help fmt goimports build lint lint-fix actionlint yamllint shellcheck depscheck check-all install tools test
