@@ -35,6 +35,7 @@ $(SHELLCHECK): makefile
 		| tar -xJ -O shellcheck-$(SHELLCHECK_VERSION)/shellcheck > $@ && chmod +x $@
 
 $(YAMLLINT): makefile
+	@command -v python3 >/dev/null || (echo "python3 is required to install yamllint (macOS: xcode CLT; Debian/Ubuntu: apt install python3-venv)" && exit 1)
 	@echo "==> installing yamllint $(YAMLLINT_VERSION) into .tools/venv..."
 	@mkdir -p $(TOOLS_BIN)
 	@python3 -m venv .tools/venv && .tools/venv/bin/pip install -q yamllint==$(YAMLLINT_VERSION) && ln -sf ../venv/bin/yamllint $@
