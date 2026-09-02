@@ -60,7 +60,7 @@ func TestCheckFinishedBuild(t *testing.T) {
 			t.Parallel()
 
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/app/rest/2018.1/builds/123" {
+				if r.URL.Path != "/app/rest/"+TeamCityAPIVersion+"/builds/123" {
 					http.NotFound(w, r)
 					return
 				}

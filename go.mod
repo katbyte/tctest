@@ -1,6 +1,6 @@
 module github.com/katbyte/tctest
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/google/go-github/v89 v89.0.0

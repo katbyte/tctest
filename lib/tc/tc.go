@@ -5,6 +5,8 @@ import (
 	"github.com/katbyte/tctest/lib/clog"
 )
 
+const TeamCityAPIVersion = "2026.1"
+
 type Server struct {
 	Server string
 	token  *string

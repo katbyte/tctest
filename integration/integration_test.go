@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/katbyte/tctest/lib/tc"
 )
 
 const mergeSHA = "0123456789abcdef0123456789abcdef01234567"
@@ -346,7 +348,7 @@ func newMockTeamCity(t *testing.T) *mockTeamCity {
 }
 
 func (m *mockTeamCity) handle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/2018.1/buildQueue" {
+	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/"+tc.TeamCityAPIVersion+"/buildQueue" {
 		http.NotFound(w, r)
 		return
 	}
