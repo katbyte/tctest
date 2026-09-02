@@ -79,7 +79,7 @@ func (s Server) TriggerBuild(buildTypeID, branch, testPattern, buildProperties s
 </build>
 `, xmlEscape(buildTypeID), xmlEscape(branch), xmlEscape(testPattern), bodyAdditionalProperties, strconv.FormatBool(skipQueue))
 
-	return s.makePostRequestWithXMLContentType("/app/rest/"+TeamCityAPIVersion+"/buildQueue", body)
+	return s.makePostRequestWithXMLContentType("/app/rest/"+s.apiVersion()+"/buildQueue", body)
 }
 
 // condenseBody flattens a TeamCity error response body onto a single line so it can be included in an error message;
@@ -107,11 +107,11 @@ func (s Server) BuildLog(buildID int) (statusCode int, body string, err error) {
 }
 
 func (s Server) BuildQueue(buildID int) (statusCode int, body string, err error) {
-	return s.makeGetRequest(fmt.Sprintf("/app/rest/%s/buildQueue/id:%d", TeamCityAPIVersion, buildID))
+	return s.makeGetRequest(fmt.Sprintf("/app/rest/%s/buildQueue/id:%d", s.apiVersion(), buildID))
 }
 
 func (s Server) BuildState(buildID int) (statusCode int, body string, err error) {
-	return s.makeGetRequest(fmt.Sprintf("/app/rest/%s/builds/%d/state", TeamCityAPIVersion, buildID))
+	return s.makeGetRequest(fmt.Sprintf("/app/rest/%s/builds/%d/state", s.apiVersion(), buildID))
 }
 
 func (s Server) WaitForBuild(buildID, queueTimeout, runTimeout int) error {
@@ -168,7 +168,7 @@ type finishedBuildResp struct {
 // TeamCity's cancellation reason when it provides one. Cancelled builds carry a canceledInfo element and status
 // UNKNOWN, either of which is treated as cancellation.
 func (s Server) CheckFinishedBuild(buildID int) error {
-	statusCode, body, err := s.makeGetRequest(fmt.Sprintf("/app/rest/%s/builds/%d", TeamCityAPIVersion, buildID))
+	statusCode, body, err := s.makeGetRequest(fmt.Sprintf("/app/rest/%s/builds/%d", s.apiVersion(), buildID))
 	if err != nil {
 		return fmt.Errorf("error fetching status for build %d: %w", buildID, err)
 	}
@@ -236,7 +236,7 @@ func (s Server) AddTags(buildID int, tags []string) error {
 		}
 
 		// TeamCity REST API expects a simple text body for adding tags
-		statusCode, _, err := s.makePostRequestWithContentType(fmt.Sprintf("/app/rest/%s/builds/id:%d/tags", TeamCityAPIVersion, buildID), tag, "text/plain")
+		statusCode, _, err := s.makePostRequestWithContentType(fmt.Sprintf("/app/rest/%s/builds/id:%d/tags", s.apiVersion(), buildID), tag, "text/plain")
 		if err != nil {
 			return fmt.Errorf("error adding tag '%s' to build %d: %w", tag, buildID, err)
 		}

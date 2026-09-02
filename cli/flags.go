@@ -126,11 +126,12 @@ type FlagsGitHubPrFilter struct {
 }
 
 type FlagsTeamCity struct {
-	Build     FlagsTeamCityBuild `mapstructure:",squash"`
-	ServerURL string             `mapstructure:"server"`
-	Token     string             `mapstructure:"token-tc"`
-	User      string             `mapstructure:"username"`
-	Pass      string             `mapstructure:"password"`
+	Build      FlagsTeamCityBuild `mapstructure:",squash"`
+	ServerURL  string             `mapstructure:"server"`
+	APIVersion string             `mapstructure:"api-version"`
+	Token      string             `mapstructure:"token-tc"`
+	User       string             `mapstructure:"username"`
+	Pass       string             `mapstructure:"password"`
 }
 
 type FlagsTeamCityBuild struct {
@@ -213,6 +214,7 @@ func configureFlags(root *cobra.Command) error {
 
 	// TeamCity Flags (FlagsTeamCity)
 	pflags.StringP("server", "s", "", "the TeamCity server's url")
+	pflags.String("api-version", tc.DefaultAPIVersion, "the TeamCity REST API version to use in request paths")
 	pflags.StringP("token-tc", "t", "", "the TeamCity token to use (consider exporting token to TCTEST_TOKEN_TC instead)")
 	pflags.String("username", "", "the TeamCity user to use")
 	pflags.String("password", "", "the TeamCity password to use (consider exporting pass to TCTEST_PASS instead)")
@@ -236,6 +238,7 @@ func configureFlags(root *cobra.Command) error {
 	// binding map for viper/pflag -> env
 	m := map[string]string{ //nolint:gosec // G101: these are env var names, not credentials
 		"server":                           "TCTEST_SERVER",
+		"api-version":                      "TCTEST_API_VERSION",
 		"buildtypeid":                      "TCTEST_BUILDTYPEID",
 		"build-type-id":                    "TCTEST_BUILD_TYPE_ID",
 		"build-type-id-add-service-suffix": "TCTEST_BUILD_TYPE_ID_ADD_SERVICE_SUFFIX",
@@ -358,5 +361,7 @@ func (cfg DiscoveryConfig) AccTestFileSuffixRegexStrings() string {
 }
 
 func (f *FlagData) NewTCServer() tc.Server {
-	return tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)
+	s := tc.NewServer(f.TC.ServerURL, f.TC.Token, f.TC.User, f.TC.Pass)
+	s.APIVersion = f.TC.APIVersion
+	return s
 }

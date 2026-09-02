@@ -348,7 +348,7 @@ func newMockTeamCity(t *testing.T) *mockTeamCity {
 }
 
 func (m *mockTeamCity) handle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/"+tc.TeamCityAPIVersion+"/buildQueue" {
+	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/"+tc.DefaultAPIVersion+"/buildQueue" {
 		http.NotFound(w, r)
 		return
 	}
