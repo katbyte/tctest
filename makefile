@@ -12,17 +12,11 @@ ACTIONLINT=$(TOOLS_BIN)/actionlint
 GOFUMPT=$(TOOLS_BIN)/gofumpt
 GOLANGCI_LINT=$(TOOLS_BIN)/golangci-lint
 
-$(ACTIONLINT): .tools/go.mod .tools/go.sum
-	@echo "==> building actionlint (version pinned in .tools/go.mod)..."
-	@cd .tools && go build -o bin/actionlint github.com/rhysd/actionlint/cmd/actionlint
-
-$(GOFUMPT): .tools/go.mod .tools/go.sum
-	@echo "==> building gofumpt (version pinned in .tools/go.mod)..."
-	@cd .tools && go build -o bin/gofumpt mvdan.cc/gofumpt
-
-$(GOLANGCI_LINT): .tools/go.mod .tools/go.sum
-	@echo "==> building golangci-lint (version pinned in .tools/go.mod)..."
-	@cd .tools && go build -o bin/golangci-lint github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+# one rule builds any tool: the import path comes from the tool directives in .tools/go.mod
+# (via go list tool), so the makefile never repeats it - add a tool there and a variable above
+$(TOOLS_BIN)/%: .tools/go.mod .tools/go.sum
+	@echo "==> building $* (version pinned in .tools/go.mod)..."
+	@cd .tools && go build -o bin/$* $$(go list tool | grep "/$*$$")
 
 default: fmt build
 
