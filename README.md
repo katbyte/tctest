@@ -40,6 +40,7 @@ Create a file like [`set_env_example.sh`](.github/images/set_env_example.sh) and
 | Variable | Flag | Description |
 |---|---|---|
 | `TCTEST_SERVER` | `--server`, `-s` | TeamCity server URL |
+| `TCTEST_API_VERSION` | `--api-version` | TeamCity REST API version used in request paths (default: `2026.1`) |
 | `TCTEST_BUILD_TYPE_ID` | `--build-type-id`, `-b` | TeamCity build configuration ID |
 | `TCTEST_TOKEN_TC` | `--token-tc`, `-t` | TeamCity authentication token |
 | `TCTEST_USER` | `--username` | TeamCity username (alternative to token) |

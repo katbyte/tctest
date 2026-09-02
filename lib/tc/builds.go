@@ -36,7 +36,7 @@ func (s Server) GetBuildsForPR(buildTypeID string, pr int, latest, wait bool, qu
 		queryArgs += ",count:1"
 	}
 
-	statusCode, body, err := s.makeGetRequest("/app/rest/" + TeamCityAPIVersion + "/builds?locator=" + queryArgs)
+	statusCode, body, err := s.makeGetRequest("/app/rest/" + s.apiVersion() + "/builds?locator=" + queryArgs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to list builds (%s): %w", queryArgs, err)
 	}
