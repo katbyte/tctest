@@ -1,4 +1,4 @@
-## v1.3.0 (2026-09-02)
+## v1.3.1 (2026-09-02)
 
 - update TeamCity API versions to latest supported by server [#119](https://github.com/katbyte/tctest/pull/119))
 
