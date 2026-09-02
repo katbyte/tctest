@@ -7,7 +7,7 @@ on:
     paths:
       - '**.sh'
       - 'makefile'
-      - '.github/workflows/pr-shellcheck.yaml'
+      - '.github/workflows/shellcheck.yaml'
 
 permissions:
   contents: read
