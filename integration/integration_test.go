@@ -472,10 +472,10 @@ func scenario(t *testing.T, kind, name string) {
 
 // assertTriggers compares the builds TeamCity received against want,
 // ignoring order (service iteration order is not defined).
-func assertTriggers(t *testing.T, tc *mockTeamCity, res runResult, want []trigger) {
+func assertTriggers(t *testing.T, mock *mockTeamCity, res runResult, want []trigger) {
 	t.Helper()
 
-	got := tc.Triggers()
+	got := mock.Triggers()
 	byKey := func(s []trigger) {
 		sort.Slice(s, func(i, j int) bool {
 			if s[i].BuildTypeID != s[j].BuildTypeID {
