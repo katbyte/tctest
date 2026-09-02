@@ -15,7 +15,10 @@ linters:
     - bidichk # checks for dangerous unicode character sequences
     - bodyclose # checks whether HTTP response bodies are closed
     - canonicalheader # checks that net/http.Header keys use canonical form (e.g. Content-Type)
+    - containedctx # detects context.Context contained in a struct (should be passed as parameter)
+    - contextcheck # checks whether a function uses a non-inherited context
     - copyloopvar # detects range loop variables that are overwritten in the loop body
+    - dogsled # checks assignments with too many blank identifiers (e.g. x, _, _, _ := f())
     - decorder # check declaration order and count of types, constants, variables and functions.
     - durationcheck # check for common mistakes when working with time.Duration
     - dupword # check for duplicated words in comments
@@ -30,7 +33,9 @@ linters:
     - goconst # finds repeated strings that could be replaced by a constant
     - gocritic # linter for Go source code that specializes in simplifying code
     - govet # reports suspicious constructs. It is roughly the same as 'go vet' (replaced vet and vetshadow)
+    - iface # detects incorrect interface usage (unused, identical, returned concrete-hiding)
     - gosec # Gosec is a security linter for Go source code
+    - importas # enforces consistent import aliases
     - ineffassign # detects when assignments to existing variables are not used
     - intrange # finds for loops that could use Go 1.22+ integer ranges (for i := range n)
     - misspell # finds commonly misspelled English words.
