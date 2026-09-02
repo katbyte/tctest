@@ -1,0 +1,17 @@
+# Configuration for yamllint (run by .github/workflows/workflow-yamllint.yml via `make yamllint`).
+extends: default
+
+ignore:
+  - vendor/
+  - integration/testdata/
+
+rules:
+  comments:
+    min-spaces-from-content: 1 # repo style is a single space before trailing comments
+  line-length:
+    max: 125
+  document-start: disable
+  truthy:
+    check-keys: false # 'on:' in workflows is a key, not a YAML 1.1 boolean
+  brackets:
+    max-spaces-inside: 1 # allow the existing `[ 'main' ]` style

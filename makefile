@@ -22,7 +22,7 @@ install: ## Install tctest into GOPATH/bin with version info from git
 	@echo "==> installing..."
 	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
 
-tools: ## Install the tools required for development (golangci-lint, actionlint; shellcheck comes from brew/apt)
+tools: ## Install the tools required for development (golangci-lint, actionlint; shellcheck and yamllint come from brew/apt)
 	@echo "==> installing required tooling..."
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | \
 		sh -s -- -b $(shell go env GOPATH)/bin ${GOLANGCI_LINT_VERSION}
@@ -43,7 +43,7 @@ goimports: ## Fix imports with golangci-lint (goimports)
 	golangci-lint fmt -E goimports ./...
 
 ##@ Linting & Dependencies
-lint: actionlint ## Check source code with the golangci linters and workflows with actionlint
+lint: actionlint yamllint ## Check source code with the golangci linters, workflows with actionlint, and YAML with yamllint
 	@echo "==> Checking source code against linters..."
 	golangci-lint run ./...
 
@@ -54,6 +54,11 @@ actionlint: ## Check GitHub workflows with actionlint (shellcheck rule is skippe
 lint-fix: ## Fix source code with all golangci linters
 	@echo "==> Checking source code against linters (applying autofixes)..."
 	golangci-lint run --fix ./...
+
+yamllint: ## Check YAML files with yamllint (config in .yamllint.yml)
+	@command -v yamllint >/dev/null || (echo "yamllint not installed. Install via: brew install yamllint (macOS) or apt/pip install yamllint (Linux)" && exit 1)
+	@echo "==> Checking YAML files with yamllint..."
+	@yamllint .
 
 shellcheck: ## Check shell scripts with shellcheck
 	@command -v shellcheck >/dev/null || (echo "shellcheck not installed. Install via: brew install shellcheck (macOS) or apt install shellcheck (Linux)" && exit 1)
@@ -77,4 +82,4 @@ test: build ## Run unit and integration tests
 
 check-all: build test lint shellcheck depscheck ## Run build + test + lint + shellcheck + depscheck
 
-.PHONY: default all help fmt goimports build lint lint-fix actionlint shellcheck depscheck check-all install tools test
+.PHONY: default all help fmt goimports build lint lint-fix actionlint yamllint shellcheck depscheck check-all install tools test
