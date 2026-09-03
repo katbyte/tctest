@@ -279,7 +279,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 			localServiceDir := filepath.Join(dc.RepoPath, serviceDir)
 			symbols := pkgSymbols[pkgPath] // may be nil if no exported symbols tracked
 
-			err := filepath.WalkDir(localServiceDir, func(path string, d os.DirEntry, walkErr error) error {
+			if err := filepath.WalkDir(localServiceDir, func(path string, d os.DirEntry, walkErr error) error {
 				if walkErr != nil {
 					//nolint:nilerr // WalkDir: skip files with errors, continue walking
 					return nil
@@ -386,8 +386,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 				}
 
 				return nil
-			})
-			if err != nil {
+			}); err != nil {
 				clog.Log.Debugf("    error walking %s: %v", localServiceDir, err)
 			}
 		}
@@ -421,7 +420,7 @@ func (dc *AstDiscoveryContext) AddTestFile(pf provider.File, source string) {
 func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (resourcePrefixesByPackage map[string][]string, helperFiles, vendorFiles []provider.File, err error) {
 	resourcePrefixesByPackage = map[string][]string{}
 
-	err = ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
+	if err = ghr.ListAllPullRequestFiles(pri, func(files []*github.CommitFile, _ *github.Response) error {
 		for _, f := range files {
 			if f.Filename == nil {
 				continue
@@ -465,8 +464,7 @@ func (dc *AstDiscoveryContext) CollectChangedFiles(ghr GithubRepo, pri int) (res
 			}
 		}
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to get PR files: %w", err)
 	}
 

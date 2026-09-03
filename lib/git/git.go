@@ -101,8 +101,7 @@ func ResetAndClean(repoPath string) error {
 
 func FetchPRMergeRef(repoPath string, prNumber int) error {
 	ref := fmt.Sprintf("pull/%d/merge", prNumber)
-	_, err := Run(repoPath, "fetch", "origin", ref)
-	if err != nil {
+	if _, err := Run(repoPath, "fetch", "origin", ref); err != nil {
 		return fmt.Errorf("fetching %s: %w (does the PR have a merge conflict?)", ref, err)
 	}
 	return nil

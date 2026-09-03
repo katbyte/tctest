@@ -1,3 +1,6 @@
+# NOTE: this config enables the azproviderlint module plugin, which only exists in the
+# custom-built binary produced by make (.tools/bin/golangci-with-modules, config in
+# .tools/.custom-gcl.yml) - run lints via 'make lint', not stock golangci-lint.
 version: "2"
 
 run:
@@ -12,6 +15,7 @@ linters:
   enable:
     - asasalint                 # check for pass []any as any in variadic func(...any)
     - asciicheck                # ensure code does not contain non-ASCII identifiers
+    - azproviderlint            # katbyte's provider linter (module plugin); AZG general Go style rules only
     - bidichk                   # checks for dangerous unicode character sequences
     - bodyclose                 # checks whether HTTP response bodies are closed
     - canonicalheader           # checks that net/http.Header keys use canonical form (e.g. Content-Type)
@@ -88,6 +92,11 @@ linters:
           - govet
 
   settings:
+    custom:
+      azproviderlint:
+        type: module
+        settings:
+          enable: [AZG] # general Go style rules only; AZR/AZD/AZS are azure-provider specific
     errcheck:
       check-type-assertions: true # unchecked x.(T) assertions panic on mismatch
       exclude-functions:

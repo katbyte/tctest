@@ -52,8 +52,7 @@ func (s Server) GetBuildsForPR(buildTypeID string, pr int, latest, wait bool, qu
 
 	buildLocatorResults := []byte(body)
 	var tcb buildsResp
-	err = xml.Unmarshal(buildLocatorResults, &tcb)
-	if err != nil {
+	if err := xml.Unmarshal(buildLocatorResults, &tcb); err != nil {
 		return nil, err
 	}
 	if len(tcb.Builds) == 0 {
@@ -79,8 +78,7 @@ func (s Server) GetBuildsForPR(buildTypeID string, pr int, latest, wait bool, qu
 		}
 
 		if build.State != "finished" && wait {
-			err := s.WaitForBuild(b.ID, queueTimeout, runTimeout)
-			if err != nil {
+			if err := s.WaitForBuild(b.ID, queueTimeout, runTimeout); err != nil {
 				return nil, fmt.Errorf("error waiting for PR %d, build %d to finish: %w", pr, b.ID, err)
 			}
 		}

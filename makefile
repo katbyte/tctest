@@ -20,6 +20,10 @@ YAMLLINT_VERSION=1.38.0
 SHELLCHECK=$(TOOLS_BIN)/shellcheck
 YAMLLINT=$(TOOLS_BIN)/yamllint
 
+# golangci-lint with the azproviderlint module plugin compiled in (.tools/.custom-gcl.yml);
+# lint runs use this binary, the plain go.mod one exists to bootstrap `golangci-lint custom`
+GOLANGCI_LINT_MODULES=$(TOOLS_BIN)/golangci-with-modules
+
 # one rule builds any Go tool: the import path comes from the tool directives in .tools/go.mod
 # (via go list tool), so the makefile never repeats it - add a tool there and a variable above
 $(TOOLS_BIN)/%: .tools/go.mod .tools/go.sum
@@ -27,6 +31,10 @@ $(TOOLS_BIN)/%: .tools/go.mod .tools/go.sum
 	@cd .tools && go build -o bin/$* $$(go list tool | grep "/$*$$")
 
 # explicit rules take precedence over the pattern rule above for the non-Go tools
+$(GOLANGCI_LINT_MODULES): .tools/.custom-gcl.yml $(GOLANGCI_LINT)
+	@echo "==> building golangci-lint with plugins (versions pinned in .tools/.custom-gcl.yml)..."
+	@cd .tools && bin/golangci-lint custom
+
 $(SHELLCHECK): makefile
 	@echo "==> downloading shellcheck $(SHELLCHECK_VERSION)..."
 	@mkdir -p $(TOOLS_BIN)
@@ -56,7 +64,7 @@ install: ## Install tctest into GOPATH/bin with version info from git
 	@echo "==> installing..."
 	go install -ldflags "-X github.com/katbyte/tctest/lib/version.GitCommit=${GIT_COMMIT} -X github.com/katbyte/tctest/lib/version.Version=${GIT_VERSION}" .
 
-tools: $(ACTIONLINT) $(GOFUMPT) $(GOLANGCI_LINT) $(SHELLCHECK) $(YAMLLINT) ## Install all pinned dev tools into .tools/bin
+tools: $(ACTIONLINT) $(GOFUMPT) $(GOLANGCI_LINT) $(GOLANGCI_LINT_MODULES) $(SHELLCHECK) $(YAMLLINT) ## Install all pinned dev tools into .tools/bin
 
 ##@ Formatting
 fmt: $(GOFUMPT) $(GOLANGCI_LINT) ## Fix Go formatting (gofmt, gofumpt, goimports)
@@ -72,17 +80,17 @@ goimports: $(GOLANGCI_LINT) ## Fix imports with golangci-lint (goimports)
 	$(GOLANGCI_LINT) fmt -E goimports ./...
 
 ##@ Linting & Dependencies
-lint: $(GOLANGCI_LINT) ## Check source code with the golangci linters
+lint: $(GOLANGCI_LINT_MODULES) ## Check source code with the golangci linters (incl. azproviderlint)
 	@echo "==> Checking source code against linters..."
-	$(GOLANGCI_LINT) run ./...
+	$(GOLANGCI_LINT_MODULES) run ./...
 
 actionlint: $(ACTIONLINT) $(SHELLCHECK) ## Check GitHub workflows with actionlint (incl. shellcheck on run blocks)
 	@echo "==> Checking workflows with actionlint..."
 	@$(ACTIONLINT) -shellcheck=$(SHELLCHECK)
 
-lint-fix: $(GOLANGCI_LINT) ## Fix source code with all golangci linters
+lint-fix: $(GOLANGCI_LINT_MODULES) ## Fix source code with all golangci linters
 	@echo "==> Checking source code against linters (applying autofixes)..."
-	$(GOLANGCI_LINT) run --fix ./...
+	$(GOLANGCI_LINT_MODULES) run --fix ./...
 
 yamllint: $(YAMLLINT) ## Check YAML files with yamllint (config in .yamllint.yml)
 	@echo "==> Checking YAML files with yamllint..."
@@ -105,6 +113,11 @@ depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 	@cd .tools && go mod tidy
 	@git diff --exit-code -- .tools/go.mod .tools/go.sum || \
 		(echo; echo "Unexpected difference in .tools/go.mod/go.sum. Run 'cd .tools && go mod tidy' and commit."; exit 1)
+	@echo "==> Checking .tools/.custom-gcl.yml golangci-lint version matches .tools/go.mod..."
+	@modv=$$(cd .tools && go list -m -f '{{.Version}}' github.com/golangci/golangci-lint/v2); \
+		gclv=$$(grep '^version:' .tools/.custom-gcl.yml | awk '{print $$2}'); \
+		[ "$$modv" = "$$gclv" ] || \
+		(echo; echo "golangci-lint version mismatch: .tools/go.mod has $$modv but .tools/.custom-gcl.yml has $$gclv - update .custom-gcl.yml to match."; exit 1)
 
 ##@ Testing
 test: build ## Run unit and integration tests

@@ -211,10 +211,8 @@ func TestASTDiscoveryAWS(t *testing.T) {
 			scenario(t, "ast/aws", tt.name)
 			gh := newMockGitHub(t, "testdata/aws", awsASTPRs)
 			tc := newMockTeamCity(t)
-			clone := cloneUpstream(t, awsUpstream)
-
 			env := awsEnv(gh, tc)
-			env["TCTEST_LOCAL_REPO_PATH"] = clone
+			env["TCTEST_LOCAL_REPO_PATH"] = cloneUpstream(t, awsUpstream)
 
 			res := runTCTest(t, env, tt.args...)
 			if res.exitCode != tt.wantExit {

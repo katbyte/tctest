@@ -23,12 +23,15 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: ./.go-version
-      # build the version pinned in .tools/go.mod so CI and make use the same binary, then hand
-      # it to the action (install-mode: none) which still provides caching and inline annotations
-      - name: Build golangci-lint from .tools/go.mod
+      # build the custom binary (golangci-lint + azproviderlint plugin, versions pinned in
+      # .tools/.custom-gcl.yml) so CI and make use the same binary, then hand it to the action
+      # as `golangci-lint` (install-mode: none) which still provides caching and annotations
+      - name: Build golangci-lint with plugins from .tools
         run: |
-          make .tools/bin/golangci-lint
-          echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
+          make .tools/bin/golangci-with-modules
+          mkdir -p "$RUNNER_TEMP/gclbin"
+          ln -s "$PWD/.tools/bin/golangci-with-modules" "$RUNNER_TEMP/gclbin/golangci-lint"
+          echo "$RUNNER_TEMP/gclbin" >> "$GITHUB_PATH"
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           install-mode: none

@@ -125,7 +125,7 @@ func (r Repo) ListAllPullRequests(state string, cb func([]*github.PullRequest, *
 func (r Repo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
 	var allPRs []github.PullRequest
 
-	err := r.ListAllPullRequests(state, func(prs []*github.PullRequest, _ *github.Response) error {
+	if err := r.ListAllPullRequests(state, func(prs []*github.PullRequest, _ *github.Response) error {
 		for i, p := range prs {
 			if p == nil {
 				clog.Log.Debugf("prs[%d] was nil, skipping", i)
@@ -142,8 +142,7 @@ func (r Repo) GetAllPullRequests(state string) (*[]github.PullRequest, error) {
 		}
 
 		return nil
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, fmt.Errorf("failed to get all prs for %s/%s: %w", r.Owner, r.Name, err)
 	}
 
