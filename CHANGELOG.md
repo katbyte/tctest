@@ -1,7 +1,7 @@
-## v1.3.2 (2026-09-04)
+## v1.3.3 (2026-09-04)
 
 - make the TeamCity API version configurable via `--api-version`/`TCTEST_API_VERSION` instead of hardcoding it ([#122](https://github.com/katbyte/tctest/pull/122))
-- sign releases ([#129](https://github.com/katbyte/tctest/pull/129))
+- sign releases ([#129](https://github.com/katbyte/tctest/pull/129)); signatures use the cosign v3 sigstore bundle format, `checksums.txt.sigstore.json` ([#133](https://github.com/katbyte/tctest/pull/133))
 - ci: add actionlint, shellcheck, and yamllint ([#123](https://github.com/katbyte/tctest/pull/123))
 - ci: restrict workflow token permissions ([#125](https://github.com/katbyte/tctest/pull/125))
 
