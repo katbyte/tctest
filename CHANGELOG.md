@@ -1,3 +1,10 @@
+## v1.3.2 (unreleased)
+
+- make the TeamCity API version configurable via `--api-version`/`TCTEST_API_VERSION` instead of hardcoding it ([#122](https://github.com/katbyte/tctest/pull/122))
+- sign releases ([#129](https://github.com/katbyte/tctest/pull/129))
+- ci: add actionlint, shellcheck, and yamllint ([#123](https://github.com/katbyte/tctest/pull/123))
+- ci: restrict workflow token permissions ([#125](https://github.com/katbyte/tctest/pull/125))
+
 ## v1.3.1 (2026-09-02)
 
 - update TeamCity API versions to latest supported by server [#119](https://github.com/katbyte/tctest/pull/119))
