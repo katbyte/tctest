@@ -67,6 +67,19 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 
+signs:
+  - cmd: cosign
+    artifacts: checksum # signing checksums.txt covers every artifact it lists
+    signature: '${artifact}.sig'
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - '--output-signature=${signature}'
+      - '--output-certificate=${certificate}'
+      - '--yes' # keyless signing via the workflow's OIDC token, no prompt in CI
+      - '${artifact}'
+    output: true
+
 changelog:
   filters:
     exclude:
