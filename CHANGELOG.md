@@ -1,4 +1,4 @@
-## v1.3.2 (unreleased)
+## v1.3.2 (2026-09-04)
 
 - make the TeamCity API version configurable via `--api-version`/`TCTEST_API_VERSION` instead of hardcoding it ([#122](https://github.com/katbyte/tctest/pull/122))
 - sign releases ([#129](https://github.com/katbyte/tctest/pull/129))
