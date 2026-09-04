@@ -1,11 +1,11 @@
 # tctest
 
 [![GitHub release](https://img.shields.io/github/v/release/katbyte/tctest?color=blueviolet)](https://github.com/katbyte/tctest/releases/latest)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/katbyte/tctest?color=00ADD8)](https://github.com/katbyte/tctest/blob/main/go.mod)
+[![License](https://img.shields.io/github/license/katbyte/tctest?color=blue)](https://github.com/katbyte/tctest/blob/main/LICENSE)
 ![build](https://github.com/katbyte/tctest/actions/workflows/build.yaml/badge.svg)
 ![test](https://github.com/katbyte/tctest/actions/workflows/pr-tests.yaml/badge.svg)
 ![lint](https://github.com/katbyte/tctest/actions/workflows/pr-golangci-lint.yaml/badge.svg)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/katbyte/tctest?color=00ADD8)](https://github.com/katbyte/tctest/blob/main/go.mod)
-[![License](https://img.shields.io/github/license/katbyte/tctest?color=blue)](https://github.com/katbyte/tctest/blob/main/LICENSE)
 
 A command-line utility to trigger builds in TeamCity to run provider acceptance tests. Given a PR number it can find the files modified, discover the tests to run, and generate a `TEST_PATTERN` automatically.    
 
