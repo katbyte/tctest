@@ -1,3 +1,7 @@
+## v1.3.3 (2026-09-04)
+
+- fix release signing for the cosign v3 sigstore bundle format: releases now include a `checksums.txt.sigstore.json` bundle ([#133](https://github.com/katbyte/tctest/pull/133))
+
 ## v1.3.2 (2026-09-04)
 
 - make the TeamCity API version configurable via `--api-version`/`TCTEST_API_VERSION` instead of hardcoding it ([#122](https://github.com/katbyte/tctest/pull/122))
