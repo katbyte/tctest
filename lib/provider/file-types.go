@@ -67,8 +67,6 @@ func (f *File) Classify() FileType {
 // TypeLabel returns the display label for this file type (e.g. "[RESOURCE]", "[HELPER]").
 func (f *File) TypeLabel() string {
 	switch f.Type {
-	case FileTypeOther:
-		return "[OTHER]"
 	case FileTypeResource:
 		return "[RESOURCE]"
 	case FileTypeHelper:
@@ -98,8 +96,6 @@ const (
 // TextColour returns the cout colour tag for this file type.
 func (f *File) TextColour() string {
 	switch f.Type {
-	case FileTypeOther:
-		return FileColourOther
 	case FileTypeResource:
 		return FileColourResource
 	case FileTypeHelper:

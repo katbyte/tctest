@@ -82,8 +82,7 @@ func (f *FlagData) BuildCmd(buildTypeID, branch, testRegex, service string) (bui
 		if err != nil {
 			return buildID, buildURL, fmt.Errorf("error waiting for build %d to finish: %w", buildID, err)
 		}
-		err = f.BuildResultsCmd(buildID)
-		if err != nil {
+		if err = f.BuildResultsCmd(buildID); err != nil {
 			return buildID, buildURL, fmt.Errorf("error printing results from build %d: %w", buildID, err)
 		}
 	}

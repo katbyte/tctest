@@ -48,7 +48,7 @@ func resolveBuildTypeID(cmd *cobra.Command) error {
 
 	fmt.Fprintf(os.Stderr, "WARNING: %s is deprecated and will be removed in a future version; use %s instead.\n", oldName, newName)
 	if !viper.GetBool("build-type-id-add-service-suffix") {
-		fmt.Fprintf(os.Stderr, "  Note: _SERVICE is no longer appended to the build type id automatically; if your\n")
+		fmt.Fprint(os.Stderr, "  Note: _SERVICE is no longer appended to the build type id automatically; if your\n")
 		fmt.Fprintf(os.Stderr, "  TeamCity project uses per-service build configurations, set %s.\n", suffixName)
 	}
 
@@ -311,8 +311,7 @@ func configureFlags(root *cobra.Command) error {
 	viper.AddConfigPath(".")
 
 	if err := viper.ReadInConfig(); err != nil {
-		var configFileNotFoundError viper.ConfigFileNotFoundError
-		if !errors.As(err, &configFileNotFoundError) {
+		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
 			clog.Log.Errorf("Error reading config file: %v", err)
 		}
 	}

@@ -20,7 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -449,8 +449,7 @@ func runTCTest(t *testing.T, env map[string]string, args ...string) runResult {
 	err := cmd.Run()
 	res := runResult{output: out.String()}
 	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			res.exitCode = exitErr.ExitCode()
 		} else {
 			t.Fatalf("running tctest %v: %v\n%s", args, err, out.String())
@@ -477,11 +476,11 @@ func assertTriggers(t *testing.T, mock *mockTeamCity, res runResult, want []trig
 
 	got := mock.Triggers()
 	byKey := func(s []trigger) {
-		sort.Slice(s, func(i, j int) bool {
-			if s[i].BuildTypeID != s[j].BuildTypeID {
-				return s[i].BuildTypeID < s[j].BuildTypeID
+		slices.SortFunc(s, func(a, b trigger) int {
+			if c := strings.Compare(a.BuildTypeID, b.BuildTypeID); c != 0 {
+				return c
 			}
-			return s[i].TestPattern < s[j].TestPattern
+			return strings.Compare(a.TestPattern, b.TestPattern)
 		})
 	}
 	byKey(got)

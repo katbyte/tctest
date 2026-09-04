@@ -384,10 +384,8 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			gh := newMockGitHub(t, "testdata/azurerm", azurermASTPRs)
 			gh.conflicted = conflictedPRs
 			tc := newMockTeamCity(t)
-			clone := cloneUpstream(t, azurermUpstream)
-
 			env := azurermEnv(gh, tc)
-			env["TCTEST_LOCAL_REPO_PATH"] = clone
+			env["TCTEST_LOCAL_REPO_PATH"] = cloneUpstream(t, azurermUpstream)
 			maps.Copy(env, tt.extra)
 
 			res := runTCTest(t, env, tt.args...)

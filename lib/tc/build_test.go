@@ -68,8 +68,7 @@ func TestCheckFinishedBuild(t *testing.T) {
 			}))
 			defer ts.Close()
 
-			token := "t"
-			s := Server{Server: ts.URL, token: &token}
+			s := NewServerUsingTokenAuth(ts.URL, "t")
 
 			err := s.CheckFinishedBuild(123)
 			if tc.wantErr == "" {
