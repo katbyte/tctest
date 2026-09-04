@@ -39,7 +39,9 @@ jobs:
           # CodeQL also supports cpp, csharp, java, javascript, python, ruby, swift, kotlin
           # Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
           - language: go
-            build-mode: autobuild
+            # 'none' extracts source without building; autobuild chokes on the unbuildable
+            # fake provider modules under integration/testdata
+            build-mode: none
           - language: actions
             build-mode: none
 
@@ -57,6 +59,7 @@ jobs:
           config: |
             paths-ignore:
               - vendor
+              - integration/testdata
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
