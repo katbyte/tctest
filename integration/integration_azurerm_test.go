@@ -244,8 +244,7 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			scenario(t, "api/azurerm", tt.name)
-			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
-			gh.conflicted = conflictedPRs
+			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs, withConflicted(conflictedPRs))
 			tc := newMockTeamCity(t)
 
 			res := runTCTest(t, azurermEnv(gh, tc), tt.args...)
@@ -381,8 +380,7 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			scenario(t, "ast/azurerm", tt.name)
-			gh := newMockGitHub(t, "testdata/azurerm", azurermASTPRs)
-			gh.conflicted = conflictedPRs
+			gh := newMockGitHub(t, "testdata/azurerm", azurermASTPRs, withConflicted(conflictedPRs))
 			tc := newMockTeamCity(t)
 			env := azurermEnv(gh, tc)
 			env["TCTEST_LOCAL_REPO_PATH"] = cloneUpstream(t, azurermUpstream)
@@ -426,8 +424,7 @@ func TestErrorMessages(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			scenario(t, "errors/azurerm", tt.name)
-			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
-			gh.conflicted = conflictedPRs
+			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs, withConflicted(conflictedPRs))
 			tc := newMockTeamCity(t)
 
 			res := runTCTest(t, azurermEnv(gh, tc), tt.args...)
@@ -529,8 +526,7 @@ func TestPrsCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			scenario(t, "prs/azurerm", tt.name)
-			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs)
-			gh.openPRs = openPRs
+			gh := newMockGitHub(t, "testdata/azurerm", azurermPRs, withOpenPRs(openPRs))
 			tc := newMockTeamCity(t)
 
 			res := runTCTest(t, azurermEnv(gh, tc), tt.args...)
