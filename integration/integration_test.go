@@ -52,10 +52,11 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 
-		// build the real binary once
+		// build the real binary once, race-instrumented so a data race in the CLI surfaces as a test failure (the
+		// race runtime prints a report and exits non-zero, which the exit-code and output assertions catch)
 		binPath = filepath.Join(tmp, "tctest")
-		build := exec.CommandContext(context.Background(), "go", "build", "-o", binPath, ".") //nolint:gosec // building the repo's own binary into a temp dir
-		build.Dir = ".."                                                                      // tests run with CWD = the test package dir
+		build := exec.CommandContext(context.Background(), "go", "build", "-race", "-o", binPath, ".") //nolint:gosec // building the repo's own binary into a temp dir
+		build.Dir = ".."                                                                               // tests run with CWD = the test package dir
 		if out, err := build.CombinedOutput(); err != nil {
 			fmt.Fprintf(os.Stderr, "integration test setup: building tctest: %v\n%s\n", err, out)
 			return 1
@@ -186,11 +187,30 @@ type mockGitHub struct {
 	conflicted map[int]bool // PRs served with mergeable=false (and, like real GitHub, a stale merge_commit_sha)
 }
 
-func newMockGitHub(t *testing.T, fixtureDir string, prs []prDef) *mockGitHub {
+// mockGitHubOption configures a mockGitHub before its server starts. The handler goroutines read these fields
+// without locking, so they must be fully populated before httptest.NewServer spawns them — setting them on the
+// returned struct afterwards is a data race the race detector flags even though the binary under test has not
+// connected yet.
+type mockGitHubOption func(*mockGitHub)
+
+// withConflicted marks the given PRs as mergeable=false.
+func withConflicted(conflicted map[int]bool) mockGitHubOption {
+	return func(m *mockGitHub) { m.conflicted = conflicted }
+}
+
+// withOpenPRs sets the list served by GET /repos/{o}/{r}/pulls for the prs command.
+func withOpenPRs(openPRs []listPR) mockGitHubOption {
+	return func(m *mockGitHub) { m.openPRs = openPRs }
+}
+
+func newMockGitHub(t *testing.T, fixtureDir string, prs []prDef, opts ...mockGitHubOption) *mockGitHub {
 	t.Helper()
 	m := &mockGitHub{fixture: fixtureDir, prs: map[int]prDef{}}
 	for _, pr := range prs {
 		m.prs[pr.number] = pr
+	}
+	for _, opt := range opts {
+		opt(m)
 	}
 	m.srv = httptest.NewServer(http.HandlerFunc(m.handle))
 	t.Cleanup(m.srv.Close)

@@ -120,9 +120,9 @@ depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 		(echo; echo "golangci-lint version mismatch: .tools/go.mod has $$modv but .tools/.custom-gcl.yml has $$gclv - update .custom-gcl.yml to match."; exit 1)
 
 ##@ Testing
-test: build ## Run unit and integration tests
-	go test $$(go list ./... | grep -v '/integration$$') -timeout ${TEST_TIMEOUT}
-	@set -o pipefail; go test ./integration/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
+test: build ## Run unit and integration tests under the race detector
+	go test -race $$(go list ./... | grep -v '/integration$$') -timeout ${TEST_TIMEOUT}
+	@set -o pipefail; go test -race ./integration/ -v -timeout ${TEST_TIMEOUT} | grep -vE "^=== |--- PASS|^PASS$$"
 
 check-all: build test lint actionlint yamllint shellcheck depscheck ## Run build + test + all linters + depscheck
 
