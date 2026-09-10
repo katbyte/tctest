@@ -215,7 +215,7 @@ Lists the tests that would be triggered for a PR without actually starting a bui
 ```bash
 tctest list 3232 
 ```
-Defaults work for both AzureRM and AWS out of the box. In most of the cases just set repositry flag.
+Defaults work for both AzureRM and AWS out of the box. In most of the cases just set repository flag.
 
 ```bash
 tctest list 3232 -r hashicorp/terraform-provider-aws
