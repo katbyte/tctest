@@ -3,7 +3,7 @@ extends: default
 
 ignore:
   - vendor/
-  - integration/testdata/
+  - .tools/venv/ # gitignored python venv, yamllint's own bundled configs live in here
 
 rules:
   comments:

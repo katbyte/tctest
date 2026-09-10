@@ -10,10 +10,15 @@ extend-exclude = [
   ".git/",
   ".claude/",
   ".idea/",
-  ".tools/",
-  "vendor/",
-  "go.sum",
-  "integration/testdata/", # copied provider source, not ours to fix (yamllint ignores it too)
+  ".tools/bin/",  # gitignored built tools
+  ".tools/venv/", # gitignored python venv
+  "**/vendor/",   # third-party code, including integration/testdata/azurerm/vendor
+  "**/go.sum",    # hashes
+]
+
+[default]
+extend-ignore-re = [
+  'v\d+\.\d+\.\d+-\d{14}-[0-9a-f]{12}', # go.mod pseudo-versions end in a commit hash typos tries to read
 ]
 
 [default.extend-words]
