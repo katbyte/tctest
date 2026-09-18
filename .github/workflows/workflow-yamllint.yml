@@ -1,4 +1,4 @@
-name: Workflow YAML Lint
+name: workflow YAML lint
 
 # Lints the repo's YAML (workflows, configs) with yamllint; rules live in .yamllint.yml.
 # yamllint is preinstalled on ubuntu-latest and auto-detects GitHub Actions, emitting
