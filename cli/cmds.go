@@ -290,6 +290,82 @@ A test_regex, --all, and --add-tests are mutually exclusive.`,
 
 	root.AddCommand(resultsCmd)
 
+	queueListRunE := func(cmd *cobra.Command, args []string) error {
+		var filter *regexp.Regexp
+		if len(args) == 1 {
+			var err error
+			if filter, err = regexp.Compile(args[0]); err != nil {
+				return fmt.Errorf("invalid regex %q: %w", args[0], err)
+			}
+		}
+
+		cmd.SilenceUsage = true
+
+		return GetFlags().QueueListCmd(filter)
+	}
+
+	queueCmd := &cobra.Command{
+		Use:   "queue",
+		Short: "lists the builds in the TeamCity build queue",
+		Long: `Lists every build in the TeamCity build queue visible to the configured user,
+showing each build's ID, full build configuration name, and branch.`,
+		Args:          cobra.NoArgs,
+		PreRunE:       ValidateParams([]string{"server"}),
+		SilenceErrors: true,
+		RunE:          queueListRunE,
+	}
+
+	queueCmd.AddCommand(&cobra.Command{
+		Use:   "list [regex]",
+		Short: "lists the builds in the TeamCity build queue, optionally only those matching a regex",
+		Long: `Lists the builds in the TeamCity build queue. If a regex is provided, only builds whose
+full build configuration name matches it are listed, ie the name as shown in the queue:
+
+  Development / Mau's Project / Google Beta / Nightly Tests / Service Sweeper
+
+The regex is case-sensitive, prefix it with (?i) to ignore case. Use this to preview
+what "queue remove" will remove.`,
+		Aliases:       []string{"ls"},
+		Args:          cobra.MaximumNArgs(1),
+		PreRunE:       ValidateParams([]string{"server"}),
+		SilenceErrors: true,
+		RunE:          queueListRunE,
+	})
+
+	queueCmd.AddCommand(&cobra.Command{
+		Use:   "remove regex",
+		Short: "removes the builds matching a regex from the TeamCity build queue",
+		Long: `Removes every build from the TeamCity build queue whose full build configuration name
+matches the regex, ie the name as shown in the queue:
+
+  Development / Mau's Project / Google Beta / Nightly Tests / Service Sweeper
+
+The regex is case-sensitive, prefix it with (?i) to ignore case. Matching builds are
+listed and a confirmation is asked for before removing them: use --dry-run to only list
+them, or --force to skip the confirmation. Builds that start running before they are
+removed are skipped, running builds are never stopped.`,
+		Aliases:       []string{"rm"},
+		Args:          cobra.ExactArgs(1),
+		PreRunE:       ValidateParams([]string{"server"}),
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// an empty regex matches every build, which is too easy to do by accident with an unset shell variable
+			if args[0] == "" {
+				return errors.New("regex can't be empty, use '.' to remove every queued build")
+			}
+			filter, err := regexp.Compile(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid regex %q: %w", args[0], err)
+			}
+
+			cmd.SilenceUsage = true
+
+			return GetFlags().QueueRemoveCmd(filter, cmd.InOrStdin())
+		},
+	})
+
+	root.AddCommand(queueCmd)
+
 	if err := configureFlags(root); err != nil {
 		return nil, fmt.Errorf("unable to configure flags: %w", err)
 	}

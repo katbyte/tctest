@@ -262,6 +262,34 @@ tctest results pr 12345 --latest
 tctest results pr 12345 --wait
 ```
 
+### `queue` — List and remove queued builds
+
+Lists the builds waiting in the TeamCity build queue, or removes those matching a regex. The regex is matched against
+each build's full build configuration name as shown in the TeamCity queue, ie
+`Development / Mau's Project / Google Beta / Nightly Tests / Service Sweeper`. It is case-sensitive, prefix it with
+`(?i)` to ignore case.
+
+```bash
+# list every queued build
+tctest queue
+
+# list only the queued builds matching a regex, ie to preview what remove would remove
+tctest queue list "Mau's Project"
+
+# remove the matching builds from the queue, after listing them and asking for confirmation
+tctest queue remove "Mau's Project"
+
+# remove without asking for confirmation, ie from a script
+tctest queue remove "Mau's Project / Google Beta" --force
+
+# only list what would be removed
+tctest queue remove "(?i)sweeper" --dry-run
+```
+
+Removed builds are cancelled with the comment `removed from queue by tctest (matched "<regex>")`, which shows in their
+build history. Builds that start running before tctest gets to them are skipped with a warning, running builds are never
+stopped. With `--quiet`, both commands print one `BUILDID@BUILDTYPEID URL` line per listed or removed build.
+
 ### `version` — Print version
 
 ```bash

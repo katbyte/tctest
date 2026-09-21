@@ -350,29 +350,144 @@ type trigger struct {
 	TestPattern string
 }
 
+// queuedBuild is a build the mock TeamCity serves in its build queue for the queue commands.
+type queuedBuild struct {
+	ID          int
+	BuildTypeID string
+	Name        string
+	ProjectName string
+	Branch      string
+}
+
+// cancel is a queued build removal the mock TeamCity received.
+type cancel struct {
+	ID      int
+	Comment string
+}
+
 type mockTeamCity struct {
-	srv *httptest.Server
+	srv   *httptest.Server
+	queue []queuedBuild // served by GET buildQueue, see withQueue
 
 	mu       sync.Mutex
 	triggers []trigger
 	props    []map[string]string // all properties of each trigger, parallel to triggers
+	cancels  []cancel
 	nextID   int
 }
 
-func newMockTeamCity(t *testing.T) *mockTeamCity {
+// mockTeamCityOption configures a mockTeamCity before its server starts; like mockGitHubOption, the handler goroutines
+// read these fields without locking so they must not change afterwards.
+type mockTeamCityOption func(*mockTeamCity)
+
+// withQueue sets the builds served by GET buildQueue for the queue commands.
+func withQueue(queue []queuedBuild) mockTeamCityOption {
+	return func(m *mockTeamCity) { m.queue = queue }
+}
+
+func newMockTeamCity(t *testing.T, opts ...mockTeamCityOption) *mockTeamCity {
 	t.Helper()
 	m := &mockTeamCity{nextID: 714000}
+	for _, opt := range opts {
+		opt(m)
+	}
 	m.srv = httptest.NewServer(http.HandlerFunc(m.handle))
 	t.Cleanup(m.srv.Close)
 	return m
 }
 
 func (m *mockTeamCity) handle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost || r.URL.Path != "/app/rest/"+tc.DefaultAPIVersion+"/buildQueue" {
+	queuePath := "/app/rest/" + tc.DefaultAPIVersion + "/buildQueue"
+
+	switch {
+	case r.Method == http.MethodPost && r.URL.Path == queuePath:
+		m.handleTrigger(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == queuePath:
+		m.handleQueue(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, queuePath+"/id:"):
+		m.handleCancel(w, r, strings.TrimPrefix(r.URL.Path, queuePath+"/id:"))
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+// handleQueue serves the whole queue as a single page, which ends tctest's paging as it is smaller than a page.
+func (m *mockTeamCity) handleQueue(w http.ResponseWriter, r *http.Request) {
+	type buildType struct {
+		Name        string `xml:"name,attr"`
+		ProjectName string `xml:"projectName,attr"`
+	}
+	type build struct {
+		ID          int       `xml:"id,attr"`
+		BuildTypeID string    `xml:"buildTypeId,attr"`
+		BranchName  string    `xml:"branchName,attr,omitempty"`
+		WebURL      string    `xml:"webUrl,attr"`
+		BuildType   buildType `xml:"buildType"`
+	}
+	resp := struct {
+		XMLName xml.Name `xml:"builds"`
+		Count   int      `xml:"count,attr"`
+		Builds  []build  `xml:"build"`
+	}{Count: len(m.queue)}
+
+	for _, b := range m.queue {
+		resp.Builds = append(resp.Builds, build{
+			ID:          b.ID,
+			BuildTypeID: b.BuildTypeID,
+			BranchName:  b.Branch,
+			WebURL:      fmt.Sprintf("http://%s/build/%d", r.Host, b.ID), // not m.srv.URL, m.srv is assigned after the server starts
+			BuildType:   buildType{Name: b.Name, ProjectName: b.ProjectName},
+		})
+	}
+
+	out, err := xml.Marshal(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/xml")
+	_, _ = w.Write(out)
+}
+
+func (m *mockTeamCity) handleCancel(w http.ResponseWriter, r *http.Request, rawID string) {
+	id, err := strconv.Atoi(rawID)
+	if err != nil || !slices.ContainsFunc(m.queue, func(b queuedBuild) bool { return b.ID == id }) {
 		http.NotFound(w, r)
 		return
 	}
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		XMLName        xml.Name `xml:"buildCancelRequest"`
+		Comment        string   `xml:"comment,attr"`
+		ReaddIntoQueue string   `xml:"readdIntoQueue,attr"`
+	}
+	if err := xml.Unmarshal(body, &req); err != nil || req.ReaddIntoQueue != "false" {
+		http.Error(w, fmt.Sprintf("bad buildCancelRequest xml: %s", body), http.StatusBadRequest)
+		return
+	}
+
+	m.mu.Lock()
+	m.cancels = append(m.cancels, cancel{ID: id, Comment: req.Comment})
+	m.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/xml")
+	_, _ = fmt.Fprintf(w, `<build id="%d" state="finished"/>`, id)
+}
+
+// Cancels returns the queued build removals received, in request order.
+func (m *mockTeamCity) Cancels() []cancel {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.cancels)
+}
+
+func (m *mockTeamCity) handleTrigger(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

@@ -1,3 +1,7 @@
+## Unreleased
+
+- add `queue` command to list the TeamCity build queue, and `queue remove <regex>` to remove the queued builds whose full build configuration name matches a regex (asks for confirmation unless `--force`, supports `--dry-run`)
+
 ## v1.3.3 (2026-09-04)
 
 - fix release signing for the cosign v3 sigstore bundle format: releases now include a `checksums.txt.sigstore.json` bundle ([#133](https://github.com/katbyte/tctest/pull/133))
