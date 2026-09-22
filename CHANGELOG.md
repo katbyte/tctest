@@ -1,9 +1,6 @@
 ## v1.3.4 (2026-09-22)
 
 - bump golang.org/x/text to v0.42.0 for CVE-2026-56852, a hang on invalid UTF-8 input; tctest never calls the affected code, but the binary now scans clean ([#148](https://github.com/katbyte/tctest/pull/148))
-- ci: scan the released binary and a build of main with trivy on every push to main, weekly, and after each release ([#146](https://github.com/katbyte/tctest/pull/146), [#147](https://github.com/katbyte/tctest/pull/147))
-- ci: audit workflows with zizmor, spell check with typos, run tests under the race detector ([#135](https://github.com/katbyte/tctest/pull/135), [#137](https://github.com/katbyte/tctest/pull/137), [#141](https://github.com/katbyte/tctest/pull/141))
-- ci: group dependabot updates into one PR per ecosystem and check monthly ([#143](https://github.com/katbyte/tctest/pull/143), [#144](https://github.com/katbyte/tctest/pull/144))
 
 ## v1.3.3 (2026-09-04)
 
