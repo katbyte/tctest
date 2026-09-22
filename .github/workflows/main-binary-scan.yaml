@@ -32,7 +32,7 @@ jobs:
           tar -xzf release/*.tar.gz -C release
           rm release/*.tar.gz
       # rootfs, not fs: fs mode does not read go binaries. unfixed findings are skipped because nothing can
-      # clear them; anything else triaged out goes in .trivyignore with a reason
+      # clear them; anything else triaged out goes in .github/trivyignore with a reason
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: rootfs
@@ -40,7 +40,7 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          trivyignores: .trivyignore
+          trivyignores: .github/trivyignore
           exit-code: 1
 
   main:
@@ -61,5 +61,5 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          trivyignores: .trivyignore
+          trivyignores: .github/trivyignore
           exit-code: 1
