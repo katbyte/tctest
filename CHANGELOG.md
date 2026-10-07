@@ -1,3 +1,8 @@
+## Unreleased
+
+- support the azurerm resource-per-folder layout (`internal/services/batch/resources/batch_account/{resource,r_create,data_source}.go`, and `actions/` alongside `resources/`): a change to any file in a resource folder now discovers the tests in that folder, and import tracing from helper packages follows into resource folders
+- API discovery lists directories at the PR's merge commit rather than the default branch, so tests are found in directories the PR adds or moves files into
+
 ## v1.3.4 (2026-09-22)
 
 - bump golang.org/x/text to v0.42.0 for CVE-2026-56852, a hang on invalid UTF-8 input; tctest never calls the affected code, but the binary now scans clean ([#148](https://github.com/katbyte/tctest/pull/148))

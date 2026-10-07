@@ -94,7 +94,7 @@ func (ghr GithubRepo) PrTestsFromAPI(pri int, cfg DiscoveryConfig) (map[string][
 	}
 
 	clog.Log.Tracef("listing files...")
-	filesFiltered, err := ghr.GetPullRequestTestFiles(pri, cfg)
+	filesFiltered, err := ghr.GetPullRequestTestFiles(pri, pr.GetMergeCommitSHA(), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get PR files for %s/%s/pull/%d: %w", ghr.Owner, ghr.Name, pri, err)
 	}
@@ -192,7 +192,9 @@ func (f *FlagData) CheckPrCanBuild(number int) error {
 
 // GetPullRequestTestFiles fetches all changed files in a PR and determines the related test files.
 // It classifies files based on the DiscoveryConfig and lists contents of directories containing changed resources to find related tests.
-func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]provider.File, error) {
+// Directories are listed at ref (the PR's merge commit, the same commit file contents are downloaded from) so directories
+// the PR adds or moves files into are seen; an empty ref lists the default branch.
+func (ghr GithubRepo) GetPullRequestTestFiles(pri int, ref string, cfg DiscoveryConfig) ([]provider.File, error) {
 	// track resource files that need sibling test file discovery
 	// key: directory path, value: list of resource prefixes (e.g. "foo")
 	resourcePrefixesByPackage := map[string][]string{}
@@ -280,13 +282,12 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 		client, ctx := ghr.NewClient()
 		for dir, prefixes := range resourcePrefixesByPackage {
 			clog.Log.Debugf("  listing directory %s for related test files...", dir)
-			_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, dir, nil)
+			_, dirContents, _, err := client.Repositories.GetContents(ctx, ghr.Owner, ghr.Name, dir, &github.RepositoryContentGetOptions{Ref: ref})
 			if err != nil {
-				// a directory new in this PR won't exist on the default branch; anything else
-				// would silently drop derived sibling test files
+				// a missing directory is not fatal; anything else would silently drop derived sibling test files
 				var ghErr *github.ErrorResponse
 				if errors.As(err, &ghErr) && ghErr.Response != nil && ghErr.Response.StatusCode == http.StatusNotFound {
-					clog.Log.Debugf("  directory %s not found (new in this PR?), skipping sibling test discovery", dir)
+					clog.Log.Debugf("  directory %s not found, skipping sibling test discovery", dir)
 					continue
 				}
 				return nil, fmt.Errorf("failed to list directory %s for related test files: %w", dir, err)
@@ -294,30 +295,7 @@ func (ghr GithubRepo) GetPullRequestTestFiles(pri int, cfg DiscoveryConfig) ([]p
 
 			for _, entry := range dirContents {
 				pf := provider.NewFile(path.Join(dir, entry.GetName()))
-				if pf.Type != provider.FileTypeTest {
-					continue
-				}
-
-				shouldInclude := false
-				for _, resource := range prefixes {
-					if !strings.HasPrefix(pf.BaseName, resource) {
-						continue
-					}
-
-					remainder := pf.BaseName[len(resource):]
-					for _, testSuffix := range cfg.AccTestFileSuffixRegexes {
-						if testSuffix.MatchString(remainder) {
-							shouldInclude = true
-							break
-						}
-					}
-
-					if shouldInclude {
-						break
-					}
-				}
-
-				if !shouldInclude {
+				if pf.Type != provider.FileTypeTest || !pf.IsTestFor(prefixes, cfg.AccTestFileSuffixRegexes) {
 					continue
 				}
 
