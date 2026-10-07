@@ -115,8 +115,32 @@ func (f *File) InServicePackage() bool {
 // ResourcePrefix returns the prefix used for test file discovery.
 // For "batch_account_resource.go" → "batch_account".
 // For "batch_account_data_source.go" → "batch_account_data_source".
+// Files in a resource folder are matched by folder rather than name, see resourceFolderPrefix.
 func (f *File) ResourcePrefix() string {
+	if InResourceFolder(f.RelPath) {
+		return f.resourceFolderPrefix()
+	}
 	return strings.TrimSuffix(f.BaseName, "_resource")
+}
+
+// IsTestFor returns true if this file's name is one of the resource prefixes followed by an acceptance test file
+// suffix, e.g. "batch_account" + "_resource_test". An empty prefix matches any test file (see ResourcePrefix).
+func (f *File) IsTestFor(prefixes []string, suffixes []*regexp.Regexp) bool {
+	for _, prefix := range prefixes {
+		if prefix == "" {
+			return true
+		}
+		if !strings.HasPrefix(f.BaseName, prefix) {
+			continue
+		}
+		remainder := f.BaseName[len(prefix):]
+		for _, re := range suffixes {
+			if re.MatchString(remainder) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // IsMigrationFile returns true if this file lives inside a known state migration subdirectory

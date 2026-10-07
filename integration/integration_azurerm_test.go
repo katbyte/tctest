@@ -46,6 +46,21 @@ var azurermPRs = []prDef{
 	{1021, "open", "dns bug fix", []changedFile{
 		{"internal/services/dns/dns_a_record_resource.go", "modified", ""},
 	}},
+	{1030, "open", "resource folder: part of the resource changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/r_update.go", "modified", ""},
+	}},
+	{1031, "open", "resource folder: data source changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/data_source.go", "modified", ""},
+	}},
+	{1032, "open", "resource folder: helper package beside the folders changed", []changedFile{
+		{"internal/services/batch/validate/account_name.go", "modified", ""},
+	}},
+	{1033, "open", "action folder changed", []changedFile{
+		{"internal/services/batch/actions/batch_pool_resize/action.go", "modified", ""},
+	}},
+	{1034, "open", "resource folder: test file changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/resource_test.go", "modified", "@@ -26,3 +26,3 @@"},
+	}},
 }
 
 // azurermASTPRs are served for the AST-mode tests; the merge refs for these
@@ -89,6 +104,27 @@ var azurermASTPRs = []prDef{
 	}},
 	{2012, "open", "conflicted pr", []changedFile{
 		{"internal/services/postgres/postgresql_flexible_server_resource_test.go", "modified", ""},
+	}},
+	{2013, "open", "resource folder: part of the resource changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/r_update.go", "modified", ""},
+	}},
+	{2014, "open", "resource folder: data source changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/data_source.go", "modified", ""},
+	}},
+	{2015, "open", "resource folder: helper package beside the folders changed", []changedFile{
+		{"internal/services/batch/validate/account_name.go", "modified", ""},
+	}},
+	{2016, "open", "action folder changed", []changedFile{
+		{"internal/services/batch/actions/batch_pool_resize/action.go", "modified", ""},
+	}},
+	{2017, "open", "resource folder: test file changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/resource_test.go", "modified", "@@ -26,3 +26,3 @@"},
+	}},
+	{2018, "open", "resource folder: two-level helper chain changed", []changedFile{
+		{"internal/services/batch/parse/pool.go", "modified", ""},
+	}},
+	{2019, "open", "resource folder: vendored dependency changed", []changedFile{
+		{"vendor/github.com/hashicorp/go-azure-sdk/resource-manager/batch/2024-07-01/pool/id_pool.go", "modified", ""},
 	}},
 }
 
@@ -233,10 +269,49 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			name: "--service all triggers every service directly",
 			args: []string{"pr", "1001", "--service", "all", "--all"},
 			want: []trigger{
+				{"TF_E2E_BATCH", "refs/pull/1001/merge", "TestAcc"},
 				{"TF_E2E_COSMOS", "refs/pull/1001/merge", "TestAcc"},
 				{"TF_E2E_DNS", "refs/pull/1001/merge", "TestAcc"},
 				{"TF_E2E_POSTGRES", "refs/pull/1001/merge", "TestAcc"},
 			},
+		},
+		{
+			// resource-per-folder layout: files drop the resource name (batch/resources/batch_account/r_update.go), so the
+			// folder rather than a filename prefix ties them to their tests — and the pool folder next door is left alone
+			name: "resource folder file runs every test in its folder",
+			args: []string{"pr", "1030"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1030/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			name: "resource folder data source runs only the data source tests",
+			args: []string{"pr", "1031"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1031/merge", "(TestAccBatchAccountDataSource)"}},
+		},
+		{
+			name:     "helper package beside resource folders is not mistaken for one",
+			args:     []string{"pr", "1032"},
+			want:     nil,
+			wantExit: 1,
+		},
+		{
+			name: "action folder runs the action tests",
+			args: []string{"pr", "1033"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1033/merge", "(TestAccBatchPoolResizeAction)"}},
+		},
+		{
+			name: "resource folder test file runs its tests",
+			args: []string{"pr", "1034"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1034/merge", "(TestAccBatchAccount)"}},
+		},
+		{
+			name: "individual flag narrows resource folder test file to the modified test functions",
+			args: []string{"pr", "1034", "-i"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1034/merge", "(TestAccBatchAccount_update)"}},
+		},
+		{
+			name: "individual flag lists every test in the resource folder by full name",
+			args: []string{"pr", "1030", "-i"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1030/merge", "(TestAccBatchAccountDataSource_basic|TestAccBatchAccount_basic|TestAccBatchAccount_update)"}},
 		},
 	}
 
@@ -373,6 +448,54 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			args:     []string{"pr", "2012"},
 			want:     nil,
 			wantExit: 1,
+		},
+		{
+			name: "resource folder file runs every test in its folder",
+			args: []string{"pr", "2013"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2013/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			name: "resource folder data source runs only the data source tests",
+			args: []string{"pr", "2014"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2014/merge", "(TestAccBatchAccountDataSource)"}},
+		},
+		{
+			// validate.AccountName is only used by batch_account/r_schema.go, so the pool folder is left alone
+			name: "cross-package helper traces into the resource folder using it",
+			args: []string{"pr", "2015"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2015/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			name: "action folder runs the action tests",
+			args: []string{"pr", "2016"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2016/merge", "(TestAccBatchPoolResizeAction)"}},
+		},
+		{
+			name: "resource folder test file runs its tests",
+			args: []string{"pr", "2017"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2017/merge", "(TestAccBatchAccount)"}},
+		},
+		{
+			name: "individual flag narrows resource folder test file to the modified test functions",
+			args: []string{"pr", "2017", "-i"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2017/merge", "(TestAccBatchAccount_update)"}},
+		},
+		{
+			name: "individual flag lists every test in the resource folder by full name",
+			args: []string{"pr", "2013", "-i"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2013/merge", "(TestAccBatchAccountDataSource_basic|TestAccBatchAccount_basic|TestAccBatchAccount_update)"}},
+		},
+		{
+			// parse.PoolID is used by validate.PoolID, which only batch_pool/r_schema.go uses; the account folder
+			// imports the same validate package for a different function — it must NOT be selected
+			name: "two-level helper chain traces into the resource folder using it",
+			args: []string{"pr", "2018"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2018/merge", "(TestAccBatchPool)"}},
+		},
+		{
+			name: "vendored dependency change traces into the resource folder importing it",
+			args: []string{"pr", "2019"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2019/merge", "(TestAccBatchPool)"}},
 		},
 	}
 
