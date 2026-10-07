@@ -1,3 +1,7 @@
+## v1.3.4 (2026-09-22)
+
+- bump golang.org/x/text to v0.42.0 for CVE-2026-56852, a hang on invalid UTF-8 input; tctest never calls the affected code, but the binary now scans clean ([#148](https://github.com/katbyte/tctest/pull/148))
+
 ## v1.3.3 (2026-09-04)
 
 - fix release signing for the cosign v3 sigstore bundle format: releases now include a `checksums.txt.sigstore.json` bundle ([#133](https://github.com/katbyte/tctest/pull/133))
