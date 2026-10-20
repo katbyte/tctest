@@ -10,6 +10,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'vendor/**'
+      - '.go-version'
       - '.github/workflows/pr-govulncheck.yaml'
   schedule:
     - cron: '17 4 * * 1' # weekly, so new CVEs against unchanged code still get flagged
@@ -23,4 +24,5 @@ jobs:
     steps:
       - uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:
+          go-version-input: '' # the action defaults this to the latest Go, which overrides the file and hides bugs in the Go we ship
           go-version-file: ./.go-version

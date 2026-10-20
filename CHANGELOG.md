@@ -1,3 +1,7 @@
+## v1.3.5 (2026-10-20)
+
+- build with Go 1.26.9 for its fixes to the standard library's HTTP and TLS code, mostly ways a misbehaving connection could stall or crash the program (CVE-2026-78667, CVE-2026-78669, CVE-2026-97031 and others); govulncheck finds tctest reaches several of them, and the binary now scans clean ([#152](https://github.com/katbyte/tctest/pull/152))
+
 ## v1.3.4 (2026-09-22)
 
 - bump golang.org/x/text to v0.42.0 for CVE-2026-56852, a hang on invalid UTF-8 input; tctest never calls the affected code, but the binary now scans clean ([#148](https://github.com/katbyte/tctest/pull/148))
