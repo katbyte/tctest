@@ -34,6 +34,10 @@ func DefaultClassifier(f *File) FileType {
 	}
 
 	if strings.HasSuffix(f.RelPath, "_test.go") {
+		if f.isResourceFolderSharedTest() {
+			return FileTypeResource // no tests of its own, only setup for the folder's tests, so a change runs all of them
+		}
+
 		// if we have local path/content, do an in-depth detection for acceptance vs unit test
 		if content, err := f.GetContent(); err == nil {
 			if strings.Contains(string(content), "func TestAcc") {

@@ -353,6 +353,7 @@ Any file directly inside `<service>/resources/<folder>/` or `<service>/actions/<
 
 - a change to `data_source.go`, `list.go`, `action.go` or `ephemeral.go` discovers that file's own tests (`data_source_test.go`, ...)
 - a change to any other file in the folder (`resource.go`, `r_*.go`, shared models) discovers every test file in the folder
+- so does a change to the folder's `test_helpers_test.go`, which holds no tests of its own, only the configs the folder's tests share, or to its `migration/` package
 
 Helper packages such as `parse/` and `validate/` are unaffected, and both layouts can be mixed within a service. The service (and so the build triggered) is still the first directory: `batch`.
 

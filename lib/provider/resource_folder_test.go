@@ -53,6 +53,7 @@ func TestResourceFolderTests(t *testing.T) {
 		{changed: "batch_account.go", prefix: "", tests: folderTests},
 		{changed: "data_source.go", prefix: "data_source", tests: []string{"data_source_test"}},
 		{changed: "list.go", prefix: "list", tests: []string{"list_test"}},
+		{changed: "test_helpers_test.go", prefix: "", tests: folderTests}, // setup the folder's tests share
 	} {
 		f := NewFile(folder + tc.changed)
 		if f.Type != FileTypeResource {
@@ -71,6 +72,29 @@ func TestResourceFolderTests(t *testing.T) {
 		}
 		if !slices.Equal(got, tc.tests) {
 			t.Errorf("%s: matched tests %v, want %v", tc.changed, got, tc.tests)
+		}
+	}
+}
+
+func TestResourceFolderSharedTestsOutsideAFolder(t *testing.T) {
+	t.Parallel()
+
+	// only a resource folder's test_helpers_test.go is setup for the folder; anywhere else it is an ordinary test file
+	if f := NewFile("internal/services/batch/test_helpers_test.go"); f.Type != FileTypeTest {
+		t.Errorf("type = %s, want [TEST]", f.TypeLabel())
+	}
+}
+
+func TestMigrationResourcePrefix(t *testing.T) {
+	t.Parallel()
+
+	for path, want := range map[string]string{
+		"internal/services/storage/migration/storage_queue_v1_to_v2.go":                                                 "storage_queue",
+		"internal/services/appconfiguration/resources/app_configuration_feature/migration/feature_resource_v0_to_v1.go": "", // the folder names the resource
+	} {
+		f := NewFile(path)
+		if got := f.MigrationResourcePrefix(); got != want {
+			t.Errorf("MigrationResourcePrefix(%s) = %q, want %q", path, got, want)
 		}
 	}
 }

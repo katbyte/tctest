@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"path"
 	"slices"
 	"strings"
 )
@@ -17,18 +18,34 @@ var ResourceFolderGroups = []string{"resources", "actions"}
 // shared models) runs every test in the folder.
 var resourceFolderOwnTests = []string{"data_source.go", "list.go", "action.go", "ephemeral.go"}
 
+// resourceFolderSharedTests are the test files in a resource folder that hold no tests, only setup the folder's tests share
+// (test_helpers_test.go holds the configs they build on). They count as part of the resource, so a change to one runs every
+// test in the folder.
+var resourceFolderSharedTests = []string{"test_helpers_test.go"}
+
 // InResourceFolder returns true if relPath sits directly inside a resource folder:
 // internal/services/<service>/<group>/<folder>/<file>, where group is one of ResourceFolderGroups.
 func InResourceFolder(relPath string) bool {
+	return isResourceFolder(path.Dir(relPath))
+}
+
+// isResourceFolder returns true if dir is a resource folder: internal/services/<service>/<group>/<folder>.
+func isResourceFolder(dir string) bool {
 	for _, prefix := range ServiceDirPrefixes {
-		_, rest, found := strings.Cut("/"+relPath, "/"+prefix+"/")
+		_, rest, found := strings.Cut("/"+dir, "/"+prefix+"/")
 		if !found {
 			continue
 		}
-		parts := strings.Split(rest, "/") // <service>/<group>/<folder>/<file>
-		return len(parts) == 4 && slices.Contains(ResourceFolderGroups, parts[1])
+		parts := strings.Split(rest, "/") // <service>/<group>/<folder>
+		return len(parts) == 3 && slices.Contains(ResourceFolderGroups, parts[1])
 	}
 	return false
+}
+
+// isResourceFolderSharedTest returns true if f is a test file holding setup its resource folder's tests share, see
+// resourceFolderSharedTests.
+func (f *File) isResourceFolderSharedTest() bool {
+	return slices.Contains(resourceFolderSharedTests, f.Name) && InResourceFolder(f.RelPath)
 }
 
 // resourceFolderPrefix is ResourcePrefix for a file in a resource folder. The folder already scopes the resource, so only

@@ -1,6 +1,6 @@
 ## Unreleased
 
-- support the azurerm resource-per-folder layout (`internal/services/batch/resources/batch_account/{resource,r_create,data_source}.go`, and `actions/` alongside `resources/`): a change to any file in a resource folder now discovers the tests in that folder, and import tracing from helper packages follows into resource folders
+- support the azurerm resource-per-folder layout (`internal/services/batch/resources/batch_account/{resource,r_create,data_source}.go`, and `actions/` alongside `resources/`): a change to any file in a resource folder, its shared `test_helpers_test.go` or its `migration/` package now discovers the tests in that folder, and import tracing from helper packages follows into resource folders
 - API discovery lists directories at the PR's merge commit rather than the default branch, so tests are found in directories the PR adds or moves files into
 
 ## v1.3.5 (2026-10-20)

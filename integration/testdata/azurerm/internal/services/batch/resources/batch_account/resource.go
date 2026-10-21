@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-provider-azurerm/internal/sdk"
+	"github.com/hashicorp/terraform-provider-azurerm/internal/services/batch/resources/batch_account/migration"
 )
 
 type BatchAccountResource struct{}
@@ -23,4 +24,8 @@ func (r BatchAccountResource) ModelObject() interface{} {
 
 func (r BatchAccountResource) Read() sdk.ResourceFunc {
 	return sdk.ResourceFunc{Timeout: 5 * time.Minute}
+}
+
+func (r BatchAccountResource) StateUpgraders() []interface{} {
+	return []interface{}{migration.AccountV0ToV1{}}
 }

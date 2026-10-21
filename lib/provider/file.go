@@ -5,6 +5,7 @@ package provider
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -152,7 +153,12 @@ func (f *File) IsMigrationFile() bool {
 // MigrationResourcePrefix extracts the resource name from a migration filename by stripping
 // the version-transition suffix (e.g. "_v0_to_v1").
 // For "storage_queue_v1_to_v2" -> "storage_queue".
+// A migration package inside a resource folder returns "", every test in that folder, as the folder already names the resource.
 func (f *File) MigrationResourcePrefix() string {
+	if isResourceFolder(path.Dir(path.Dir(f.RelPath))) {
+		return ""
+	}
+
 	return regexp.MustCompile(`_v\d+_to_v\d+$`).ReplaceAllString(f.BaseName, "")
 }
 

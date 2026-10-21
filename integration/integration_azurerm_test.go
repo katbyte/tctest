@@ -61,6 +61,12 @@ var azurermPRs = []prDef{
 	{1034, "open", "resource folder: test file changed", []changedFile{
 		{"internal/services/batch/resources/batch_account/resource_test.go", "modified", "@@ -26,3 +26,3 @@"},
 	}},
+	{1035, "open", "resource folder: shared test setup changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/test_helpers_test.go", "modified", ""},
+	}},
+	{1036, "open", "resource folder: state migration changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/migration/account_resource_v0_to_v1.go", "modified", ""},
+	}},
 }
 
 // azurermASTPRs are served for the AST-mode tests; the merge refs for these
@@ -125,6 +131,12 @@ var azurermASTPRs = []prDef{
 	}},
 	{2019, "open", "resource folder: vendored dependency changed", []changedFile{
 		{"vendor/github.com/hashicorp/go-azure-sdk/resource-manager/batch/2024-07-01/pool/id_pool.go", "modified", ""},
+	}},
+	{2020, "open", "resource folder: shared test setup changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/test_helpers_test.go", "modified", ""},
+	}},
+	{2021, "open", "resource folder: state migration changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/migration/account_resource_v0_to_v1.go", "modified", ""},
 	}},
 }
 
@@ -313,6 +325,18 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			args: []string{"pr", "1030", "-i"},
 			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1030/merge", "(TestAccBatchAccountDataSource_basic|TestAccBatchAccount_basic|TestAccBatchAccount_update)"}},
 		},
+		{
+			// test_helpers_test.go has no tests of its own, only the config the folder's tests build on
+			name: "resource folder shared test setup runs every test in its folder",
+			args: []string{"pr", "1035"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1035/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			// the migration's file name (account_resource_v0_to_v1.go) does not match the folder's test file names, the folder does
+			name: "resource folder state migration runs every test in its folder",
+			args: []string{"pr", "1036"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1036/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
 	}
 
 	for _, tt := range cases {
@@ -496,6 +520,17 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			name: "vendored dependency change traces into the resource folder importing it",
 			args: []string{"pr", "2019"},
 			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2019/merge", "(TestAccBatchPool)"}},
+		},
+		{
+			name: "resource folder shared test setup runs every test in its folder",
+			args: []string{"pr", "2020"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2020/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			// traced through resource.go, which imports the migration package
+			name: "resource folder state migration runs every test in its folder",
+			args: []string{"pr", "2021"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2021/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
 		},
 	}
 
