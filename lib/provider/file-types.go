@@ -10,7 +10,7 @@ type FileType int
 
 const (
 	FileTypeOther    FileType = iota // outside service directories
-	FileTypeResource                 // matches fileregex (resource or data source at service root)
+	FileTypeResource                 // matches fileregex (resource or data source at service root), or lives in a resource folder
 	FileTypeHelper                   // in service dir but doesn't match fileregex (e.g. parse/, validate/, client/)
 	FileTypeTest                     // _test.go with TestAcc functions
 	FileTypeUnitTest                 // _test.go without TestAcc functions
@@ -34,6 +34,10 @@ func DefaultClassifier(f *File) FileType {
 	}
 
 	if strings.HasSuffix(f.RelPath, "_test.go") {
+		if f.isResourceFolderSharedTest() {
+			return FileTypeResource // no tests of its own, only setup for the folder's tests, so a change runs all of them
+		}
+
 		// if we have local path/content, do an in-depth detection for acceptance vs unit test
 		if content, err := f.GetContent(); err == nil {
 			if strings.Contains(string(content), "func TestAcc") {
@@ -49,6 +53,9 @@ func DefaultClassifier(f *File) FileType {
 	}
 
 	if f.InServicePackage() {
+		if InResourceFolder(f.RelPath) {
+			return FileTypeResource
+		}
 		if strings.HasSuffix(f.Name, "_resource.go") || strings.HasSuffix(f.Name, "_data_source.go") {
 			return FileTypeResource
 		}
