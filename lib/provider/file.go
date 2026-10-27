@@ -115,8 +115,32 @@ func (f *File) InServicePackage() bool {
 // ResourcePrefix returns the prefix used for test file discovery.
 // For "batch_account_resource.go" → "batch_account".
 // For "batch_account_data_source.go" → "batch_account_data_source".
+// Files in a resource folder are matched by folder rather than name, see resourceFolderPrefix.
 func (f *File) ResourcePrefix() string {
+	if InResourceFolder(f.RelPath) {
+		return f.resourceFolderPrefix()
+	}
 	return strings.TrimSuffix(f.BaseName, "_resource")
+}
+
+// IsTestFor returns true if this file's name is one of the resource prefixes followed by an acceptance test file
+// suffix, e.g. "batch_account" + "_resource_test". An empty prefix matches any test file (see ResourcePrefix).
+func (f *File) IsTestFor(prefixes []string, suffixes []*regexp.Regexp) bool {
+	for _, prefix := range prefixes {
+		if prefix == "" {
+			return true
+		}
+		if !strings.HasPrefix(f.BaseName, prefix) {
+			continue
+		}
+		remainder := f.BaseName[len(prefix):]
+		for _, re := range suffixes {
+			if re.MatchString(remainder) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // IsMigrationFile returns true if this file lives inside a known state migration subdirectory
@@ -128,7 +152,12 @@ func (f *File) IsMigrationFile() bool {
 // MigrationResourcePrefix extracts the resource name from a migration filename by stripping
 // the version-transition suffix (e.g. "_v0_to_v1").
 // For "storage_queue_v1_to_v2" -> "storage_queue".
+// A migration package inside a resource folder returns "", every test in that folder, as the folder already names the resource.
 func (f *File) MigrationResourcePrefix() string {
+	if BelowResourceFolder(f.RelPath) {
+		return ""
+	}
+
 	return regexp.MustCompile(`_v\d+_to_v\d+$`).ReplaceAllString(f.BaseName, "")
 }
 

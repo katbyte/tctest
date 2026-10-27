@@ -337,6 +337,28 @@ When no test regex is provided, `tctest` automatically discovers tests by:
 
 Files in `/client/`, `/parse/`, `/validate/` subdirectories and `registration.go`/`resourceids.go` are automatically skipped. Deleted files are also excluded.
 
+### Resource Folders
+
+The azurerm resource-per-folder layout gives each resource (or action) its own package under `resources/` (or `actions/`) in the service, and drops the resource name from the file names:
+
+```
+internal/services/batch/resources/batch_account/
+    resource.go  r_create.go  r_schema.go  data_source.go  list.go
+    resource_test.go  resource_identity_gen_test.go  data_source_test.go  list_test.go
+internal/services/managedredis/actions/managed_redis_flush_databases/
+    action.go  action_test.go
+```
+
+Any file directly inside `<service>/resources/<folder>/` or `<service>/actions/<folder>/` belongs to that folder's resource. Since the file names no longer say which resource they belong to, the folder does:
+
+- a change to `data_source.go`, `list.go`, `action.go` or `ephemeral.go` discovers that file's own tests (`data_source_test.go`, ...)
+- a change to any other file in the folder (`resource.go`, `r_*.go`, shared models) discovers every test file in the folder
+- so does a change to the folder's `test_helpers_test.go`, which holds no tests of its own, only the configs the folder's tests share, or to its `migration/` package
+
+Helper packages such as `parse/` and `validate/` are unaffected, and both layouts can be mixed within a service. The service (and so the build triggered) is still the first directory: `batch`.
+
+Inside a resource folder the layout decides, not `--fileregex` or the file name: azurerm's regex matches every file under `resources/`, and a migration file may be called `notification_hub_resource.go`; neither turns a `migration/` file into a resource file whose own directory is searched for tests.
+
 ### Test Output
 
 Discovered tests are grouped by service and displayed with padded service names for alignment:

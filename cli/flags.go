@@ -333,7 +333,9 @@ func GetFlags() *FlagData {
 	// Set the global File classifier using the configured regex
 	provider.Classifier = func(file *provider.File) provider.FileType {
 		t := provider.DefaultClassifier(file)
-		if t == provider.FileTypeHelper && f.DiscoveryConfig.FileRegEx != nil && f.DiscoveryConfig.FileRegEx.MatchString(file.RelPath) {
+		// the regex never promotes a package nested inside a resource folder (its migration/): those stay helpers so the folder's
+		// tests are reached through them, and azurerm's regex is loose enough to match everything under resources/
+		if t == provider.FileTypeHelper && f.DiscoveryConfig.FileRegEx != nil && f.DiscoveryConfig.FileRegEx.MatchString(file.RelPath) && !provider.BelowResourceFolder(file.RelPath) {
 			return provider.FileTypeResource
 		}
 		return t

@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 
 		// build the git upstreams used by the AST-mode tests
 		azurermUpstream = filepath.Join(tmp, "azurerm-upstream")
-		if err := buildGitUpstream("testdata/azurerm", azurermUpstream, 2000, 2020); err != nil {
+		if err := buildGitUpstream("testdata/azurerm", azurermUpstream, 2000, 2025); err != nil {
 			fmt.Fprintf(os.Stderr, "integration test setup: git fixture: %v\n", err)
 			return 1
 		}
