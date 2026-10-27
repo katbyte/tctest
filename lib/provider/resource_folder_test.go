@@ -30,6 +30,40 @@ func TestInResourceFolder(t *testing.T) {
 	}
 }
 
+func TestBelowResourceFolder(t *testing.T) {
+	t.Parallel()
+
+	for path, want := range map[string]bool{
+		"internal/services/batch/resources/batch_account/migration/account_resource_v0_to_v1.go": true,
+		"internal/services/managedredis/actions/managed_redis_flush_databases/helpers/flush.go":  true,
+
+		"internal/services/batch/resources/batch_account/resource.go":   false, // in the folder, not below it
+		"internal/services/storage/migration/storage_queue_v1_to_v2.go": false, // flat layout
+		"internal/services/batch/resources/helpers.go":                  false, // in the group but not in a folder
+		"internal/services/batch/validate/account_name.go":              false, // helper package beside the folders
+	} {
+		if got := BelowResourceFolder(path); got != want {
+			t.Errorf("BelowResourceFolder(%s) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestBelowResourceFolderIsAHelper(t *testing.T) {
+	t.Parallel()
+
+	// a package nested in a resource folder is a helper of that resource whatever its files are called, so the folder's tests
+	// are found through it rather than beside it
+	for _, path := range []string{
+		"internal/services/batch/resources/batch_account/migration/account_resource_v0_to_v1.go",
+		"internal/services/notificationhub/resources/notification_hub/migration/notification_hub_resource.go", // the _resource.go rule would claim it
+		"internal/services/appservice/resources/windows_web_app/migration/windows_web_app.go",
+	} {
+		if f := NewFile(path); f.Type != FileTypeHelper {
+			t.Errorf("%s: type = %s, want [HELPER]", path, f.TypeLabel())
+		}
+	}
+}
+
 func TestResourceFolderTests(t *testing.T) {
 	t.Parallel()
 
@@ -91,6 +125,7 @@ func TestMigrationResourcePrefix(t *testing.T) {
 	for path, want := range map[string]string{
 		"internal/services/storage/migration/storage_queue_v1_to_v2.go":                                                 "storage_queue",
 		"internal/services/appconfiguration/resources/app_configuration_feature/migration/feature_resource_v0_to_v1.go": "", // the folder names the resource
+		"internal/services/notificationhub/resources/notification_hub/migration/notification_hub_resource.go":           "",
 	} {
 		f := NewFile(path)
 		if got := f.MigrationResourcePrefix(); got != want {

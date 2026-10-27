@@ -29,6 +29,18 @@ func InResourceFolder(relPath string) bool {
 	return isResourceFolder(path.Dir(relPath))
 }
 
+// BelowResourceFolder returns true if relPath sits in a package nested inside a resource folder, like its migration/ package:
+// internal/services/<service>/<group>/<folder>/<package>/<file>. The file belongs to that resource, but its tests sit up in
+// the folder, not beside it, so it is never a resource file itself whatever the file regex says.
+func BelowResourceFolder(relPath string) bool {
+	for dir := path.Dir(path.Dir(relPath)); dir != "." && dir != "/"; dir = path.Dir(dir) {
+		if isResourceFolder(dir) {
+			return true
+		}
+	}
+	return false
+}
+
 // isResourceFolder returns true if dir is a resource folder: internal/services/<service>/<group>/<folder>.
 func isResourceFolder(dir string) bool {
 	for _, prefix := range ServiceDirPrefixes {

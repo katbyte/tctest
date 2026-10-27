@@ -310,7 +310,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 
 				// if we have no symbol info, fall back to package-level matching
 				if len(symbols) == 0 {
-					if dc.isResourceFile(relPath) {
+					if isResourceFile(relPath) {
 						dir := filepath.ToSlash(filepath.Dir(relPath))
 						result[dir] = append(result[dir], relPath)
 						clog.Log.Debugf("    traced: %s imports %s (depth %d, package-level)", relPath, pkgPath, depth+1)
@@ -350,7 +350,7 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 				}
 
 				// this file uses a changed symbol
-				if dc.isResourceFile(relPath) {
+				if isResourceFile(relPath) {
 					// it's a resource file — add to results
 					dir := filepath.ToSlash(filepath.Dir(relPath))
 					result[dir] = append(result[dir], relPath)
@@ -378,10 +378,11 @@ func (dc *AstDiscoveryContext) traceImportsToResourceFiles(helperFiles []provide
 	return result
 }
 
-// isResourceFile returns true if the repo-relative path is a file whose sibling tests should run when it is affected:
-// it matches the fileregex (resource at the service root), or it lives in a resource folder.
-func (dc *AstDiscoveryContext) isResourceFile(relPath string) bool {
-	return dc.Config.FileRegEx.MatchString(relPath) || provider.InResourceFolder(relPath)
+// isResourceFile returns true if the repo-relative path is a file whose sibling tests should run when it is affected: one the
+// classifier calls a resource, as it matches the fileregex at the service root or lives in a resource folder. A package nested
+// inside a folder (migration/) is a helper, so tracing carries on through it to the folder.
+func isResourceFile(relPath string) bool {
+	return provider.NewFile(relPath).Type == provider.FileTypeResource
 }
 
 func (dc *AstDiscoveryContext) SortedTestFiles() []*provider.File {
@@ -499,7 +500,7 @@ func (dc *AstDiscoveryContext) TraceHelperFiles(helperFiles []provider.File) {
 		if entries, err := os.ReadDir(filepath.Join(dc.RepoPath, dir)); err == nil {
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") {
-					if dc.isResourceFile(filepath.ToSlash(filepath.Join(dir, entry.Name()))) {
+					if isResourceFile(filepath.ToSlash(filepath.Join(dir, entry.Name()))) {
 						isSamePkg = true
 						break
 					}
@@ -547,7 +548,7 @@ func (dc *AstDiscoveryContext) TraceHelperFiles(helperFiles []provider.File) {
 				continue
 			}
 			relPath := filepath.ToSlash(filepath.Join(dir, entry.Name()))
-			if !dc.isResourceFile(relPath) {
+			if !isResourceFile(relPath) {
 				continue
 			}
 
@@ -729,7 +730,7 @@ func (dc *AstDiscoveryContext) TraceVendorFiles(vendorFiles []provider.File) {
 			}
 			relPath = filepath.ToSlash(relPath)
 
-			if !dc.isResourceFile(relPath) {
+			if !isResourceFile(relPath) {
 				return nil
 			}
 

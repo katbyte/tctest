@@ -11,7 +11,7 @@ type FileType int
 const (
 	FileTypeOther    FileType = iota // outside service directories
 	FileTypeResource                 // matches fileregex (resource or data source at service root), or lives in a resource folder
-	FileTypeHelper                   // in service dir but doesn't match fileregex (e.g. parse/, validate/, client/)
+	FileTypeHelper                   // in service dir but doesn't match fileregex (e.g. parse/, validate/, client/), or nested in a resource folder (migration/)
 	FileTypeTest                     // _test.go with TestAcc functions
 	FileTypeUnitTest                 // _test.go without TestAcc functions
 	FileTypeVendor                   // under vendor/
@@ -55,6 +55,9 @@ func DefaultClassifier(f *File) FileType {
 	if f.InServicePackage() {
 		if InResourceFolder(f.RelPath) {
 			return FileTypeResource
+		}
+		if BelowResourceFolder(f.RelPath) {
+			return FileTypeHelper // a package nested in a resource folder (migration/) is a helper of that resource whatever its files are called
 		}
 		if strings.HasSuffix(f.Name, "_resource.go") || strings.HasSuffix(f.Name, "_data_source.go") {
 			return FileTypeResource

@@ -2,7 +2,6 @@ package integration
 
 import (
 	"encoding/json"
-	"maps"
 	"regexp"
 	"strings"
 	"testing"
@@ -66,6 +65,9 @@ var azurermPRs = []prDef{
 	}},
 	{1036, "open", "resource folder: state migration changed", []changedFile{
 		{"internal/services/batch/resources/batch_account/migration/account_resource_v0_to_v1.go", "modified", ""},
+	}},
+	{1037, "open", "resource folder: state migration named like a resource changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/migration/account_resource.go", "modified", ""},
 	}},
 }
 
@@ -138,6 +140,9 @@ var azurermASTPRs = []prDef{
 	{2021, "open", "resource folder: state migration changed", []changedFile{
 		{"internal/services/batch/resources/batch_account/migration/account_resource_v0_to_v1.go", "modified", ""},
 	}},
+	{2022, "open", "resource folder: state migration named like a resource changed", []changedFile{
+		{"internal/services/batch/resources/batch_account/migration/account_resource.go", "modified", ""},
+	}},
 }
 
 // conflictedPRs marks the PR numbers the mock serves with mergeable=false
@@ -151,6 +156,9 @@ func azurermEnv(gh *mockGitHub, tc *mockTeamCity) map[string]string {
 		"TCTEST_GITHUB_RAW_URL": gh.rawURL(),
 		// azurerm-style per-service build configurations
 		"TCTEST_BUILD_TYPE_ID_ADD_SERVICE_SUFFIX": "true",
+		// azurerm's own file regex (teamcity-run-tests-on-comment.yaml): it also matches everything under resources/, so the
+		// resource folder cases run against the regex they will meet in production
+		"TCTEST_FILEREGEX": `internal/services/[a-z]*/[_a-zA-Z]*(resource|data_source)`,
 	}
 }
 
@@ -332,10 +340,17 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1035/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
 		},
 		{
-			// the migration's file name (account_resource_v0_to_v1.go) does not match the folder's test file names, the folder does
+			// the migration's file name (account_resource_v0_to_v1.go) does not match the folder's test file names, the folder does;
+			// azurerm's regex matches the file too, which must not turn it into a resource file with no tests beside it
 			name: "resource folder state migration runs every test in its folder",
 			args: []string{"pr", "1036"},
 			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1036/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			// azurerm names some of these account_resource.go, which the _resource.go rule would take for a resource file
+			name: "resource folder state migration named like a resource runs every test in its folder",
+			args: []string{"pr", "1037"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/1037/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
 		},
 	}
 
@@ -361,22 +376,17 @@ func TestAPIDiscoveryAzureRM(t *testing.T) {
 func TestASTDiscoveryAzureRM(t *testing.T) {
 	t.Parallel()
 
-	// matches only resource/data-source files directly in a service dir, so the
-	// shared dns ipv6_address.go helper stays a helper (the default regex would claim it)
-	const narrowFileRegex = `^internal/services/[a-z]+/[a-z0-9_]+(resource|data_source)\.go$`
-
 	cases := []struct {
 		name     string
 		args     []string
-		extra    map[string]string
 		want     []trigger
 		wantExit int
 	}{
 		{
-			name:  "same-package helper traces to resources using its symbols",
-			args:  []string{"pr", "2001"},
-			extra: map[string]string{"TCTEST_FILEREGEX": narrowFileRegex},
-			want:  []trigger{{"TF_E2E_DNS", "refs/pull/2001/merge", "(TestAccDataSourceDnsAAAARecord|TestAccDnsAAAARecord)"}},
+			// the shared dns ipv6_address.go helper stays a helper under azurerm's regex (the default regex would claim it)
+			name: "same-package helper traces to resources using its symbols",
+			args: []string{"pr", "2001"},
+			want: []trigger{{"TF_E2E_DNS", "refs/pull/2001/merge", "(TestAccDataSourceDnsAAAARecord|TestAccDnsAAAARecord)"}},
 		},
 		{
 			name: "cross-package helper traces through import symbol usage",
@@ -527,10 +537,17 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2020/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
 		},
 		{
-			// traced through resource.go, which imports the migration package
+			// traced through resource.go, which imports the migration package; azurerm's regex matches the migration file too, which
+			// must not make it a resource file whose own directory is searched for tests instead
 			name: "resource folder state migration runs every test in its folder",
 			args: []string{"pr", "2021"},
 			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2021/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
+		},
+		{
+			// azurerm names some of these account_resource.go, which the _resource.go rule would take for a resource file
+			name: "resource folder state migration named like a resource runs every test in its folder",
+			args: []string{"pr", "2022"},
+			want: []trigger{{"TF_E2E_BATCH", "refs/pull/2022/merge", "(TestAccBatchAccount|TestAccBatchAccountDataSource)"}},
 		},
 	}
 
@@ -542,7 +559,6 @@ func TestASTDiscoveryAzureRM(t *testing.T) {
 			tc := newMockTeamCity(t)
 			env := azurermEnv(gh, tc)
 			env["TCTEST_LOCAL_REPO_PATH"] = cloneUpstream(t, azurermUpstream)
-			maps.Copy(env, tt.extra)
 
 			res := runTCTest(t, env, tt.args...)
 			if res.exitCode != tt.wantExit {

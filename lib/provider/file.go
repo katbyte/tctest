@@ -5,7 +5,6 @@ package provider
 import (
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -155,7 +154,7 @@ func (f *File) IsMigrationFile() bool {
 // For "storage_queue_v1_to_v2" -> "storage_queue".
 // A migration package inside a resource folder returns "", every test in that folder, as the folder already names the resource.
 func (f *File) MigrationResourcePrefix() string {
-	if isResourceFolder(path.Dir(path.Dir(f.RelPath))) {
+	if BelowResourceFolder(f.RelPath) {
 		return ""
 	}
 

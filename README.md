@@ -357,6 +357,8 @@ Any file directly inside `<service>/resources/<folder>/` or `<service>/actions/<
 
 Helper packages such as `parse/` and `validate/` are unaffected, and both layouts can be mixed within a service. The service (and so the build triggered) is still the first directory: `batch`.
 
+Inside a resource folder the layout decides, not `--fileregex` or the file name: azurerm's regex matches every file under `resources/`, and a migration file may be called `notification_hub_resource.go`; neither turns a `migration/` file into a resource file whose own directory is searched for tests.
+
 ### Test Output
 
 Discovered tests are grouped by service and displayed with padded service names for alignment:

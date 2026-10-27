@@ -27,5 +27,5 @@ func (r BatchAccountResource) Read() sdk.ResourceFunc {
 }
 
 func (r BatchAccountResource) StateUpgraders() []interface{} {
-	return []interface{}{migration.AccountV0ToV1{}}
+	return []interface{}{migration.AccountV0ToV1{}, migration.AccountV1ToV2{}}
 }
